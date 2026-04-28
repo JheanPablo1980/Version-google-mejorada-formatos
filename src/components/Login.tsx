@@ -3,6 +3,48 @@ import { LogIn, ShieldAlert, Users, Info, ChevronRight, FileText, Camera, Databa
 import { useAppStore } from '../store/useAppStore';
 import { motion } from 'motion/react';
 
+const FeatureCard = ({ icon, title, description, delay }: any) => (
+  <motion.div 
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ delay }}
+    className="bg-white p-8 rounded-[2rem] shadow-lg border border-gray-100 hover:shadow-2xl hover:-translate-y-1 transition-all group"
+  >
+    <div className="bg-slate-50 w-14 h-14 rounded-2xl flex items-center justify-center text-blue-600 mb-6 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+      {icon}
+    </div>
+    <h3 className="text-lg font-bold text-slate-800 mb-3">{title}</h3>
+    <p className="text-slate-500 text-sm leading-relaxed font-medium">
+      {description}
+    </p>
+  </motion.div>
+);
+
+const CapabilityItem = ({ title, text }: any) => (
+  <div className="flex gap-4">
+    <div className="mt-1 bg-blue-100 p-1 rounded-full h-fit">
+      <div className="bg-blue-600 w-2 h-2 rounded-full"></div>
+    </div>
+    <div>
+      <h4 className="font-bold text-slate-800 text-base">{title}</h4>
+      <p className="text-slate-500 text-sm font-medium">{text}</p>
+    </div>
+  </div>
+);
+
+const DevLoginButton = ({ onClick, icon, title, bg }: any) => (
+  <button 
+    onClick={onClick}
+    className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-200 hover:border-blue-400 hover:shadow-sm transition-all text-left w-full group"
+  >
+    <div className={`${bg} p-2 rounded-lg`}>
+      {icon}
+    </div>
+    <span className="text-xs font-bold text-slate-700 flex-1">{title}</span>
+    <ChevronRight size={14} className="text-slate-300 group-hover:text-blue-500 transition-colors" />
+  </button>
+);
+
 export const Login: React.FC = () => {
   const { signIn, devLogin } = useAppStore();
 
@@ -16,7 +58,6 @@ export const Login: React.FC = () => {
 
         <div className="max-w-7xl mx-auto px-6 pt-16 pb-24 relative z-10">
           <motion.div 
-            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-col items-center text-center space-y-6"
           >
@@ -133,46 +174,4 @@ export const Login: React.FC = () => {
     </div>
   );
 };
-
-const FeatureCard = ({ icon, title, description, delay }: any) => (
-  <motion.div 
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ delay }}
-    className="bg-white p-8 rounded-[2rem] shadow-lg border border-gray-100 hover:shadow-2xl hover:-translate-y-1 transition-all group"
-  >
-    <div className="bg-slate-50 w-14 h-14 rounded-2xl flex items-center justify-center text-blue-600 mb-6 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-      {icon}
-    </div>
-    <h3 className="text-lg font-bold text-slate-800 mb-3">{title}</h3>
-    <p className="text-slate-500 text-sm leading-relaxed font-medium">
-      {description}
-    </p>
-  </motion.div>
-);
-
-const CapabilityItem = ({ title, text }: any) => (
-  <div className="flex gap-4">
-    <div className="mt-1 bg-blue-100 p-1 rounded-full h-fit">
-      <div className="bg-blue-600 w-2 h-2 rounded-full"></div>
-    </div>
-    <div>
-      <h4 className="font-bold text-slate-800 text-base">{title}</h4>
-      <p className="text-slate-500 text-sm font-medium">{text}</p>
-    </div>
-  </div>
-);
-
-const DevLoginButton = ({ onClick, icon, title, bg }: any) => (
-  <button 
-    onClick={onClick}
-    className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-200 hover:border-blue-400 hover:shadow-sm transition-all text-left w-full group"
-  >
-    <div className={`${bg} p-2 rounded-lg`}>
-      {icon}
-    </div>
-    <span className="text-xs font-bold text-slate-700 flex-1">{title}</span>
-    <ChevronRight size={14} className="text-slate-300 group-hover:text-blue-500 transition-colors" />
-  </button>
-);
 

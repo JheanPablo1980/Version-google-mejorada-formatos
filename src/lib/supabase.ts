@@ -4,7 +4,7 @@ let supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 // Sanitización automática de la URL
-if (supabaseUrl) {
+if (supabaseUrl && supabaseUrl.startsWith('http')) {
   // Eliminar espacios
   supabaseUrl = supabaseUrl.trim();
   // Eliminar barra final si existe
@@ -17,8 +17,12 @@ if (supabaseUrl) {
   }
 }
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('Configuración de Supabase incompleta. Revisa el panel de Secrets.');
+if (!supabaseUrl || !supabaseUrl.startsWith('http') || !supabaseAnonKey) {
+  console.warn('Configuración de Supabase incompleta o inválida. Revisa el panel de Secrets.');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Inicialización segura para evitar colapso del módulo si las variables faltan o son inválidas
+export const supabase = createClient(
+  supabaseUrl && supabaseUrl.startsWith('http') ? supabaseUrl : 'https://placeholder.supabase.co', 
+  supabaseAnonKey || 'placeholder'
+);

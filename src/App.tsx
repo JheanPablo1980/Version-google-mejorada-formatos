@@ -18,7 +18,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('perfiles');
 
   useEffect(() => { 
-    loadData(); 
+    loadData().catch(err => console.error('Error loading data:', err)); 
   }, [loadData]);
 
   if (!session) {
@@ -82,7 +82,6 @@ export default function App() {
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
-            initial={{ opacity: 0, x: 10 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -10 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
