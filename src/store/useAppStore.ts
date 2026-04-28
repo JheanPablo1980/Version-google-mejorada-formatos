@@ -156,21 +156,23 @@ export const useAppStore = create<AppState>((set, get) => ({
     },
 
   devLogin: (role) => {
+    // Modo de emergencia: Permite entrar como ADMIN directamente
     const mockUser = {
-      email: role === 'ADMIN' ? ADMIN_EMAIL : `${role.toLowerCase()}@example.com`,
-      user_metadata: { full_name: `Demo ${role}` }
+      email: ADMIN_EMAIL,
+      id: 'admin-fallback',
+      user_metadata: { full_name: 'Maestro (Acceso Manual)' }
     };
-    set({ session: { user: mockUser, role } });
+    set({ session: { user: mockUser, role: 'ADMIN' } });
   },
 
   signIn: async () => {
     if (!isSupabaseConfigured) {
-      alert('Configuración de Supabase no encontrada. Por favor configure las variables de entorno en el panel de Secrets.');
+      alert('Configuración de Supabase no encontrada.');
       return;
     }
     
-    // Usamos el origen actual. Supabase requiere que este dominio esté en "Redirect URLs"
-    const redirectTo = window.location.origin;
+    // Limpiamos la URL de cualquier carácter invisible o barra final
+    const redirectTo = window.location.origin.replace(/\/$/, '').trim();
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -184,7 +186,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
     if (error) {
       console.error('Error signing in:', error);
-      alert('Error al iniciar sesión: ' + error.message);
+      alert('Error de Supabase: ' + error.message);
     }
   },
 

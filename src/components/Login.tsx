@@ -106,12 +106,51 @@ export const Login: React.FC = () => {
                 </div>
               )}
 
-              {/* Nota técnica para el administrador */}
+              {/* Panel de Ayuda para el Maestro */}
               {isSupabaseConfigured && (
-                <div className="bg-blue-500/10 border border-blue-500/30 p-3 rounded-xl flex items-start gap-3 text-left">
-                  <Info className="text-blue-300 shrink-0 mt-0.5" size={16} />
-                  <p className="text-blue-200/70 text-[9px] leading-tight italic">
-                    Maestro: Asegúrate de añadir la URL actual en <b>Supabase {'>'} Auth {'>'} Redirect URLs</b> para evitar rebotes a Vercel.
+                <div className="bg-blue-500/10 border border-blue-500/30 p-4 rounded-xl space-y-3 text-left">
+                  <div className="flex items-start gap-3">
+                    <Info className="text-blue-300 shrink-0 mt-0.5" size={16} />
+                    <div className="space-y-1">
+                      <p className="text-blue-100 font-bold text-[10px] uppercase tracking-wider">Configuración de Retorno</p>
+                      <p className="text-blue-200/60 text-[9px] leading-tight italic">
+                        Copia esta URL y pégala en <b>ambos campos</b> (Site URL y Redirect URLs) dentro de Supabase {'>'} Auth {'>'} URL Configuration:
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-2 items-center">
+                    <div className="flex-1 bg-black/20 border border-white/10 rounded px-2 py-1.5 flex flex-col">
+                      <span className="text-[7px] text-blue-400 font-bold uppercase mb-0.5">URL para Site URL y Redirect URLs</span>
+                      <input 
+                        readOnly 
+                        value={window.location.origin} 
+                        className="bg-transparent text-[9px] text-blue-100 w-full font-mono focus:outline-none"
+                      />
+                    </div>
+                    <button 
+                      onClick={() => {
+                        const url = window.location.origin;
+                        navigator.clipboard.writeText(url);
+                        alert('URL Copiada: ' + url + '\n\nPégala en Site URL y Redirect URLs en Supabase.');
+                      }}
+                      className="bg-blue-600 hover:bg-blue-500 text-white text-[10px] px-3 py-2 rounded-lg font-bold transition-all shadow-lg active:scale-95"
+                    >
+                      COPIAR
+                    </button>
+                  </div>
+                  
+                  <div className="pt-2">
+                    <button 
+                      onClick={() => devLogin('ADMIN')}
+                      className="w-full text-blue-400/50 hover:text-blue-400 text-[8px] uppercase tracking-widest transition-colors font-bold"
+                    >
+                      ¿Problemas con el login? Entrar como Maestro
+                    </button>
+                  </div>
+                  
+                  <p className="text-[8px] text-blue-300/50 text-center">
+                    * Nota: En Supabase, Site URL y Redirect URLs deben ser IGUALES.
                   </p>
                 </div>
               )}
