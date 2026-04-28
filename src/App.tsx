@@ -21,11 +21,8 @@ export default function App() {
     loadData().catch(err => console.error('Error loading data:', err)); 
   }, [loadData]);
 
-  if (!session) {
-    return <Login />;
-  }
-
-  const permissions = rolePermissions[session.role as UserRole] || rolePermissions.INVITADO;
+  // Session check removed to allow direct access mode
+  const permissions = session ? (rolePermissions[session.role as UserRole] || rolePermissions.INVITADO) : rolePermissions.ADMIN;
 
   const navigation: { id: Tab; icon: any; label: string; roles: string[] }[] = [
     { id: 'admin', icon: Database, label: 'Admin', roles: ['ADMIN'] },

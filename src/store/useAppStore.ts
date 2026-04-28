@@ -148,7 +148,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     instrumentos: [],
     exportLogs: [],
     logoBase64: null,
-    session: null,
+    session: {
+      user: { email: '3usajanpapo6@gmail.com', id: 'admin-forced', user_metadata: { full_name: 'Maestro (Acceso Directo)' } },
+      role: 'ADMIN'
+    },
     rolePermissions: {
       ADMIN: { admin: true, nuevo: true, fotos: true, galeria: true, perfiles: true, historial: true, generar: true },
       TECNICO: { admin: false, nuevo: true, fotos: true, galeria: true, perfiles: true, historial: true, generar: true },
@@ -156,43 +159,18 @@ export const useAppStore = create<AppState>((set, get) => ({
     },
 
   devLogin: (role) => {
-    // Modo de emergencia: Permite entrar como ADMIN directamente
-    const mockUser = {
-      email: ADMIN_EMAIL,
-      id: 'admin-fallback',
-      user_metadata: { full_name: 'Maestro (Acceso Manual)' }
-    };
-    set({ session: { user: mockUser, role: 'ADMIN' } });
+    // Ya no es necesario con el acceso directo, pero lo mantenemos por compatibilidad
+    set({ session: { user: { email: ADMIN_EMAIL, id: 'admin-fallback', user_metadata: { full_name: 'Maestro' } }, role: 'ADMIN' } });
   },
 
   signIn: async () => {
-    if (!isSupabaseConfigured) {
-      alert('Configuración de Supabase no encontrada.');
-      return;
-    }
-    
-    // Limpiamos la URL de cualquier carácter invisible o barra final
-    const redirectTo = window.location.origin.replace(/\/$/, '').trim();
-
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo,
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-        }
-      }
-    });
-    if (error) {
-      console.error('Error signing in:', error);
-      alert('Error de Supabase: ' + error.message);
-    }
+    // El acceso con Google ha sido deshabilitado a petición
+    console.log('SignIn deshabilitado - Usando modo de acceso directo');
   },
 
   signOut: async () => {
-    await supabase.auth.signOut();
-    set({ session: null });
+    // Al cerrar sesión en modo directo, simplemente refrescamos para volver a entrar
+    window.location.reload();
   },
 
   clearInstrumentos: async () => {
@@ -317,17 +295,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     const configLogo = await db.get('config', 'logo');
     const configPermissions = await db.get('config', 'rolePermissions');
     
-    // Check session
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    let userRole: UserRole = 'INVITADO';
-    if (session?.user?.email === ADMIN_EMAIL) {
-      userRole = 'ADMIN';
-    } else if (session) {
-      // Si el email no es el master, por defecto es TECNICO
-      // Pero permitimos que el sistema o el admin master cambie roles después
-      userRole = 'TECNICO';
-    }
+    // Skip session check since we are using direct access mode
+    const userRole: UserRole = 'ADMIN';
+    const forcedSession: UserSession = { 
+      user: { email: ADMIN_EMAIL, id: 'admin-forced', user_metadata: { full_name: 'Maestro (Acceso Directo)' } }, 
+      role: 'ADMIN' 
+    };
 
     set({ 
       perfiles, 
@@ -340,20 +313,11 @@ export const useAppStore = create<AppState>((set, get) => ({
         TECNICO: { admin: false, nuevo: true, fotos: true, galeria: true, perfiles: true, historial: true, generar: true },
         INVITADO: { admin: false, nuevo: false, fotos: false, galeria: true, perfiles: true, historial: false, generar: true }
       },
-      session: session ? { user: session.user, role: userRole } : null
+      session: forcedSession
     });
 
-    // Listen to changes
-    supabase.auth.onAuthStateChange((_event, session) => {
-      let role: UserRole = 'INVITADO';
-      if (session?.user?.email === ADMIN_EMAIL) {
-        role = 'ADMIN';
-      } else if (session) {
-        // Al loguear con Google, usuarios nuevos entran como TECNICO
-        role = 'TECNICO';
-      }
-      set({ session: session ? { user: session.user, role } : null });
-    });
+    // Supabase auth listeners disabled in direct access mode
+    console.log('App cargada en modo Directo (ADMIN)');
 
     // Cargar Instrumentos desde Supabase (Fuente de Verdad)
     try {
