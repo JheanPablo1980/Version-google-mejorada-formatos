@@ -1,0 +1,8 @@
+{
+  "name": "Page Google Remix: Calidad instrumentacion +BD supabase historial",
+  "description": "Aplicación para el registro fotográfico, gestión de perfiles de inspección y generación de protocolos de instrumentación (PDF/Excel).",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": []
+}
