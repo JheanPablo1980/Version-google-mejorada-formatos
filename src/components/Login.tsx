@@ -2,8 +2,10 @@ import React from 'react';
 import { LogIn, ShieldAlert, Users, Info, ChevronRight, FileText, Camera, Database, Download } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { motion } from 'motion/react';
+import { isSupabaseConfigured } from '../lib/supabase';
 
 const FeatureCard = ({ icon, title, description, delay }: any) => (
+// ... existing FeatureCard ...
   <motion.div 
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
@@ -77,13 +79,28 @@ export const Login: React.FC = () => {
               y generación automatizada de protocolos de instrumentación en alta resolución.
             </p>
             
-            <div className="pt-8">
+            <div className="pt-8 space-y-4">
+              {!isSupabaseConfigured && (
+                <div className="bg-red-500/20 border border-red-500/50 p-4 rounded-2xl flex items-start gap-3 text-left max-w-md mx-auto">
+                  <ShieldAlert className="text-red-300 shrink-0 mt-0.5" size={20} />
+                  <div className="space-y-1">
+                    <p className="text-red-100 font-bold text-xs uppercase tracking-wider">Configuración Incompleta</p>
+                    <p className="text-red-200/80 text-[10px] leading-relaxed">
+                      Por favor, configure <b>VITE_SUPABASE_URL</b> y <b>VITE_SUPABASE_ANON_KEY</b> en el panel de Secrets para habilitar el acceso con Google.
+                    </p>
+                  </div>
+                </div>
+              )}
+              
               <button
                 onClick={signIn}
-                className="bg-white text-[#1F3864] px-8 py-4 rounded-2xl font-black text-lg shadow-[0_10px_40px_-10px_rgba(255,255,255,0.3)] hover:shadow-[0_15px_50px_-10px_rgba(255,255,255,0.4)] hover:scale-105 active:scale-95 transition-all flex items-center gap-4 group"
+                disabled={!isSupabaseConfigured}
+                className={`px-8 py-4 rounded-2xl font-black text-lg shadow-[0_10px_40px_-10px_rgba(255,255,255,0.3)] hover:shadow-[0_15px_50px_-10px_rgba(255,255,255,0.4)] hover:scale-105 active:scale-95 transition-all flex items-center gap-4 group ${
+                  !isSupabaseConfigured ? 'bg-white/20 text-white/40 cursor-not-allowed border border-white/10' : 'bg-white text-[#1F3864]'
+                }`}
               >
-                <div className="bg-slate-100 p-1.5 rounded-full">
-                  <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
+                <div className={`p-1.5 rounded-full ${!isSupabaseConfigured ? 'bg-white/10' : 'bg-slate-100'}`}>
+                  <img src="https://www.google.com/favicon.ico" alt="Google" className={`w-5 h-5 ${!isSupabaseConfigured ? 'grayscale opacity-50' : ''}`} />
                 </div>
                 Empezar Ahora con Google
               </button>

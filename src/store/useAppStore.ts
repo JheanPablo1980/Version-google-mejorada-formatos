@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { initDB } from '../lib/db';
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 export interface Instrumento {
   TAG_CABLE_SWC: string;
@@ -164,6 +164,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   signIn: async () => {
+    if (!isSupabaseConfigured) {
+      alert('Configuración de Supabase no encontrada. Por favor configure las variables de entorno en el panel de Secrets.');
+      return;
+    }
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
