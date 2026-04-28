@@ -169,20 +169,23 @@ export const useAppStore = create<AppState>((set, get) => ({
       return;
     }
     
-    // Usar la URL exacta actual para evitar problemas de iFrames en móviles
-    const currentUrl = window.location.href.split('#')[0].split('?')[0];
+    // Usamos el origen actual. Supabase requiere que este dominio esté en "Redirect URLs"
+    const redirectTo = window.location.origin;
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: currentUrl,
+        redirectTo,
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',
         }
       }
     });
-    if (error) console.error('Error signing in:', error);
+    if (error) {
+      console.error('Error signing in:', error);
+      alert('Error al iniciar sesión: ' + error.message);
+    }
   },
 
   signOut: async () => {

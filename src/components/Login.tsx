@@ -100,9 +100,19 @@ export const Login: React.FC = () => {
                   <div className="space-y-1">
                     <p className="text-amber-100 font-bold text-xs uppercase tracking-wider">Navegador Limitado</p>
                     <p className="text-amber-200/80 text-[10px] leading-relaxed">
-                      Estás en un navegador interno. Para evitar errores al entrar con Google, toca los tres puntos y selecciona <b>"Abrir en Chrome"</b> o <b>"Abrir en Safari"</b>.
+                      Si el login falla, toca los tres puntos y selecciona <b>"Abrir en Chrome"</b> o <b>"Abrir en Safari"</b> para una mejor experiencia.
                     </p>
                   </div>
+                </div>
+              )}
+
+              {/* Nota técnica para el administrador */}
+              {isSupabaseConfigured && (
+                <div className="bg-blue-500/10 border border-blue-500/30 p-3 rounded-xl flex items-start gap-3 text-left">
+                  <Info className="text-blue-300 shrink-0 mt-0.5" size={16} />
+                  <p className="text-blue-200/70 text-[9px] leading-tight italic">
+                    Maestro: Asegúrate de añadir la URL actual en <b>Supabase {'>'} Auth {'>'} Redirect URLs</b> para evitar rebotes a Vercel.
+                  </p>
                 </div>
               )}
               
