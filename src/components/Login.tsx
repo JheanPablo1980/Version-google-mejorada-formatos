@@ -49,6 +49,8 @@ const DevLoginButton = ({ onClick, icon, title, bg }: any) => (
 
 export const Login: React.FC = () => {
   const { signIn, devLogin } = useAppStore();
+  
+  const isInAppBrowser = /FBAN|FBAV|Instagram|WhatsApp|Messenger/i.test(navigator.userAgent);
 
   return (
     <div className="min-h-screen bg-[#F3F6FA] text-slate-900 font-sans selection:bg-blue-100">
@@ -58,7 +60,7 @@ export const Login: React.FC = () => {
         <div className="absolute top-0 right-0 w-1/2 h-full bg-blue-600/10 skew-x-12 transform translate-x-1/2 pointer-events-none"></div>
         <div className="absolute bottom-0 left-0 w-1/3 h-1/2 bg-blue-400/5 -skew-x-12 transform -translate-x-1/2 pointer-events-none"></div>
 
-        <div className="max-w-7xl mx-auto px-6 pt-16 pb-24 relative z-10">
+        <div className="max-w-7xl mx-auto px-6 pt-12 pb-24 relative z-10">
           <motion.div 
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-col items-center text-center space-y-6"
@@ -79,14 +81,26 @@ export const Login: React.FC = () => {
               y generación automatizada de protocolos de instrumentación en alta resolución.
             </p>
             
-            <div className="pt-8 space-y-4">
+            <div className="pt-8 space-y-4 w-full max-w-md">
               {!isSupabaseConfigured && (
-                <div className="bg-red-500/20 border border-red-500/50 p-4 rounded-2xl flex items-start gap-3 text-left max-w-md mx-auto">
+                <div className="bg-red-500/20 border border-red-500/50 p-4 rounded-2xl flex items-start gap-3 text-left">
                   <ShieldAlert className="text-red-300 shrink-0 mt-0.5" size={20} />
                   <div className="space-y-1">
-                    <p className="text-red-100 font-bold text-xs uppercase tracking-wider">Configuración Incompleta</p>
+                    <p className="text-red-100 font-bold text-xs uppercase tracking-wider">Configuración Pendiente</p>
                     <p className="text-red-200/80 text-[10px] leading-relaxed">
-                      Por favor, configure <b>VITE_SUPABASE_URL</b> y <b>VITE_SUPABASE_ANON_KEY</b> en el panel de Secrets para habilitar el acceso con Google.
+                      La app aún no detecta tus llaves de Supabase. Asegúrate de guardarlas en el panel de <b>Secrets</b> y refrescar la página.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {isInAppBrowser && (
+                <div className="bg-amber-500/20 border border-amber-500/50 p-4 rounded-2xl flex items-start gap-3 text-left">
+                  <Info className="text-amber-300 shrink-0 mt-0.5" size={20} />
+                  <div className="space-y-1">
+                    <p className="text-amber-100 font-bold text-xs uppercase tracking-wider">Navegador Limitado</p>
+                    <p className="text-amber-200/80 text-[10px] leading-relaxed">
+                      Estás en un navegador interno. Para evitar errores al entrar con Google, toca los tres puntos y selecciona <b>"Abrir en Chrome"</b> o <b>"Abrir en Safari"</b>.
                     </p>
                   </div>
                 </div>
@@ -95,14 +109,14 @@ export const Login: React.FC = () => {
               <button
                 onClick={signIn}
                 disabled={!isSupabaseConfigured}
-                className={`px-8 py-4 rounded-2xl font-black text-lg shadow-[0_10px_40px_-10px_rgba(255,255,255,0.3)] hover:shadow-[0_15px_50px_-10px_rgba(255,255,255,0.4)] hover:scale-105 active:scale-95 transition-all flex items-center gap-4 group ${
+                className={`w-full px-8 py-4 rounded-2xl font-black text-lg shadow-[0_10px_40px_-10px_rgba(255,255,255,0.3)] hover:shadow-[0_15px_50px_-10px_rgba(255,255,255,0.4)] hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-4 group ${
                   !isSupabaseConfigured ? 'bg-white/20 text-white/40 cursor-not-allowed border border-white/10' : 'bg-white text-[#1F3864]'
                 }`}
               >
                 <div className={`p-1.5 rounded-full ${!isSupabaseConfigured ? 'bg-white/10' : 'bg-slate-100'}`}>
                   <img src="https://www.google.com/favicon.ico" alt="Google" className={`w-5 h-5 ${!isSupabaseConfigured ? 'grayscale opacity-50' : ''}`} />
                 </div>
-                Empezar Ahora con Google
+                Entrar con Google
               </button>
             </div>
           </motion.div>

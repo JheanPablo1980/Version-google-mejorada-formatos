@@ -168,10 +168,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       alert('Configuración de Supabase no encontrada. Por favor configure las variables de entorno en el panel de Secrets.');
       return;
     }
-    const { data, error } = await supabase.auth.signInWithOAuth({
+    
+    // Usar la URL exacta actual para evitar problemas de iFrames en móviles
+    const currentUrl = window.location.href.split('#')[0].split('?')[0];
+
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin
+        redirectTo: currentUrl,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        }
       }
     });
     if (error) console.error('Error signing in:', error);
