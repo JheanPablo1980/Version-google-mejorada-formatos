@@ -285,14 +285,35 @@ export const Admin: React.FC = () => {
           <div className="flex gap-2">
             <input 
               type="text" 
+              id="drive-link-input"
               placeholder="https://drive.google.com/drive/folders/..." 
               className="flex-1 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
               defaultValue={useAppStore.getState().driveFolderLink || ''}
               onChange={(e) => {
                 const val = e.target.value;
-                useAppStore.getState().saveDriveFolderLink(val);
+                // Opcional: Podríamos solo guardar al hacer clic en un botón para mostrar la notificación
+                // Pero mantendremos el guardado automático y agregaremos un botón de "Verificar/Guardar" para feedback
               }}
             />
+            <Button 
+              variant="secondary" 
+              className="!py-2"
+              onClick={() => {
+                const input = document.getElementById('drive-link-input') as HTMLInputElement;
+                const val = input?.value || '';
+                if (val.includes('drive.google.com')) {
+                  useAppStore.getState().saveDriveFolderLink(val);
+                  showNotification('Enlace de Drive guardado correctamente');
+                } else if (val === '') {
+                  useAppStore.getState().saveDriveFolderLink('');
+                  showNotification('Enlace eliminado');
+                } else {
+                  showNotification('El enlace no parece válido', 'error');
+                }
+              }}
+            >
+              Guardar
+            </Button>
           </div>
         </div>
       </div>
