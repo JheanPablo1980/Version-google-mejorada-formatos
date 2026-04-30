@@ -16,22 +16,22 @@ export const ListaPerfiles: React.FC = () => {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{id: string, nombre: string} | null>(null);
 
-  const handleDelete = async (id: string, nombre: string) => {
-    if (confirmingDeleteId !== id) {
-      setConfirmingDeleteId(id);
-      setTimeout(() => setConfirmingDeleteId(null), 3000);
-      return;
-    }
+  const confirmDelete = (id: string, nombre: string) => {
+    setDeleteConfirm({ id, nombre });
+  };
 
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirm) return;
     try {
-      await deletePerfil(id);
-      showNotification(`Perfil "${nombre}" eliminado.`);
-      setConfirmingDeleteId(null);
+      await deletePerfil(deleteConfirm.id);
+      showNotification(`Perfil "${deleteConfirm.nombre}" eliminado.`);
     } catch (error) {
       console.error("Error deleting profile:", error);
       showNotification("Error al eliminar perfil");
+    } finally {
+      setDeleteConfirm(null);
     }
   };
 
@@ -129,14 +129,10 @@ export const ListaPerfiles: React.FC = () => {
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleDelete(perfil.ID_PERFIL, perfil.NOMBRE_PERFIL);
+                    confirmDelete(perfil.ID_PERFIL, perfil.NOMBRE_PERFIL);
                   }}
-                  className={`p-3 rounded-xl transition-all active:scale-95 shadow-sm cursor-pointer z-10 ${
-                    confirmingDeleteId === perfil.ID_PERFIL 
-                      ? "bg-red-600 text-white animate-pulse" 
-                      : "text-red-500 bg-red-50 hover:bg-red-600 hover:text-white"
-                  }`}
-                  title={confirmingDeleteId === perfil.ID_PERFIL ? "Confirmar eliminar" : "Eliminar Perfil"}
+                  className="p-3 rounded-xl transition-all active:scale-95 shadow-sm cursor-pointer z-10 text-red-500 bg-red-50 hover:bg-red-600 hover:text-white"
+                  title="Eliminar Perfil"
                 >
                   <Trash2 size={20}/>
                 </button>
@@ -145,6 +141,51 @@ export const ListaPerfiles: React.FC = () => {
           ))}
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {deleteConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl p-6 shadow-xl max-w-sm w-full"
+            >
+              <div className="flex flex-col items-center text-center space-y-4">
+                <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center">
+                  <Trash2 size={32} />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900">¿Eliminar Perfil?</h3>
+                <p className="text-sm text-gray-500">
+                  ¿Está seguro que desea eliminar el perfil <strong className="text-gray-900">"{deleteConfirm.nombre}"</strong>? Esta acción no se puede deshacer.
+                </p>
+                <div className="flex w-full gap-3 pt-4">
+                  <Button 
+                    variant="secondary" 
+                    className="flex-1" 
+                    onClick={() => setDeleteConfirm(null)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button 
+                    variant="danger" 
+                    className="flex-1" 
+                    onClick={handleConfirmDelete}
+                  >
+                    Eliminar
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

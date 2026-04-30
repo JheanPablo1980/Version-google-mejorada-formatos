@@ -26,7 +26,7 @@ export default function App() {
 
   const navigation: { id: Tab; icon: any; label: string; roles: string[] }[] = [
     { id: 'admin', icon: Database, label: 'Admin', roles: ['ADMIN'] },
-    { id: 'nuevo', icon: Plus, label: 'Nuevo', roles: ['ADMIN', 'TECNICO', 'INVITADO'] },
+    { id: 'nuevo', icon: Database, label: 'BD', roles: ['ADMIN', 'TECNICO', 'INVITADO'] },
     { id: 'fotos', icon: Camera, label: 'Cámara', roles: ['ADMIN', 'TECNICO', 'INVITADO'] },
     { id: 'galeria', icon: Image, label: 'Fotos', roles: ['ADMIN', 'TECNICO', 'INVITADO'] },
     { id: 'perfiles', icon: FileText, label: 'Perfiles', roles: ['ADMIN', 'TECNICO', 'INVITADO'] },

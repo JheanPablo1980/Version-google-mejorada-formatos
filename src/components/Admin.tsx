@@ -134,7 +134,7 @@ export const Admin: React.FC = () => {
 
   const sectionLabels: Record<keyof RolePermissions, string> = {
     admin: 'Admin',
-    nuevo: 'Nuevo',
+    nuevo: 'BD',
     fotos: 'Cámara',
     galeria: 'Fotos',
     perfiles: 'Perfiles',
@@ -264,6 +264,37 @@ export const Admin: React.FC = () => {
         <Button onClick={() => fileInputRef.current?.click()} icon={FileSpreadsheet} disabled={isProcessing} className="w-full">
           {isProcessing ? 'Procesando...' : 'Cargar Base de Datos'}
         </Button>
+      </div>
+
+      {/* Seccion de Fotos masivas */}
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-4 text-left">
+        <h3 className="font-bold text-[#1F3864] text-lg border-b pb-2 flex items-center gap-2">
+          <CloudUpload size={18} className="text-blue-500" /> Carpeta de Fotos Masivas (Google Drive)
+        </h3>
+        <div className="text-xs text-gray-500 leading-relaxed bg-blue-50 p-3 rounded-lg border border-blue-100 italic">
+          <strong>Nota Explicativa:</strong> Pega aquí el link de tu carpeta pública de Google Drive donde almacenarás las fotos masivas.
+          <br /><br />
+          Para su reconocimiento automático:
+          <ul className="list-disc pl-4 mt-1">
+            <li>Nombra las fotos directamente con el TAG y un consecutivo (ej. <code>TE-01-1.jpg</code>, <code>TE-01(2).jpg</code>).</li>
+            <li>O agrúpalas en subcarpetas que tengan como nombre exactamente el TAG (ej. Carpeta <code>TE-01</code>).</li>
+          </ul>
+        </div>
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-[#1F3864]">Enlace de la carpeta de Drive:</label>
+          <div className="flex gap-2">
+            <input 
+              type="text" 
+              placeholder="https://drive.google.com/drive/folders/..." 
+              className="flex-1 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              defaultValue={useAppStore.getState().driveFolderLink || ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                useAppStore.getState().saveDriveFolderLink(val);
+              }}
+            />
+          </div>
+        </div>
       </div>
 
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 text-center space-y-4">

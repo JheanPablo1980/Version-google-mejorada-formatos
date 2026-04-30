@@ -1,17 +1,170 @@
-import React, { useState } from 'react';
-import { Download, Camera, Printer, FileSpreadsheet, Check, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Download, Camera, Printer, FileSpreadsheet, Check, AlertCircle, Search, Filter, ArrowDownAZ, ArrowUpZA } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { Button } from './ui/Button';
 import ExcelJS from 'exceljs';
 
+function extractTagFromName(name: string, tagsDb: string[]) {
+  let baseName = name.replace(/\.[^/.]+$/, "").trim();
+  
+  // Exact match
+  if (tagsDb.includes(baseName)) return baseName;
+  
+  // Find matching tag inside filename (considering suffixes)
+  const possibleTags = tagsDb.filter(tag => 
+    baseName === tag ||
+    baseName.startsWith(tag + "-") || 
+    baseName.startsWith(tag + "_") || 
+    baseName.startsWith(tag + " ") || 
+    baseName.startsWith(tag + "(")
+  );
+
+  if (possibleTags.length > 0) {
+    // Return longest matched tag
+    return possibleTags.sort((a, b) => b.length - a.length)[0];
+  }
+
+  // Fallback
+  baseName = baseName.replace(/[-_(\s]+[0-9]+[)]?$/, "");
+  return baseName.trim();
+}
+
 export const VistaGenerar: React.FC = () => {
-  const { instrumentos, perfiles, fotos, logoBase64, saveExportLog } = useAppStore();
+  const { instrumentos, perfiles, fotos, logoBase64, saveExportLog, driveFolderLink } = useAppStore();
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedProfile, setSelectedProfile] = useState('');
   const [isExporting, setIsExporting] = useState(false);
+  const [modoExportacion, setModoExportacion] = useState<'LOCAL' | 'DRIVE'>('LOCAL');
+  
+  const [driveFiles, setDriveFiles] = useState<{name: string, id: string, mimeType: string}[]>([]);
+  const [isFetchingDrive, setIsFetchingDrive] = useState(false);
+  const [driveFetchError, setDriveFetchError] = useState<string | null>(null);
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  const [filtroUbicacion, setFiltroUbicacion] = useState('');
+  const [filtroTipoCable, setFiltroTipoCable] = useState('');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   const tagsConFotos = [...new Set(fotos.map(f => f.TAGNAME))];
-  const instrumentosConFotos = instrumentos.filter(inst => tagsConFotos.includes(inst.TAGNAME));
+  const todosLosTags = instrumentos.map(i => i.TAGNAME);
+  const tagsDrive = [...new Set(driveFiles.map(f => extractTagFromName(f.name, todosLosTags)))];
+  
+  const instrumentosConFotos = modoExportacion === 'LOCAL' 
+    ? instrumentos.filter(inst => tagsConFotos.includes(inst.TAGNAME)) 
+    : instrumentos.filter(inst => tagsDrive.includes(inst.TAGNAME));
+
+  const ubicacionesUnicas = useMemo(() => {
+    const u = new Set(instrumentosConFotos.map(i => i.UBICACIÓN).filter(Boolean));
+    return Array.from(u).sort();
+  }, [instrumentosConFotos]);
+
+  const tiposCableUnicos = useMemo(() => {
+    const t = new Set(instrumentosConFotos.map(i => i.TIPO_CABLE).filter(Boolean));
+    return Array.from(t).sort();
+  }, [instrumentosConFotos]);
+
+  const filteredInstrumentos = useMemo(() => {
+    const filtered = instrumentosConFotos.filter(inst => {
+      const matchesSearch = inst.TAGNAME.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            (inst.DESCRIPCIÓN || '').toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesUbicacion = filtroUbicacion ? inst.UBICACIÓN === filtroUbicacion : true;
+      const matchesTipo = filtroTipoCable ? inst.TIPO_CABLE === filtroTipoCable : true;
+      return matchesSearch && matchesUbicacion && matchesTipo;
+    });
+
+    return filtered.sort((a, b) => {
+      const cmp = a.TAGNAME.localeCompare(b.TAGNAME);
+      return sortOrder === 'asc' ? cmp : -cmp;
+    });
+  }, [instrumentosConFotos, searchQuery, filtroUbicacion, filtroTipoCable, sortOrder]);
+
+  useEffect(() => {
+    if (modoExportacion === 'DRIVE') {
+      fetchDriveFiles();
+    } else {
+      setDriveFetchError(null);
+    }
+  }, [modoExportacion, driveFolderLink]);
+
+  const fetchDriveFiles = async () => {
+    setIsFetchingDrive(true);
+    setDriveFetchError(null);
+    setDriveFiles([]);
+    try {
+      if (!driveFolderLink) {
+        throw new Error("No hay enlace de Google Drive configurado en la sección de Admin.");
+      }
+      
+      const match = driveFolderLink.match(/folders\/([a-zA-Z0-9-_]+)/);
+      const folderId = match ? match[1] : null;
+
+      if (!folderId) {
+        throw new Error("El enlace de Google Drive no tiene un formato válido (necesita .../folders/ID).");
+      }
+
+      const apiKey = import.meta.env.VITE_GOOGLE_DRIVE_API_KEY;
+      if (!apiKey) {
+        throw new Error("Falta la API Key de Google Drive (VITE_GOOGLE_DRIVE_API_KEY en variables de entorno).");
+      }
+
+      let allFiles: {name: string, id: string, mimeType: string}[] = [];
+      let pageToken = '';
+      
+      do {
+        const tokenParam = pageToken ? `&pageToken=${pageToken}` : '';
+        const res = await fetch(`https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents+and+trashed=false&pageSize=1000&fields=nextPageToken,files(id,name,mimeType)&key=${apiKey}${tokenParam}`);
+        
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(`Google API: ${errData.error?.message || res.statusText}`);
+        }
+        
+        const data = await res.json();
+        if (data.files) {
+          allFiles = [...allFiles, ...data.files];
+        }
+        pageToken = data.nextPageToken;
+      } while (pageToken);
+
+      setDriveFiles(allFiles);
+    } catch (error: any) {
+      setDriveFetchError(error.message);
+    } finally {
+      setIsFetchingDrive(false);
+    }
+  };
+
+  const downloadBase64FromDrive = async (fileId: string): Promise<string> => {
+    const apiKey = import.meta.env.VITE_GOOGLE_DRIVE_API_KEY;
+    if (!apiKey) throw new Error("Falta API Key de Drive.");
+    const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${apiKey}`;
+    
+    let res;
+    try {
+      res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+    } catch (e) {
+      // CORS Error fallback for Google Drive API redirects
+      try {
+        res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
+      } catch (proxyError) {
+        throw new Error("No se pudo descargar la imagen por CORS y el proxy falló.");
+      }
+    }
+    
+    if (!res || !res.ok) {
+        throw new Error(`Permiso denegado o archivo no encontrado. Verifica "Cualquier persona con el enlace" en Drive.`);
+    }
+
+    const blob = await res.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
 
   const activeProfile = perfiles.find(p => p.ID_PERFIL === selectedProfile);
 
@@ -20,8 +173,8 @@ export const VistaGenerar: React.FC = () => {
   };
 
   const handleSelectAll = () => {
-    if (selectedTags.length === instrumentosConFotos.length) setSelectedTags([]); 
-    else setSelectedTags(instrumentosConFotos.map(i => i.TAGNAME)); 
+    if (selectedTags.length === filteredInstrumentos.length) setSelectedTags([]); 
+    else setSelectedTags(filteredInstrumentos.map(i => i.TAGNAME)); 
   };
 
   const [exportError, setExportError] = useState<string | null>(null);
@@ -38,14 +191,44 @@ export const VistaGenerar: React.FC = () => {
     }
   };
 
+  const popuplateDriveBlobs = async (tagsToFetch: string[]) => {
+    if (modoExportacion !== 'DRIVE') return [];
+    if (!driveFiles || driveFiles.length === 0) return [];
+    
+    setIsExporting(true);
+    const driveFotos = [];
+    
+    // Solo traemos fotos de los tags seleccionados
+    const filesToFetch = driveFiles.filter(f => tagsToFetch.includes(extractTagFromName(f.name, todosLosTags)));
+    for (const file of filesToFetch) {
+      if (file.mimeType.startsWith('image/')) {
+        try {
+          const blobData = await downloadBase64FromDrive(file.id);
+          driveFotos.push({
+            TAGNAME: extractTagFromName(file.name, todosLosTags),
+            blobData,
+            observacion: `Drive: ${file.name}`
+          });
+        } catch (e: any) {
+          throw new Error(`Protocolo de error Drive: No se pudo descargar la foto ${file.name}. ¿La API Key tiene permisos completos? Detalle: ${e.message}`);
+        }
+      }
+    }
+    return driveFotos;
+  };
+
   const exportarExcel = async () => {
     if (selectedTags.length === 0 || !activeProfile) { 
       setExportError("Selecciona al menos un instrumento y un perfil."); 
       return; 
     }
+    
     setIsExporting(true);
     setExportError(null);
     try {
+      // Intentamos traer si es DRIVE, y si falla levanta la excepcion (Protocolo de error)
+      const driveFotosDownloaded = await popuplateDriveBlobs(selectedTags);
+      
       // Log backup
       await logExportAction('EXCEL');
       const wb = new ExcelJS.Workbook();
@@ -68,7 +251,9 @@ export const VistaGenerar: React.FC = () => {
 
       for (const tag of selectedTags) {
         const activeInstrument = instrumentos.find(i => i.TAGNAME === tag);
-        const fotosDelTag = fotos.filter(f => f.TAGNAME === tag);
+        const fotosDelTag = modoExportacion === 'DRIVE' 
+          ? driveFotosDownloaded.filter(f => f.TAGNAME === tag)
+          : fotos.filter(f => f.TAGNAME === tag);
         
         if (!activeInstrument) continue;
 
@@ -76,8 +261,8 @@ export const VistaGenerar: React.FC = () => {
         const ws1 = wb.addWorksheet(`${safeSheetName}`);
         
         ws1.columns = [
-          { width: 10 }, { width: 10 }, { width: 25 }, { width: 12 }, 
-          { width: 12 }, { width: 10 }, { width: 15 }, { width: 15 }
+          { width: 12 }, { width: 12 }, { width: 12 }, { width: 18 }, 
+          { width: 18 }, { width: 12 }, { width: 12 }, { width: 12 }
         ];
         
         // Logo
@@ -228,25 +413,25 @@ export const VistaGenerar: React.FC = () => {
         }
 
         // Firmas
-        ws1.mergeCells(`A${currentRow}:B${currentRow}`); ws1.getCell(`A${currentRow}`).value = 'ELABORÓ'; applyStyle(ws1.getCell(`A${currentRow}`), true);
+        ws1.mergeCells(`A${currentRow}:C${currentRow}`); ws1.getCell(`A${currentRow}`).value = 'ELABORÓ'; applyStyle(ws1.getCell(`A${currentRow}`), true);
         ws1.mergeCells(`D${currentRow}:E${currentRow}`); ws1.getCell(`D${currentRow}`).value = 'REVISÓ'; applyStyle(ws1.getCell(`D${currentRow}`), true);
-        ws1.mergeCells(`G${currentRow}:H${currentRow}`); ws1.getCell(`G${currentRow}`).value = 'APROBÓ (CLIENTE / INTERVENTOR)'; applyStyle(ws1.getCell(`G${currentRow}`), true);
+        ws1.mergeCells(`F${currentRow}:H${currentRow}`); ws1.getCell(`F${currentRow}`).value = 'APROBÓ (CLIENTE / INTERVENTOR)'; applyStyle(ws1.getCell(`F${currentRow}`), true);
         
-        ws1.mergeCells(`A${currentRow+1}:B${currentRow+1}`); ws1.getCell(`A${currentRow+1}`).value = `NOMBRE: ${activeProfile.ELABORO_NOMBRE}`; applyStyle(ws1.getCell(`A${currentRow+1}`)); ws1.getCell(`A${currentRow+1}`).alignment = {horizontal:'left'};
+        ws1.mergeCells(`A${currentRow+1}:C${currentRow+1}`); ws1.getCell(`A${currentRow+1}`).value = `NOMBRE: ${activeProfile.ELABORO_NOMBRE}`; applyStyle(ws1.getCell(`A${currentRow+1}`)); ws1.getCell(`A${currentRow+1}`).alignment = {horizontal:'left'};
         ws1.mergeCells(`D${currentRow+1}:E${currentRow+1}`); ws1.getCell(`D${currentRow+1}`).value = `NOMBRE: ${activeProfile.REVISO_NOMBRE}`; applyStyle(ws1.getCell(`D${currentRow+1}`)); ws1.getCell('D' + (currentRow+1)).alignment = {horizontal:'left'};
-        ws1.mergeCells(`G${currentRow+1}:H${currentRow+1}`); ws1.getCell(`G${currentRow+1}`).value = `NOMBRE: ${activeProfile.APROBO_NOMBRE}`; applyStyle(ws1.getCell(`G${currentRow+1}`)); ws1.getCell('G' + (currentRow+1)).alignment = {horizontal:'left'};
+        ws1.mergeCells(`F${currentRow+1}:H${currentRow+1}`); ws1.getCell(`F${currentRow+1}`).value = `NOMBRE: ${activeProfile.APROBO_NOMBRE}`; applyStyle(ws1.getCell(`F${currentRow+1}`)); ws1.getCell('F' + (currentRow+1)).alignment = {horizontal:'left'};
 
-        ws1.mergeCells(`A${currentRow+2}:B${currentRow+2}`); ws1.getCell(`A${currentRow+2}`).value = `CARGO: ${activeProfile.ELABORO_CARGO}`; applyStyle(ws1.getCell(`A${currentRow+2}`)); ws1.getCell('A' + (currentRow+2)).alignment = {horizontal:'left'};
+        ws1.mergeCells(`A${currentRow+2}:C${currentRow+2}`); ws1.getCell(`A${currentRow+2}`).value = `CARGO: ${activeProfile.ELABORO_CARGO}`; applyStyle(ws1.getCell(`A${currentRow+2}`)); ws1.getCell('A' + (currentRow+2)).alignment = {horizontal:'left'};
         ws1.mergeCells(`D${currentRow+2}:E${currentRow+2}`); ws1.getCell(`D${currentRow+2}`).value = `CARGO: ${activeProfile.REVISO_CARGO}`; applyStyle(ws1.getCell(`D${currentRow+2}`)); ws1.getCell('D' + (currentRow+2)).alignment = {horizontal:'left'};
-        ws1.mergeCells(`G${currentRow+2}:H${currentRow+2}`); ws1.getCell(`G${currentRow+2}`).value = `CARGO: ${activeProfile.APROBO_CARGO}`; applyStyle(ws1.getCell(`G${currentRow+2}`)); ws1.getCell('G' + (currentRow+2)).alignment = {horizontal:'left'};
+        ws1.mergeCells(`F${currentRow+2}:H${currentRow+2}`); ws1.getCell(`F${currentRow+2}`).value = `CARGO: ${activeProfile.APROBO_CARGO}`; applyStyle(ws1.getCell(`F${currentRow+2}`)); ws1.getCell('F' + (currentRow+2)).alignment = {horizontal:'left'};
 
-        ws1.mergeCells(`A${currentRow+3}:B${currentRow+5}`); ws1.getCell(`A${currentRow+3}`).value = 'FIRMA:'; applyStyle(ws1.getCell(`A${currentRow+3}`)); ws1.getCell(`A${currentRow+3}`).font = { bold: true }; ws1.getCell(`A${currentRow+3}`).alignment = {vertical:'top', horizontal:'left'};
+        ws1.mergeCells(`A${currentRow+3}:C${currentRow+5}`); ws1.getCell(`A${currentRow+3}`).value = 'FIRMA:'; applyStyle(ws1.getCell(`A${currentRow+3}`)); ws1.getCell(`A${currentRow+3}`).font = { bold: true }; ws1.getCell(`A${currentRow+3}`).alignment = {vertical:'top', horizontal:'left'};
         ws1.mergeCells(`D${currentRow+3}:E${currentRow+5}`); ws1.getCell(`D${currentRow+3}`).value = 'FIRMA:'; applyStyle(ws1.getCell(`D${currentRow+3}`)); ws1.getCell(`D${currentRow+3}`).font = { bold: true }; ws1.getCell(`D${currentRow+3}`).alignment = {vertical:'top', horizontal:'left'};
-        ws1.mergeCells(`G${currentRow+3}:H${currentRow+5}`); ws1.getCell(`G${currentRow+3}`).value = 'FIRMA:'; applyStyle(ws1.getCell(`G${currentRow+3}`)); ws1.getCell(`G${currentRow+3}`).font = { bold: true }; ws1.getCell(`G${currentRow+3}`).alignment = {vertical:'top', horizontal:'left'};
+        ws1.mergeCells(`F${currentRow+3}:H${currentRow+5}`); ws1.getCell(`F${currentRow+3}`).value = 'FIRMA:'; applyStyle(ws1.getCell(`F${currentRow+3}`)); ws1.getCell(`F${currentRow+3}`).font = { bold: true }; ws1.getCell(`F${currentRow+3}`).alignment = {vertical:'top', horizontal:'left'};
 
-        ws1.mergeCells(`A${currentRow+6}:B${currentRow+6}`); ws1.getCell(`A${currentRow+6}`).value = `FECHA: ${activeProfile.FECHA}`; applyStyle(ws1.getCell(`A${currentRow+6}`)); ws1.getCell('A' + (currentRow+6)).alignment = {horizontal:'left'};
+        ws1.mergeCells(`A${currentRow+6}:C${currentRow+6}`); ws1.getCell(`A${currentRow+6}`).value = `FECHA: ${activeProfile.FECHA}`; applyStyle(ws1.getCell(`A${currentRow+6}`)); ws1.getCell('A' + (currentRow+6)).alignment = {horizontal:'left'};
         ws1.mergeCells(`D${currentRow+6}:E${currentRow+6}`); ws1.getCell(`D${currentRow+6}`).value = `FECHA: ${activeProfile.FECHA}`; applyStyle(ws1.getCell(`D${currentRow+6}`)); ws1.getCell('D' + (currentRow+6)).alignment = {horizontal:'left'};
-        ws1.mergeCells(`G${currentRow+6}:H${currentRow+6}`); ws1.getCell(`G${currentRow+6}`).value = `FECHA: ${activeProfile.FECHA}`; applyStyle(ws1.getCell(`G${currentRow+6}`)); ws1.getCell('G' + (currentRow+6)).alignment = {horizontal:'left'};
+        ws1.mergeCells(`F${currentRow+6}:H${currentRow+6}`); ws1.getCell(`F${currentRow+6}`).value = `FECHA: ${activeProfile.FECHA}`; applyStyle(ws1.getCell(`F${currentRow+6}`)); ws1.getCell('F' + (currentRow+6)).alignment = {horizontal:'left'};
 
         const embedSig = (b64: string, col: number, row: number) => {
           if (!b64) return;
@@ -262,7 +447,7 @@ export const VistaGenerar: React.FC = () => {
         };
         embedSig(activeProfile.ELABORO_FIRMA, 0, currentRow+3);
         embedSig(activeProfile.REVISO_FIRMA, 3, currentRow+3);
-        embedSig(activeProfile.APROBO_FIRMA, 6, currentRow+3);
+        embedSig(activeProfile.APROBO_FIRMA, 5, currentRow+3);
       }
 
       const buffer = await wb.xlsx.writeBuffer();
@@ -283,18 +468,25 @@ export const VistaGenerar: React.FC = () => {
         setExportError("Selecciona instrumentos y perfil para generar PDF."); 
         return; 
     }
+    
+    setIsExporting(true);
     setExportError(null);
-    
-    // Log backup
-    await logExportAction('PDF');
-    
-    let allHtmlContent = '';
+    let driveFotosDownloaded: any[] = [];
+    try {
+      driveFotosDownloaded = await popuplateDriveBlobs(selectedTags);
+      
+      // Log backup
+      await logExportAction('PDF');
+      
+      let allHtmlContent = '';
 
-    selectedTags.forEach((tag, index) => {
-      const activeInstrument = instrumentos.find(i => i.TAGNAME === tag);
-      const fotosDelTag = fotos.filter(f => f.TAGNAME === tag);
+      selectedTags.forEach((tag, index) => {
+        const activeInstrument = instrumentos.find(i => i.TAGNAME === tag);
+        const fotosDelTag = modoExportacion === 'DRIVE' 
+          ? driveFotosDownloaded.filter(f => f.TAGNAME === tag)
+          : fotos.filter(f => f.TAGNAME === tag);
 
-      if (!activeInstrument) return;
+        if (!activeInstrument) return;
 
       allHtmlContent += `
         <div class="protocol-page">
@@ -509,6 +701,12 @@ export const VistaGenerar: React.FC = () => {
         printWindow.close(); 
       }, 750);
     }
+    } catch (e: any) {
+      setExportError(e.message || "Error generando PDF con Drive");
+      console.error(e);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -516,18 +714,112 @@ export const VistaGenerar: React.FC = () => {
       <h2 className="text-2xl font-bold text-[#1F3864] flex items-center gap-2"><Download size={24} /> Exportar Formatos</h2>
       
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-6">
+        
+        {/* Toggle para Modo o Fuente de Fotos */}
+        <div className="bg-blue-50/50 p-2 rounded-xl flex gap-1 border border-blue-100">
+          <button 
+            className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all shadow-sm ${modoExportacion === 'LOCAL' ? 'bg-white text-blue-700' : 'bg-transparent text-gray-400 hover:bg-white/50'}`}
+            onClick={() => { setModoExportacion('LOCAL'); setSelectedTags([]); }}
+          >
+            App (Locales)
+          </button>
+          <button 
+            className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all shadow-sm ${modoExportacion === 'DRIVE' ? 'bg-white text-blue-700' : 'bg-transparent text-gray-400 hover:bg-white/50'}`}
+            onClick={() => { setModoExportacion('DRIVE'); setSelectedTags([]); }}
+          >
+            Google Drive (Masiva)
+          </button>
+        </div>
+
         <div>
           <div className="flex justify-between items-end mb-3">
-            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest">1. Instrumentos ({instrumentosConFotos.length})</label>
-            {instrumentosConFotos.length > 0 && (
+            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest">
+              1. Instrumentos {modoExportacion === 'DRIVE' ? '(Encontrados en Drive)' : 'Con Fotos'} ({filteredInstrumentos.length})
+            </label>
+            {filteredInstrumentos.length > 0 && (
               <button onClick={handleSelectAll} className="text-[10px] text-blue-600 font-bold hover:underline uppercase">
-                {selectedTags.length === instrumentosConFotos.length ? 'Desmarcar todos' : 'Marcar todos'}
+                {selectedTags.length === filteredInstrumentos.length ? 'Desmarcar todos' : 'Marcar todos'}
               </button>
             )}
           </div>
+
+          <div className="mb-3 flex gap-2">
+            <div className="relative flex-1">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search size={16} className="text-gray-400" />
+              </div>
+              <input
+                type="text"
+                placeholder="Buscar por TAG o descripción..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1F3864] focus:outline-none text-sm font-medium transition-all"
+              />
+            </div>
+            <button 
+              onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+              className="p-2 border rounded-lg transition-colors flex items-center justify-center bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100"
+              title={`Ordenar ${sortOrder === 'asc' ? 'Descendente' : 'Ascendente'}`}
+            >
+              {sortOrder === 'asc' ? <ArrowDownAZ size={18} /> : <ArrowUpZA size={18} />}
+            </button>
+            <button 
+              onClick={() => setShowFilters(!showFilters)}
+              className={`p-2 border rounded-lg transition-colors flex items-center justify-center ${showFilters || filtroUbicacion || filtroTipoCable ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'}`}
+              title="Filtros avanzados"
+            >
+              <Filter size={18} />
+            </button>
+          </div>
+
+          {showFilters && (
+            <div className="bg-white p-3 rounded-lg border border-gray-200 grid grid-cols-1 md:grid-cols-2 gap-3 mb-3 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div>
+                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Ubicación</label>
+                <select 
+                  value={filtroUbicacion} 
+                  onChange={(e) => setFiltroUbicacion(e.target.value)}
+                  className="w-full p-2 text-xs border border-gray-200 rounded bg-gray-50 focus:ring-[#1F3864] focus:outline-none"
+                >
+                  <option value="">Todas</option>
+                  {ubicacionesUnicas.map(u => (
+                    <option key={u} value={u}>{u}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Tipo de Cable</label>
+                <select 
+                  value={filtroTipoCable} 
+                  onChange={(e) => setFiltroTipoCable(e.target.value)}
+                  className="w-full p-2 text-xs border border-gray-200 rounded bg-gray-50 focus:ring-[#1F3864] focus:outline-none"
+                >
+                  <option value="">Todos</option>
+                  {tiposCableUnicos.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
           
+          {driveFetchError && modoExportacion === 'DRIVE' && (
+            <div className="mb-3 p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg flex items-start gap-2">
+              <AlertCircle size={16} className="shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold uppercase tracking-tight">Error al conectar con Drive</p>
+                <p className="mt-1">{driveFetchError}</p>
+              </div>
+            </div>
+          )}
+
           <div className="w-full h-48 overflow-y-auto bg-gray-50 border border-gray-100 rounded-xl p-2 space-y-1 custom-scrollbar">
-            {instrumentosConFotos.length === 0 ? (
+            {isFetchingDrive ? (
+               <div className="text-center py-12 flex flex-col items-center">
+                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-3"></div>
+                 <p className="text-xs text-blue-600 font-bold uppercase tracking-tight">Consultando Google Drive...</p>
+               </div>
+            ) : filteredInstrumentos.length === 0 ? (
               <div className="text-center py-12 flex flex-col items-center">
                 <div className="bg-gray-100 p-3 rounded-full mb-3">
                   <Camera className="text-gray-300" size={32} />
@@ -535,7 +827,7 @@ export const VistaGenerar: React.FC = () => {
                 <p className="text-xs text-gray-400 font-bold uppercase tracking-tight">No hay instrumentos con fotos</p>
               </div>
             ) : (
-              instrumentosConFotos.map((inst, index) => (
+              filteredInstrumentos.map((inst, index) => (
                 <label key={`${inst.TAGNAME}-${index}`} className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer border transition-all ${
                   selectedTags.includes(inst.TAGNAME) 
                   ? 'bg-blue-50 border-blue-200' 

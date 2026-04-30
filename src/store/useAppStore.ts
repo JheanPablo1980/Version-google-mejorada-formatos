@@ -107,7 +107,7 @@ export interface ExportLog {
   id: string;
   user_email: string;
   tagname: string;
-  tipo_formato: 'EXCEL' | 'PDF';
+  tipo_formato: 'EXCEL' | 'PDF' | 'DELETED';
   timestamp: string;
   id_perfil: string;
 }
@@ -118,6 +118,7 @@ interface AppState {
   instrumentos: Instrumento[];
   exportLogs: ExportLog[];
   logoBase64: string | null;
+  driveFolderLink: string | null;
   session: UserSession | null;
   rolePermissions: Record<UserRole, RolePermissions>;
   loadData: () => Promise<void>;
@@ -126,9 +127,11 @@ interface AppState {
   saveFoto: (fotoData: Foto) => Promise<void>;
   deleteFoto: (id: string) => Promise<void>;
   saveExportLog: (log: Omit<ExportLog, 'id' | 'timestamp' | 'user_email'>) => Promise<void>;
+  deleteInstrumentos: (tagnames: string[]) => Promise<{ success: boolean; error?: string }>;
   loadInstrumentosBulk: (dataArray: Instrumento[]) => Promise<void>;
   addInstrumento: (inst: Instrumento) => Promise<{ success: boolean; error?: string }>;
   saveLogo: (base64: string) => Promise<void>;
+  saveDriveFolderLink: (link: string) => Promise<void>;
   updateRolePermissions: (role: UserRole, permissions: Partial<RolePermissions>) => Promise<void>;
   syncWithSupabase: () => Promise<void>;
   clearInstrumentos: () => Promise<void>;
@@ -148,6 +151,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     instrumentos: [],
     exportLogs: [],
     logoBase64: null,
+    driveFolderLink: null,
     session: {
       user: { email: '3usajanpapo6@gmail.com', id: 'admin-forced', user_metadata: { full_name: 'Maestro (Acceso Directo)' } },
       role: 'ADMIN'
@@ -282,7 +286,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       perfiles: [],
       fotos: [],
       instrumentos: [],
-      logoBase64: null
+      logoBase64: null,
+      driveFolderLink: null
     });
   },
 
@@ -293,6 +298,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const instrumentosLocal = await db.getAll('instrumentos');
     const exportLogs = await db.getAll('export_logs');
     const configLogo = await db.get('config', 'logo');
+    const configDrive = await db.get('config', 'driveFolderLink');
     const configPermissions = await db.get('config', 'rolePermissions');
     
     // Skip session check since we are using direct access mode
@@ -308,6 +314,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       instrumentos: instrumentosLocal, 
       exportLogs: exportLogs || [],
       logoBase64: configLogo?.value || null,
+      driveFolderLink: configDrive?.value || null,
       rolePermissions: configPermissions?.value || {
         ADMIN: { admin: true, nuevo: true, fotos: true, galeria: true, perfiles: true, historial: true, generar: true },
         TECNICO: { admin: false, nuevo: true, fotos: true, galeria: true, perfiles: true, historial: true, generar: true },
@@ -647,8 +654,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   deletePerfil: async (id) => {
+    if (!id) {
+      console.error('deletePerfil called with invalid ID:', id);
+      throw new Error('ID_PERFIL is required to delete a profile');
+    }
     const db = await initDB();
-    await db.delete('perfiles', id);
+    try {
+      await db.delete('perfiles', id);
+    } catch (dbError) {
+      console.error('Error deleting from local DB:', dbError);
+      throw new Error('Local DB deletion failed');
+    }
     
     // Actualizar estado local inmediatamente
     set((state) => ({ perfiles: state.perfiles.filter(p => p.ID_PERFIL !== id) }));
@@ -774,6 +790,41 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  deleteInstrumentos: async (tagnames: string[]) => {
+    const db = await initDB();
+    const session = get().session;
+    try {
+      // 1. Local Delete
+      const tx = db.transaction('instrumentos', 'readwrite');
+      for (const tag of tagnames) {
+        tx.store.delete(tag);
+      }
+      await tx.done;
+
+      // 2. Update state
+      set((state) => ({ instrumentos: state.instrumentos.filter(i => !tagnames.includes(i.TAGNAME)) }));
+
+      // 3. Cloud (Supabase) Delete
+      try {
+        await supabase.from('instrumentos').delete().in('tagname', tagnames);
+      } catch (e) {
+        console.warn('Error deleting from supabase: ', e);
+      }
+
+      // 4. Log in exportLog with tipo_formato as 'DELETED'
+      if (session) {
+        for (const tag of tagnames) {
+          const logInfo: Omit<ExportLog, 'id' | 'timestamp' | 'user_email'> = { tagname: tag, tipo_formato: 'DELETED', id_perfil: '' };
+          get().saveExportLog(logInfo);
+        }
+      }
+
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: 'Error al eliminar: ' + e.message };
+    }
+  },
+
   addInstrumento: async (inst: Instrumento) => {
     const db = await initDB();
     
@@ -842,5 +893,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (e) {
       console.warn('No se pudo respaldar permisos en la nube:', e);
     }
+  },
+
+  saveDriveFolderLink: async (link: string) => {
+    const db = await initDB();
+    await db.put('config', { id: 'driveFolderLink', value: link });
+    set({ driveFolderLink: link });
   }
 }));
