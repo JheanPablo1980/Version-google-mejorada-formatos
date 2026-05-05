@@ -224,25 +224,32 @@ export const VistaGenerar: React.FC = () => {
     // Solo traemos fotos de los tags seleccionados
     const filesToFetch = driveFiles.filter(f => tagsToFetch.includes(extractTagFromName(f.name, todosLosTags)));
     
-    for (let i = 0; i < filesToFetch.length; i++) {
-      const file = filesToFetch[i];
-      if (file.mimeType.startsWith('image/')) {
+    // Descarga en paralelo de todas las fotos
+    const fetchPromises = filesToFetch
+      .filter(f => f.mimeType.startsWith('image/'))
+      .map(async (file, index) => {
         try {
-          // Pausa más larga para estabilidad en móviles (800ms)
-          await new Promise(r => setTimeout(r, 800));
+          // Pequeño escalonamiento inicial para no saturar la conexión al mismo segundo
+          await new Promise(r => setTimeout(r, index * 100));
           
           const blobData = await downloadBase64FromDrive(file.id);
-          driveFotos.push({
+          return {
             TAGNAME: extractTagFromName(file.name, todosLosTags),
             blobData,
             observacion: `Drive: ${file.name}`
-          });
+          };
         } catch (e: any) {
           console.warn(`No se pudo descargar ${file.name}, continuando...`, e);
-          // Opcional: Podríamos agregar una imagen de "Error al cargar" para no dejar el espacio vacío
+          return null;
         }
-      }
-    }
+      });
+
+    const results = await Promise.all(fetchPromises);
+    
+    // Filtrar los resultados exitosos y agregarlos al array de fotos
+    results.forEach(res => {
+      if (res) driveFotos.push(res);
+    });
     return driveFotos;
   };
 
