@@ -137,63 +137,56 @@ export const VistaGenerar: React.FC = () => {
 
   const downloadBase64FromDrive = async (fileId: string, retries = 3): Promise<string> => {
     const apiKey = import.meta.env.VITE_GOOGLE_DRIVE_API_KEY;
-    if (!apiKey) throw new Error("Falta la API Key de Google Drive (VITE_GOOGLE_DRIVE_API_KEY).");
-    const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${apiKey}`;
+    if (!apiKey) throw new Error("Falta la API Key de Google Drive.");
+    
+    // Función interna para convertir blob a base64
+    const blobToBase64 = (blob: Blob): Promise<string> => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    };
+
+    const attemptFetch = async (targetUrl: string, useProxy = false) => {
+      const finalUrl = useProxy ? `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}` : targetUrl;
+      const res = await fetch(finalUrl, { 
+        mode: 'cors',
+        cache: 'no-cache',
+        referrerPolicy: 'no-referrer'
+      });
+      if (!res.ok) throw new Error(`Status ${res.status}`);
+      return await res.blob();
+    };
+
+    // Intentamos descargar la imagen original (Media)
+    const mediaUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${apiKey}`;
     
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
-        const res = await fetch(url, {
-          mode: 'cors',
-          referrerPolicy: 'no-referrer'
-        });
-        
-        if (res.ok) {
-          const blob = await res.blob();
-          return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-          });
-        }
-        
-        if (res.status === 403 || res.status === 404) {
-          throw new Error(`Permiso denegado (403) o archivo no encontrado (404). Verifica que en Drive el archivo sea "Público" (Cualquier persona con el enlace).`);
-        }
-        
-        throw new Error(`Error HTTP: ${res.status}`);
-      } catch (e: any) {
-        // En el último intento o si falla el fetch inicial (común en móviles), probamos con proxies
-        if (attempt === retries || e.message === 'Failed to fetch') {
-          const proxies = [
-            `https://corsproxy.io/?${encodeURIComponent(url)}`,
-            `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
-          ];
-
-          for (const proxyUrl of proxies) {
-            try {
-              const proxyRes = await fetch(proxyUrl);
-              if (proxyRes.ok) {
-                const blob = await proxyRes.blob();
-                return new Promise((resolve, reject) => {
-                  const reader = new FileReader();
-                  reader.onloadend = () => resolve(reader.result as string);
-                  reader.onerror = reject;
-                  reader.readAsDataURL(blob);
-                });
-              }
-            } catch (proxyErr) {}
+        // Intento 1 & 2: Directo y con Proxy
+        const blob = (attempt === 1) ? await attemptFetch(mediaUrl) : await attemptFetch(mediaUrl, true);
+        return await blobToBase64(blob);
+      } catch (e) {
+        if (attempt === retries) {
+          // FALLBACK DE EMERGENCIA PARA MÓVILES: Intentar obtener la miniatura (Thumbnail)
+          // La miniatura es más pequeña y suele saltarse los bloqueos de CORS/Seguridad en móviles
+          try {
+            const metaRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=thumbnailLink&key=${apiKey}`);
+            const metaData = await metaRes.json();
+            if (metaData.thumbnailLink) {
+              const thumbBlob = await attemptFetch(metaData.thumbnailLink.replace('=s220', '=s1000'), true);
+              return await blobToBase64(thumbBlob);
+            }
+          } catch (errorMeta) {
+            throw new Error(`BLOQUEO CRÍTICO EN MÓVIL: El navegador impide descargar la foto incluso con proxies. SOLUCIÓN: Prueba en PC o usa otro navegador (ej. Firefox móvil).`);
           }
-
-          if (e.message === 'Failed to fetch') {
-            throw new Error(`Error de Conexión en Móvil: El navegador de tu celular está bloqueando la descarga por seguridad. SOLUCIÓN: Abre esta página en una PESTAÑA DE INCÓGNITO o limpia los datos de navegación.`);
-          }
-          throw e;
         }
-        await new Promise(r => setTimeout(r, attempt * 500));
+        await new Promise(r => setTimeout(r, 600 * attempt));
       }
     }
-    throw new Error("Error desconocido tras reintentos.");
+    throw new Error("Error final de descarga.");
   };
 
   const activeProfile = perfiles.find(p => p.ID_PERFIL === selectedProfile);
@@ -235,8 +228,8 @@ export const VistaGenerar: React.FC = () => {
       const file = filesToFetch[i];
       if (file.mimeType.startsWith('image/')) {
         try {
-          // Pequeña pausa para no saturar la API
-          if (i > 0) await new Promise(r => setTimeout(r, 200));
+          // Pausa más larga para estabilidad en móviles (800ms)
+          await new Promise(r => setTimeout(r, 800));
           
           const blobData = await downloadBase64FromDrive(file.id);
           driveFotos.push({
@@ -245,7 +238,8 @@ export const VistaGenerar: React.FC = () => {
             observacion: `Drive: ${file.name}`
           });
         } catch (e: any) {
-          throw new Error(`Protocolo de error Drive: No se pudo descargar la foto ${file.name}. Detalle: ${e.message}`);
+          console.warn(`No se pudo descargar ${file.name}, continuando...`, e);
+          // Opcional: Podríamos agregar una imagen de "Error al cargar" para no dejar el espacio vacío
         }
       }
     }
