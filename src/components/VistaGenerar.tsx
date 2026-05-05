@@ -142,10 +142,9 @@ export const VistaGenerar: React.FC = () => {
     
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
-        // Usar no-referrer y credentials omit para evitar bloqueos en navegadores móviles estrictos
         const res = await fetch(url, {
-          referrerPolicy: 'no-referrer',
-          credentials: 'omit'
+          mode: 'cors',
+          referrerPolicy: 'no-referrer'
         });
         
         if (res.ok) {
@@ -158,20 +157,22 @@ export const VistaGenerar: React.FC = () => {
           });
         }
         
-        // Si es un error de permisos o no encontrado, no reintentamos (es configuración de Drive)
         if (res.status === 403 || res.status === 404) {
-          throw new Error(`Permiso denegado (403) o archivo no encontrado (404). Si en PC funciona y aquí no, por favor LIMPIA LA CACHÉ de tu navegador o abre el enlace en una PESTAÑA DE INCÓGNITO en tu celular.`);
+          throw new Error(`Permiso denegado (403) o archivo no encontrado (404). Verifica que en Drive el archivo sea "Público" (Cualquier persona con el enlace).`);
         }
         
         throw new Error(`Error HTTP: ${res.status}`);
       } catch (e: any) {
-        if (attempt === retries || e.message.includes('navegador')) {
-          // Intentar con proxy solo en el último intento si no es un error de permisos conocido
-          if (!e.message.includes('navegador')) {
+        // En el último intento o si falla el fetch inicial (común en móviles), probamos con proxies
+        if (attempt === retries || e.message === 'Failed to fetch') {
+          const proxies = [
+            `https://corsproxy.io/?${encodeURIComponent(url)}`,
+            `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+          ];
+
+          for (const proxyUrl of proxies) {
             try {
-              const proxyRes = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`, {
-                referrerPolicy: 'no-referrer'
-              });
+              const proxyRes = await fetch(proxyUrl);
               if (proxyRes.ok) {
                 const blob = await proxyRes.blob();
                 return new Promise((resolve, reject) => {
@@ -182,6 +183,10 @@ export const VistaGenerar: React.FC = () => {
                 });
               }
             } catch (proxyErr) {}
+          }
+
+          if (e.message === 'Failed to fetch') {
+            throw new Error(`Error de Conexión en Móvil: El navegador de tu celular está bloqueando la descarga por seguridad. SOLUCIÓN: Abre esta página en una PESTAÑA DE INCÓGNITO o limpia los datos de navegación.`);
           }
           throw e;
         }
