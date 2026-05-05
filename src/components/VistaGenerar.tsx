@@ -135,35 +135,60 @@ export const VistaGenerar: React.FC = () => {
     }
   };
 
-  const downloadBase64FromDrive = async (fileId: string): Promise<string> => {
+  const downloadBase64FromDrive = async (fileId: string, retries = 3): Promise<string> => {
     const apiKey = import.meta.env.VITE_GOOGLE_DRIVE_API_KEY;
     if (!apiKey) throw new Error("Falta la API Key de Google Drive (VITE_GOOGLE_DRIVE_API_KEY).");
     const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${apiKey}`;
     
-    let res;
-    try {
-      res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
-    } catch (e) {
-      // CORS Error fallback for Google Drive API redirects
+    for (let attempt = 1; attempt <= retries; attempt++) {
       try {
-        res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
-      } catch (proxyError) {
-        throw new Error("No se pudo descargar la imagen por CORS y el proxy falló.");
+        // Usar no-referrer y credentials omit para evitar bloqueos en navegadores móviles estrictos
+        const res = await fetch(url, {
+          referrerPolicy: 'no-referrer',
+          credentials: 'omit'
+        });
+        
+        if (res.ok) {
+          const blob = await res.blob();
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        }
+        
+        // Si es un error de permisos o no encontrado, no reintentamos (es configuración de Drive)
+        if (res.status === 403 || res.status === 404) {
+          throw new Error(`Permiso denegado (403) o archivo no encontrado (404). Si en PC funciona y aquí no, por favor LIMPIA LA CACHÉ de tu navegador o abre el enlace en una PESTAÑA DE INCÓGNITO en tu celular.`);
+        }
+        
+        throw new Error(`Error HTTP: ${res.status}`);
+      } catch (e: any) {
+        if (attempt === retries || e.message.includes('navegador')) {
+          // Intentar con proxy solo en el último intento si no es un error de permisos conocido
+          if (!e.message.includes('navegador')) {
+            try {
+              const proxyRes = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`, {
+                referrerPolicy: 'no-referrer'
+              });
+              if (proxyRes.ok) {
+                const blob = await proxyRes.blob();
+                return new Promise((resolve, reject) => {
+                  const reader = new FileReader();
+                  reader.onloadend = () => resolve(reader.result as string);
+                  reader.onerror = reject;
+                  reader.readAsDataURL(blob);
+                });
+              }
+            } catch (proxyErr) {}
+          }
+          throw e;
+        }
+        await new Promise(r => setTimeout(r, attempt * 500));
       }
     }
-    
-    if (!res || !res.ok) {
-        throw new Error(`Permiso denegado o archivo no encontrado. Verifica "Cualquier persona con el enlace" en Drive.`);
-    }
-
-    const blob = await res.blob();
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
+    throw new Error("Error desconocido tras reintentos.");
   };
 
   const activeProfile = perfiles.find(p => p.ID_PERFIL === selectedProfile);
@@ -200,9 +225,14 @@ export const VistaGenerar: React.FC = () => {
     
     // Solo traemos fotos de los tags seleccionados
     const filesToFetch = driveFiles.filter(f => tagsToFetch.includes(extractTagFromName(f.name, todosLosTags)));
-    for (const file of filesToFetch) {
+    
+    for (let i = 0; i < filesToFetch.length; i++) {
+      const file = filesToFetch[i];
       if (file.mimeType.startsWith('image/')) {
         try {
+          // Pequeña pausa para no saturar la API
+          if (i > 0) await new Promise(r => setTimeout(r, 200));
+          
           const blobData = await downloadBase64FromDrive(file.id);
           driveFotos.push({
             TAGNAME: extractTagFromName(file.name, todosLosTags),
@@ -210,7 +240,7 @@ export const VistaGenerar: React.FC = () => {
             observacion: `Drive: ${file.name}`
           });
         } catch (e: any) {
-          throw new Error(`Protocolo de error Drive: No se pudo descargar la foto ${file.name}. ¿La API Key tiene permisos completos? Detalle: ${e.message}`);
+          throw new Error(`Protocolo de error Drive: No se pudo descargar la foto ${file.name}. Detalle: ${e.message}`);
         }
       }
     }
