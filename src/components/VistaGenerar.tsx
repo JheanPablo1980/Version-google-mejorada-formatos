@@ -105,7 +105,7 @@ export const VistaGenerar: React.FC = () => {
 
       const apiKey = import.meta.env.VITE_GOOGLE_DRIVE_API_KEY;
       if (!apiKey) {
-        throw new Error("Falta la API Key de Google Drive (VITE_GOOGLE_DRIVE_API_KEY en variables de entorno).");
+        throw new Error("Falta la API Key de Google Drive (VITE_GOOGLE_DRIVE_API_KEY). Asegúrate de configurarla en las variables de entorno de Vercel o de tu servidor.");
       }
 
       let allFiles: {name: string, id: string, mimeType: string}[] = [];
@@ -137,7 +137,7 @@ export const VistaGenerar: React.FC = () => {
 
   const downloadBase64FromDrive = async (fileId: string): Promise<string> => {
     const apiKey = import.meta.env.VITE_GOOGLE_DRIVE_API_KEY;
-    if (!apiKey) throw new Error("Falta API Key de Drive.");
+    if (!apiKey) throw new Error("Falta la API Key de Google Drive (VITE_GOOGLE_DRIVE_API_KEY).");
     const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${apiKey}`;
     
     let res;
