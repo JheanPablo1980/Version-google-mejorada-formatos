@@ -531,7 +531,7 @@ export const VistaGenerar: React.FC = () => {
     }
   };
 
-  const exportarPDF = async () => {
+  const exportarPDF = async (tipoSalida: 'UNIDO' | 'SEPARADOS') => {
     if (selectedTags.length === 0 || !activeProfile) { 
         setExportError("Selecciona instrumentos y perfil para generar PDF."); 
         return; 
@@ -546,17 +546,15 @@ export const VistaGenerar: React.FC = () => {
       // Log backup
       await logExportAction('PDF');
       
-      let allHtmlContent = '';
-
-      selectedTags.forEach((tag, index) => {
+      const buildHtmlForTag = (tag: string) => {
         const activeInstrument = instrumentos.find(i => i.TAGNAME === tag);
         const fotosDelTag = modoExportacion === 'DRIVE' 
           ? driveFotosDownloaded.filter(f => f.TAGNAME === tag)
           : fotos.filter(f => f.TAGNAME === tag);
 
-        if (!activeInstrument) return;
+        if (!activeInstrument) return '';
 
-      allHtmlContent += `
+        return `
         <div class="protocol-page">
           <table class="main-table">
             <tr>
@@ -713,13 +711,13 @@ export const VistaGenerar: React.FC = () => {
             </tr>
           </table>
         </div>
-      `;
-    });
+        `;
+      };
 
-    const fullHtml = `
+      const wrapHtml = (content: string, title: string) => `
       <html>
         <head>
-          <title>Protocolos_${activeProfile.NOMBRE_PERFIL}</title>
+          <title>${title}</title>
           <style>
             @page { size: A4 portrait; margin: 10mm; }
             body { font-family: 'Inter', 'Helvetica', 'Arial', sans-serif; font-size: 9px; color: #000; margin: 0; padding: 0; background: #fff; }
@@ -754,21 +752,51 @@ export const VistaGenerar: React.FC = () => {
           </style>
         </head>
         <body>
-          ${allHtmlContent}
+          ${content}
         </body>
       </html>
-    `;
+      `;
 
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(fullHtml);
-      printWindow.document.close();
-      printWindow.focus();
-      setTimeout(() => { 
-        printWindow.print(); 
-        printWindow.close(); 
-      }, 750);
-    }
+      if (tipoSalida === 'UNIDO') {
+        const allHtmlContent = selectedTags.map(tag => buildHtmlForTag(tag)).join('');
+        const fullHtml = wrapHtml(allHtmlContent, `Protocolos_${activeProfile.NOMBRE_PERFIL}`);
+        
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          printWindow.document.write(fullHtml);
+          printWindow.document.close();
+          printWindow.focus();
+          setTimeout(() => { 
+            printWindow.print(); 
+            printWindow.close(); 
+          }, 750);
+        } else {
+          setExportError("El navegador bloqueó la ventana emergente. Por favor, permite los pop-ups para este sitio.");
+        }
+      } else {
+        // Modo SEPARADOS
+        for (const tag of selectedTags) {
+          const content = buildHtmlForTag(tag);
+          if (!content) continue;
+          
+          const fullHtml = wrapHtml(content, `Protocolo_${tag}`);
+          const printWindow = window.open('', '_blank');
+          
+          if (printWindow) {
+            printWindow.document.write(fullHtml);
+            printWindow.document.close();
+            printWindow.focus();
+            
+            // Usamos Promise para simular un bloqueo ligero antes de abrir el sgte
+            await new Promise(r => setTimeout(r, 750));
+            printWindow.print();
+            printWindow.close();
+          } else {
+            setExportError("El navegador bloqueó las ventanas múltiples. Permite los pop-ups en tu navegador.");
+            break;
+          }
+        }
+      }
     } catch (e: any) {
       setExportError(e.message || "Error generando PDF con Drive");
       console.error(e);
@@ -965,15 +993,26 @@ export const VistaGenerar: React.FC = () => {
               {exportError}
             </div>
           )}
-          <Button 
-            onClick={exportarPDF} 
-            variant="pdf" 
-            icon={Printer} 
-            disabled={selectedTags.length === 0 || !selectedProfile}
-            className="shadow-lg shadow-red-200 active:scale-95"
-          >
-            Generar Protocolos (PDF)
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => exportarPDF('UNIDO')} 
+              variant="pdf" 
+              icon={Printer} 
+              disabled={selectedTags.length === 0 || !selectedProfile}
+              className="shadow-lg shadow-red-200 active:scale-95 flex-1"
+            >
+              PDF (1 Solo Archivo)
+            </Button>
+            <Button 
+              onClick={() => exportarPDF('SEPARADOS')} 
+              variant="pdf" 
+              icon={Printer} 
+              disabled={selectedTags.length === 0 || !selectedProfile}
+              className="shadow-lg shadow-red-200 active:scale-95 flex-1 bg-red-500 hover:bg-red-600 outline-none"
+            >
+              PDF (Varios Archivos)
+            </Button>
+          </div>
           <Button 
             onClick={exportarExcel} 
             variant="success" 
