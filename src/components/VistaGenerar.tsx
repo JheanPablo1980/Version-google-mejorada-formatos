@@ -30,7 +30,7 @@ function extractTagFromName(name: string, tagsDb: string[]) {
 }
 
 export const VistaGenerar: React.FC = () => {
-  const { instrumentos, perfiles, fotos, logoBase64, saveExportLog, driveFolderLink } = useAppStore();
+  const { instrumentos, perfiles, fotos, logoBase64, saveExportLog, saveConteoExportacion, driveFolderLink } = useAppStore();
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedProfile, setSelectedProfile] = useState('');
   const [isExporting, setIsExporting] = useState(false);
@@ -211,6 +211,9 @@ export const VistaGenerar: React.FC = () => {
          tipo_formato: tipo,
          id_perfil: activeProfile.ID_PERFIL
        });
+       
+       // Guardar el conteo específico para el técnico
+       await saveConteoExportacion(tag);
     }
   };
 

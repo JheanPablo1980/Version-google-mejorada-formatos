@@ -112,11 +112,21 @@ export interface ExportLog {
   id_perfil: string;
 }
 
+export interface ConteoExportacion {
+  id: string;
+  tag: string;
+  conteo: number;
+  fecha_hora: string;
+  user_role: UserRole;
+  user_email: string;
+}
+
 interface AppState {
   perfiles: Perfil[];
   fotos: Foto[];
   instrumentos: Instrumento[];
   exportLogs: ExportLog[];
+  conteoExportacion: ConteoExportacion[];
   logoBase64: string | null;
   driveFolderLink: string | null;
   session: UserSession | null;
@@ -127,6 +137,7 @@ interface AppState {
   saveFoto: (fotoData: Foto) => Promise<void>;
   deleteFoto: (id: string) => Promise<void>;
   saveExportLog: (log: Omit<ExportLog, 'id' | 'timestamp' | 'user_email'>) => Promise<void>;
+  saveConteoExportacion: (tag: string) => Promise<void>;
   deleteInstrumentos: (tagnames: string[]) => Promise<{ success: boolean; error?: string }>;
   loadInstrumentosBulk: (dataArray: Instrumento[]) => Promise<void>;
   addInstrumento: (inst: Instrumento) => Promise<{ success: boolean; error?: string }>;
@@ -151,6 +162,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     fotos: [],
     instrumentos: [],
     exportLogs: [],
+    conteoExportacion: [],
     logoBase64: null,
     driveFolderLink: null,
     session: null,
@@ -277,11 +289,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     
     // 1. Limpiar IndexedDB (Tablas locales)
     try {
-      const tx = db.transaction(['perfiles', 'fotos', 'instrumentos', 'config'], 'readwrite');
+      const tx = db.transaction(['perfiles', 'fotos', 'instrumentos', 'config', 'conteo_exportacion'], 'readwrite');
       await tx.objectStore('perfiles').clear();
       await tx.objectStore('fotos').clear();
       await tx.objectStore('instrumentos').clear();
       await tx.objectStore('config').clear();
+      await tx.objectStore('conteo_exportacion').clear();
       await tx.done;
     } catch (e) {
       console.error('Local clear error:', e);
@@ -293,7 +306,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         supabase.from('instrumentos').delete().neq('tagname', '_reset_'),
         supabase.from('fotos').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
         supabase.from('perfiles').delete().neq('id_perfil', '_reset_'),
-        supabase.from('export_logs').delete().neq('id', '_reset_')
+        supabase.from('export_logs').delete().neq('id', '_reset_'),
+        supabase.from('conteo_exportacion').delete().neq('id', '_reset_')
       ]);
 
       const errors = results.map(r => r.error).filter(Boolean);
@@ -320,6 +334,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const fotos = await db.getAll('fotos');
     const instrumentosLocal = await db.getAll('instrumentos');
     const exportLogs = await db.getAll('export_logs');
+    const conteoExportacion = await db.getAll('conteo_exportacion');
     const configLogo = await db.get('config', 'logo');
     const configDrive = await db.get('config', 'driveFolderLink');
     const configPermissions = await db.get('config', 'rolePermissions');
@@ -333,6 +348,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       fotos, 
       instrumentos: instrumentosLocal, 
       exportLogs: exportLogs || [],
+      conteoExportacion: conteoExportacion || [],
       logoBase64: configLogo?.value || null,
       driveFolderLink: configDrive?.value || null,
       rolePermissions: configPermissions?.value || {
@@ -345,6 +361,31 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     // Supabase auth listeners disabled in direct access mode
     console.log('App cargada en modo Directo (ADMIN)');
+
+    // Cargar Configuración Global desde Supabase (Logo y Drive)
+    try {
+      const { data: remoteConfig, error: configError } = await supabase.from('app_config').select('*');
+      if (remoteConfig && !configError) {
+        const logoItem = remoteConfig.find(c => c.id === 'logo');
+        const driveItem = remoteConfig.find(c => c.id === 'drive_folder_link');
+        const permsItem = remoteConfig.find(c => c.id === 'role_permissions');
+
+        if (logoItem) {
+          await db.put('config', { id: 'logo', value: logoItem.value });
+          set({ logoBase64: logoItem.value });
+        }
+        if (driveItem) {
+          await db.put('config', { id: 'driveFolderLink', value: driveItem.value });
+          set({ driveFolderLink: driveItem.value });
+        }
+        if (permsItem) {
+          await db.put('config', { id: 'rolePermissions', value: permsItem.value });
+          set({ rolePermissions: permsItem.value });
+        }
+      }
+    } catch (e) {
+      console.warn('Error cargando configuración remota:', e);
+    }
 
     // Cargar Instrumentos desde Supabase (Fuente de Verdad)
     try {
@@ -539,7 +580,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
 
     // 4. Sincronizar logs de exportación
-    const { exportLogs } = get();
+    const { exportLogs, conteoExportacion } = get();
     if (exportLogs.length > 0) {
       for (let i = 0; i < exportLogs.length; i += 500) {
         const chunk = exportLogs.slice(i, i + 500).map(log => ({
@@ -552,6 +593,22 @@ export const useAppStore = create<AppState>((set, get) => ({
         }));
         const { error } = await supabase.from('export_logs').upsert(chunk);
         if (error) console.warn('Error syncing export_logs:', error);
+      }
+    }
+
+    // 5. Sincronizar conteo de exportación
+    if (conteoExportacion.length > 0) {
+      for (let i = 0; i < conteoExportacion.length; i += 500) {
+        const chunk = conteoExportacion.slice(i, i + 500).map(item => ({
+          id: item.id,
+          tag: item.tag,
+          conteo: item.conteo,
+          fecha_hora: item.fecha_hora,
+          user_role: item.user_role,
+          user_email: item.user_email
+        }));
+        const { error } = await supabase.from('conteo_exportacion').upsert(chunk);
+        if (error) console.warn('Error syncing conteo_exportacion:', error);
       }
     }
   },
@@ -810,6 +867,41 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  saveConteoExportacion: async (tag) => {
+    const session = get().session;
+    if (!session || session.role !== 'TECNICO') return;
+    
+    const newRecord: ConteoExportacion = {
+      id: crypto.randomUUID(),
+      tag,
+      conteo: 1,
+      fecha_hora: new Date().toISOString(),
+      user_role: session.role,
+      user_email: session.user.email
+    };
+    
+    const db = await initDB();
+    await db.add('conteo_exportacion', newRecord);
+    
+    set((state) => ({
+      conteoExportacion: [newRecord, ...state.conteoExportacion]
+    }));
+
+    // Sincronizar con Supabase
+    try {
+      await supabase.from('conteo_exportacion').insert({
+        id: newRecord.id,
+        tag: newRecord.tag,
+        conteo: newRecord.conteo,
+        fecha_hora: newRecord.fecha_hora,
+        user_role: newRecord.user_role,
+        user_email: newRecord.user_email
+      });
+    } catch (e) {
+      console.warn('No se pudo respaldar conteo en la nube:', e);
+    }
+  },
+
   deleteInstrumentos: async (tagnames: string[]) => {
     const db = await initDB();
     const session = get().session;
@@ -894,6 +986,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     const db = await initDB();
     await db.put('config', { id: 'logo', value: base64 });
     set({ logoBase64: base64 });
+
+    try {
+      await supabase.from('app_config').upsert({ id: 'logo', value: base64 });
+    } catch (e) {
+      console.warn('Error syncing logo:', e);
+    }
   },
 
   updateRolePermissions: async (role, permissions) => {
@@ -919,5 +1017,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     const db = await initDB();
     await db.put('config', { id: 'driveFolderLink', value: link });
     set({ driveFolderLink: link });
+
+    try {
+      await supabase.from('app_config').upsert({ id: 'drive_folder_link', value: link });
+    } catch (e) {
+      console.warn('Error syncing drive link:', e);
+    }
   }
 }));
