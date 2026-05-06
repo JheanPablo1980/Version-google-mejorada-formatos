@@ -93,19 +93,20 @@ export const VistaGenerar: React.FC = () => {
     setDriveFiles([]);
     try {
       if (!driveFolderLink) {
-        throw new Error("No hay enlace de Google Drive configurado en la sección de Admin.");
+        throw new Error("No hay enlace de Google Drive configurado.");
       }
       
-      const match = driveFolderLink.match(/folders\/([a-zA-Z0-9-_]+)/);
+      // Regex mejorada para cualquier tipo de enlace de carpeta de Drive
+      const match = driveFolderLink.match(/(?:folders\/|id=)([^/?]+)/);
       const folderId = match ? match[1] : null;
 
       if (!folderId) {
-        throw new Error("El enlace de Google Drive no tiene un formato válido (necesita .../folders/ID).");
+        throw new Error("Enlace de Drive no válido. Copia el enlace desde el botón 'Compartir' de la carpeta.");
       }
 
       const apiKey = import.meta.env.VITE_GOOGLE_DRIVE_API_KEY;
       if (!apiKey) {
-        throw new Error("Falta la API Key de Google Drive (VITE_GOOGLE_DRIVE_API_KEY). Asegúrate de configurarla en las variables de entorno de Vercel o de tu servidor.");
+        throw new Error("API Key de Drive no configurada.");
       }
 
       let allFiles: {name: string, id: string, mimeType: string}[] = [];
@@ -435,9 +436,10 @@ export const VistaGenerar: React.FC = () => {
                 base64: foto.blobData.split(',')[1], 
                 extension: 'jpeg' 
               });
+              // Posicionamiento centrado y con margen en el recuadro de fotos
               ws1.addImage(imageId, { 
-                tl: { col: colIdx + 0.1, row: r - 1 + 0.1 }, 
-                ext: { width: 330, height: 230 } 
+                tl: { col: colIdx + 0.2, row: r - 1 + 0.5 }, 
+                ext: { width: 310, height: 210 } 
               });
             } catch (e) {
               console.error("Error adding photo to spreadsheet", e);
@@ -469,24 +471,29 @@ export const VistaGenerar: React.FC = () => {
         ws1.mergeCells(`F${currentRow+3}:H${currentRow+5}`); ws1.getCell(`F${currentRow+3}`).value = 'FIRMA:'; applyStyle(ws1.getCell(`F${currentRow+3}`)); ws1.getCell(`F${currentRow+3}`).font = { bold: true }; ws1.getCell(`F${currentRow+3}`).alignment = {vertical:'top', horizontal:'left'};
 
         ws1.mergeCells(`A${currentRow+6}:C${currentRow+6}`); ws1.getCell(`A${currentRow+6}`).value = `FECHA: ${activeProfile.FECHA}`; applyStyle(ws1.getCell(`A${currentRow+6}`)); ws1.getCell('A' + (currentRow+6)).alignment = {horizontal:'left'};
-        ws1.mergeCells(`D${currentRow+6}:E${currentRow+6}`); ws1.getCell(`D${currentRow+6}`).value = `FECHA: ${activeProfile.FECHA}`; applyStyle(ws1.getCell(`D${currentRow+6}`)); ws1.getCell('D' + (currentRow+6)).alignment = {horizontal:'left'};
-        ws1.mergeCells(`F${currentRow+6}:H${currentRow+6}`); ws1.getCell(`F${currentRow+6}`).value = `FECHA: ${activeProfile.FECHA}`; applyStyle(ws1.getCell(`F${currentRow+6}`)); ws1.getCell('F' + (currentRow+6)).alignment = {horizontal:'left'};
+        ws1.mergeCells(`D${currentRow+6}:E${currentRow+6}`); ws1.getCell(`D${currentRow+6}`).value = `FECHA: `; applyStyle(ws1.getCell(`D${currentRow+6}`)); ws1.getCell('D' + (currentRow+6)).alignment = {horizontal:'left'};
+        ws1.mergeCells(`F${currentRow+6}:H${currentRow+6}`); ws1.getCell(`F${currentRow+6}`).value = `FECHA: `; applyStyle(ws1.getCell(`F${currentRow+6}`)); ws1.getCell('F' + (currentRow+6)).alignment = {horizontal:'left'};
 
-        const embedSig = (b64: string, col: number, row: number) => {
+        const embedSig = (b64: string, col: number, colMaxOffset: number, row: number) => {
           if (!b64) return;
           try {
+            const extension = b64.includes('png') ? 'png' : 'jpeg';
             const imageId = wb.addImage({ 
               base64: b64.split(',')[1], 
-              extension: 'png' 
+              extension: extension as any
             });
-            ws1.addImage(imageId, { tl: { col: col + 0.1, row: row + 0.5 }, ext: { width: 130, height: 40 } });
+            // Firmas más grandes y mejor posicionadas (tl.row + 0.8 para bajarla un poco del label 'FIRMA:')
+            ws1.addImage(imageId, { 
+              tl: { col: col + 0.5, row: row + 0.8 }, 
+              ext: { width: 160, height: 55 } 
+            });
           } catch (e) {
             console.error("Error embedding signature", e);
           }
         };
-        embedSig(activeProfile.ELABORO_FIRMA, 0, currentRow+3);
-        embedSig(activeProfile.REVISO_FIRMA, 3, currentRow+3);
-        embedSig(activeProfile.APROBO_FIRMA, 5, currentRow+3);
+        embedSig(activeProfile.ELABORO_FIRMA, 0, 3, currentRow+3);
+        embedSig(activeProfile.REVISO_FIRMA, 3, 2, currentRow+3);
+        embedSig(activeProfile.APROBO_FIRMA, 5, 3, currentRow+3);
       }
 
       const buffer = await wb.xlsx.writeBuffer();
@@ -679,8 +686,8 @@ export const VistaGenerar: React.FC = () => {
             </tr>
             <tr>
               <td>FECHA: ${activeProfile.FECHA}</td>
-              <td>FECHA: ${activeProfile.FECHA}</td>
-              <td>FECHA: ${activeProfile.FECHA}</td>
+              <td>FECHA: </td>
+              <td>FECHA: </td>
             </tr>
           </table>
         </div>
@@ -770,10 +777,10 @@ export const VistaGenerar: React.FC = () => {
           </button>
         </div>
 
-        <div>
-          <div className="flex justify-between items-end mb-3">
+        <div className="space-y-4">
+          <div className="flex justify-between items-end">
             <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest">
-              1. Instrumentos {modoExportacion === 'DRIVE' ? '(Encontrados en Drive)' : 'Con Fotos'} ({filteredInstrumentos.length})
+              1. Instrumentos {modoExportacion === 'DRIVE' ? '(En Drive)' : 'Con Fotos'} ({filteredInstrumentos.length})
             </label>
             {filteredInstrumentos.length > 0 && (
               <button onClick={handleSelectAll} className="text-[10px] text-blue-600 font-bold hover:underline uppercase">
@@ -782,7 +789,32 @@ export const VistaGenerar: React.FC = () => {
             )}
           </div>
 
-          <div className="mb-3 flex gap-2">
+          {modoExportacion === 'DRIVE' && !isFetchingDrive && !driveFetchError && driveFiles.length > 0 && filteredInstrumentos.length === 0 && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-700 font-medium">
+              <p className="flex items-center gap-1.5 mb-1"><AlertCircle size={14} /> Se encontraron {driveFiles.length} archivos en Drive, pero <b>ninguno coincide</b> con los Tags de tus instrumentos.</p>
+              <p className="opacity-80">Asegúrate de que las fotos en Drive comiencen con el Tag exacto (ej: {instrumentos[0]?.TAGNAME || 'TAG-001'}_foto.jpg).</p>
+            </div>
+          )}
+
+          {modoExportacion === 'DRIVE' && isFetchingDrive && (
+            <div className="p-8 text-center animate-pulse">
+              <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+              <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">Sincronizando con Drive...</p>
+            </div>
+          )}
+
+          {driveFetchError && (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 font-medium flex gap-3 items-start">
+              <AlertCircle className="shrink-0" size={16} />
+              <div>
+                <p className="font-bold uppercase mb-1">Error de conexión a Drive</p>
+                <p>{driveFetchError}</p>
+                <p className="mt-2 text-[10px] opacity-70 italic">Verifica que la carpeta sea PÚBLICA (Cualquier persona con el enlace).</p>
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-2">
             <div className="relative flex-1">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Search size={16} className="text-gray-400" />
