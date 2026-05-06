@@ -504,10 +504,10 @@ export const VistaGenerar: React.FC = () => {
               base64: b64.split(',')[1], 
               extension: extension as any
             });
-            // Firmas más grandes y mejor posicionadas (tl.row + 0.8 para bajarla un poco del label 'FIRMA:')
+            // Se ajusta el tamaño y la posición para que no se salga de las celdas
             ws1.addImage(imageId, { 
-              tl: { col: col + 0.5, row: row + 0.8 }, 
-              ext: { width: 160, height: 55 } 
+              tl: { col: col + 0.2, row: row + 0.3 }, 
+              ext: { width: 140, height: 42 } 
             });
           } catch (e) {
             console.error("Error embedding signature", e);
@@ -993,26 +993,15 @@ export const VistaGenerar: React.FC = () => {
               {exportError}
             </div>
           )}
-          <div className="flex gap-2">
-            <Button 
-              onClick={() => exportarPDF('UNIDO')} 
-              variant="pdf" 
-              icon={Printer} 
-              disabled={selectedTags.length === 0 || !selectedProfile}
-              className="shadow-lg shadow-red-200 active:scale-95 flex-1"
-            >
-              PDF (1 Solo Archivo)
-            </Button>
-            <Button 
-              onClick={() => exportarPDF('SEPARADOS')} 
-              variant="pdf" 
-              icon={Printer} 
-              disabled={selectedTags.length === 0 || !selectedProfile}
-              className="shadow-lg shadow-red-200 active:scale-95 flex-1 bg-red-500 hover:bg-red-600 outline-none"
-            >
-              PDF (Varios Archivos)
-            </Button>
-          </div>
+          <Button 
+            onClick={() => exportarPDF('UNIDO')} 
+            variant="pdf" 
+            icon={Printer} 
+            disabled={selectedTags.length === 0 || !selectedProfile}
+            className="shadow-lg shadow-red-200 active:scale-95"
+          >
+            Generar Protocolos (PDF)
+          </Button>
           <Button 
             onClick={exportarExcel} 
             variant="success" 
