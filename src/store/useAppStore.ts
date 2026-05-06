@@ -140,6 +140,7 @@ interface AppState {
   totalFactoryReset: () => Promise<void>;
   signIn: () => Promise<void>;
   devLogin: (role: UserRole) => void;
+  login: (role: UserRole, password?: string) => { success: boolean; error?: string };
   signOut: () => Promise<void>;
 }
 
@@ -152,10 +153,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     exportLogs: [],
     logoBase64: null,
     driveFolderLink: null,
-    session: {
-      user: { email: '3usajanpapo6@gmail.com', id: 'admin-forced', user_metadata: { full_name: 'Maestro (Acceso Directo)' } },
-      role: 'ADMIN'
-    },
+    session: null,
     rolePermissions: {
       ADMIN: { admin: true, nuevo: true, fotos: true, galeria: true, perfiles: true, historial: true, generar: true },
       TECNICO: { admin: false, nuevo: true, fotos: true, galeria: true, perfiles: true, historial: true, generar: true },
@@ -167,14 +165,39 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ session: { user: { email: ADMIN_EMAIL, id: 'admin-fallback', user_metadata: { full_name: 'Maestro' } }, role: 'ADMIN' } });
   },
 
+  login: (role, password) => {
+    if (role === 'ADMIN') {
+      if (password === '123') {
+        const adminSession: UserSession = {
+          user: { email: ADMIN_EMAIL, id: 'admin-local', user_metadata: { full_name: 'Administrador' } },
+          role: 'ADMIN'
+        };
+        set({ session: adminSession });
+        localStorage.setItem('user_session', JSON.stringify(adminSession));
+        return { success: true };
+      } else {
+        return { success: false, error: 'Contraseña incorrecta' };
+      }
+    } else if (role === 'TECNICO') {
+      const tecnicoSession: UserSession = {
+        user: { email: 'tecnico@protocolos.com', id: 'tecnico-local', user_metadata: { full_name: 'Técnico' } },
+        role: 'TECNICO'
+      };
+      set({ session: tecnicoSession });
+      localStorage.setItem('user_session', JSON.stringify(tecnicoSession));
+      return { success: true };
+    }
+    return { success: false, error: 'Rol no válido' };
+  },
+
   signIn: async () => {
     // El acceso con Google ha sido deshabilitado a petición
     console.log('SignIn deshabilitado - Usando modo de acceso directo');
   },
 
   signOut: async () => {
-    // Al cerrar sesión en modo directo, simplemente refrescamos para volver a entrar
-    window.location.reload();
+    localStorage.removeItem('user_session');
+    set({ session: null });
   },
 
   clearInstrumentos: async () => {
@@ -301,12 +324,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     const configDrive = await db.get('config', 'driveFolderLink');
     const configPermissions = await db.get('config', 'rolePermissions');
     
-    // Skip session check since we are using direct access mode
-    const userRole: UserRole = 'ADMIN';
-    const forcedSession: UserSession = { 
-      user: { email: ADMIN_EMAIL, id: 'admin-forced', user_metadata: { full_name: 'Maestro (Acceso Directo)' } }, 
-      role: 'ADMIN' 
-    };
+    // Cargar sesión guardada si existe
+    const savedSession = localStorage.getItem('user_session');
+    const initialSession = savedSession ? JSON.parse(savedSession) : null;
 
     set({ 
       perfiles, 
@@ -320,7 +340,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         TECNICO: { admin: false, nuevo: true, fotos: true, galeria: true, perfiles: true, historial: true, generar: true },
         INVITADO: { admin: false, nuevo: false, fotos: false, galeria: true, perfiles: true, historial: false, generar: true }
       },
-      session: forcedSession
+      session: initialSession
     });
 
     // Supabase auth listeners disabled in direct access mode

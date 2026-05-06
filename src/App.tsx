@@ -40,12 +40,16 @@ export default function App() {
     if (!hasPermission) return false;
 
     // 2. Restricción adicional por correo solo para Historial (Maestro)
-    if (n.id === 'historial' && session.user.email !== '3usajanpapo6@gmail.com') {
+    if (n.id === 'historial' && session?.user?.email !== '3usajanpapo6@gmail.com') {
       return false;
     }
     
     return true;
   });
+
+  if (!session) {
+    return <Login />;
+  }
 
   return (
     <div className="min-h-screen bg-[#F3F6FA] font-sans selection:bg-blue-200 text-slate-900 overflow-x-hidden">
