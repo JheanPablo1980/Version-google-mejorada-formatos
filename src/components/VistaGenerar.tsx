@@ -166,28 +166,30 @@ export const VistaGenerar: React.FC = () => {
     
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
-        // Intento 1 & 2: Directo y con Proxy
-        const blob = (attempt === 1) ? await attemptFetch(mediaUrl) : await attemptFetch(mediaUrl, true);
+        // Intento 1: Directo, Intento 2: Proxy, Intento 3: Thumbnail
+        let blob: Blob;
+        if (attempt < retries) {
+          blob = (attempt === 1) ? await attemptFetch(mediaUrl) : await attemptFetch(mediaUrl, true);
+        } else {
+          // ÚLTIMO RECURSO: Miniatura
+          const metaRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=thumbnailLink&key=${apiKey}`);
+          const metaData = await metaRes.json();
+          if (metaData.thumbnailLink) {
+            blob = await attemptFetch(metaData.thumbnailLink.replace('=s220', '=s1000'), true);
+          } else {
+            throw new Error("No hay miniatura disponible");
+          }
+        }
         return await blobToBase64(blob);
       } catch (e) {
         if (attempt === retries) {
-          // FALLBACK DE EMERGENCIA PARA MÓVILES: Intentar obtener la miniatura (Thumbnail)
-          // La miniatura es más pequeña y suele saltarse los bloqueos de CORS/Seguridad en móviles
-          try {
-            const metaRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=thumbnailLink&key=${apiKey}`);
-            const metaData = await metaRes.json();
-            if (metaData.thumbnailLink) {
-              const thumbBlob = await attemptFetch(metaData.thumbnailLink.replace('=s220', '=s1000'), true);
-              return await blobToBase64(thumbBlob);
-            }
-          } catch (errorMeta) {
-            throw new Error(`BLOQUEO CRÍTICO EN MÓVIL: El navegador impide descargar la foto incluso con proxies. SOLUCIÓN: Prueba en PC o usa otro navegador (ej. Firefox móvil).`);
-          }
+          console.error(`Fallo total descargando archivo ${fileId}:`, e);
+          throw new Error("No se pudo descargar la imagen tras varios intentos.");
         }
-        await new Promise(r => setTimeout(r, 600 * attempt));
+        await new Promise(r => setTimeout(r, 800 * attempt));
       }
     }
-    throw new Error("Error final de descarga.");
+    throw new Error("Error inesperado en descarga.");
   };
 
   const activeProfile = perfiles.find(p => p.ID_PERFIL === selectedProfile);
@@ -223,19 +225,20 @@ export const VistaGenerar: React.FC = () => {
     if (!driveFiles || driveFiles.length === 0) return [];
     
     setIsExporting(true);
-    const driveFotos = [];
+    const driveFotos: any[] = [];
     
     // Solo traemos fotos de los tags seleccionados
     const filesToFetch = driveFiles.filter(f => tagsToFetch.includes(extractTagFromName(f.name, todosLosTags)));
     
-    // Descarga en paralelo de todas las fotos
-    const fetchPromises = filesToFetch
-      .filter(f => f.mimeType.startsWith('image/'))
-      .map(async (file, index) => {
+    // Descarga con control de concurrencia básica
+    const results = [];
+    const BATCH_SIZE = 5; // Descargar de 5 en 5 para no saturar
+    
+    for (let i = 0; i < filesToFetch.length; i += BATCH_SIZE) {
+      const batch = filesToFetch.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(batch.map(async (file) => {
+        if (!file.mimeType.startsWith('image/')) return null;
         try {
-          // Pequeño escalonamiento inicial para no saturar la conexión al mismo segundo
-          await new Promise(r => setTimeout(r, index * 100));
-          
           const blobData = await downloadBase64FromDrive(file.id);
           return {
             TAGNAME: extractTagFromName(file.name, todosLosTags),
@@ -246,14 +249,22 @@ export const VistaGenerar: React.FC = () => {
           console.warn(`No se pudo descargar ${file.name}, continuando...`, e);
           return null;
         }
-      });
-
-    const results = await Promise.all(fetchPromises);
+      }));
+      results.push(...batchResults);
+      if (i + BATCH_SIZE < filesToFetch.length) {
+        await new Promise(r => setTimeout(r, 300)); // Reposo entre lotes
+      }
+    }
     
     // Filtrar los resultados exitosos y agregarlos al array de fotos
     results.forEach(res => {
       if (res) driveFotos.push(res);
     });
+
+    if (driveFotos.length < filesToFetch.length) {
+       console.warn(`Se encontraron ${filesToFetch.length} fotos pero solo se descargaron ${driveFotos.length}`);
+    }
+
     return driveFotos;
   };
 
@@ -429,17 +440,28 @@ export const VistaGenerar: React.FC = () => {
             const colEnd = isLeft ? 'D' : 'H';
             const colIdx = isLeft ? 0 : 4;
 
+            // Asegurar alturas de filas para que las fotos no se vean "incompletas"
+            for (let h = 0; h < 15; h++) {
+              ws1.getRow(r + h).height = 18;
+            }
+            ws1.getRow(r + 15).height = 15; // Altura para observación
+
             ws1.mergeCells(`${colStart}${r}:${colEnd}${r+14}`);
             applyStyle(ws1.getCell(`${colStart}${r}`));
+            
             try {
+              const mimeType = foto.blobData.match(/data:([^;]+);/)?.[1] || 'image/jpeg';
+              const ext = (mimeType.split('/')[1] || 'jpeg').replace('jpg', 'jpeg');
+              
               const imageId = wb.addImage({ 
                 base64: foto.blobData.split(',')[1], 
-                extension: 'jpeg' 
+                extension: ext as any
               });
-              // Posicionamiento centrado y con margen en el recuadro de fotos
+              
+              // Ajuste de posicionamiento y tamaño
               ws1.addImage(imageId, { 
-                tl: { col: colIdx + 0.2, row: r - 1 + 0.5 }, 
-                ext: { width: 310, height: 210 } 
+                tl: { col: colIdx + 0.1, row: r - 1 + 0.2 }, 
+                ext: { width: 330, height: 260 } 
               });
             } catch (e) {
               console.error("Error adding photo to spreadsheet", e);
