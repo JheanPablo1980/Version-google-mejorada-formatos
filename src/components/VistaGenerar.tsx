@@ -459,9 +459,11 @@ export const VistaGenerar: React.FC = () => {
               });
               
               // Ajuste de posicionamiento y tamaño
+              // Usaremos coordenadas 'tl' (top-left) y 'br' (bottom-right) para que exceljs lo ancle al recuadro.
               ws1.addImage(imageId, { 
-                tl: { col: colIdx + 0.1, row: r - 1 + 0.2 }, 
-                ext: { width: 330, height: 260 } 
+                tl: { col: colIdx + 0.2, row: r - 1 + 0.3 } as any, 
+                br: { col: colIdx + 3.8, row: r - 1 + 14.7 } as any,
+                editAs: 'oneCell'
               });
             } catch (e) {
               console.error("Error adding photo to spreadsheet", e);
@@ -505,9 +507,11 @@ export const VistaGenerar: React.FC = () => {
               extension: extension as any
             });
             // Se ajusta el tamaño y la posición para que no se salga de las celdas
+            // Usamos coordenadas precisas respetando el texto "FIRMA:" que está arriba.
             ws1.addImage(imageId, { 
-              tl: { col: col + 0.2, row: row + 0.3 }, 
-              ext: { width: 140, height: 42 } 
+              tl: { col: col + 0.3, row: row - 1 + 0.8 } as any, 
+              br: { col: col + colMaxOffset - 0.3, row: row - 1 + 2.8 } as any,
+              editAs: 'oneCell'
             });
           } catch (e) {
             console.error("Error embedding signature", e);
