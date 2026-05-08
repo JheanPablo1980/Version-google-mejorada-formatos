@@ -34,6 +34,9 @@ export const VistaGenerar: React.FC = () => {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedProfile, setSelectedProfile] = useState('');
   const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
+  const [exportStartTime, setExportStartTime] = useState<number | null>(null);
+  const [exportElapsedTime, setExportElapsedTime] = useState(0);
   const [modoExportacion, setModoExportacion] = useState<'LOCAL' | 'DRIVE'>('LOCAL');
   
   const [driveFiles, setDriveFiles] = useState<{name: string, id: string, mimeType: string}[]>([]);
@@ -87,6 +90,22 @@ export const VistaGenerar: React.FC = () => {
     }
   }, [modoExportacion, driveFolderLink]);
 
+  useEffect(() => {
+    let interval: any;
+    if (isExporting) {
+      setExportStartTime(Date.now());
+      setExportElapsedTime(0);
+      interval = setInterval(() => {
+        setExportElapsedTime(prev => prev + 1);
+      }, 1000);
+    } else {
+      if (interval) clearInterval(interval);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isExporting]);
+
   const fetchDriveFiles = async () => {
     setIsFetchingDrive(true);
     setDriveFetchError(null);
@@ -136,11 +155,10 @@ export const VistaGenerar: React.FC = () => {
     }
   };
 
-  const downloadBase64FromDrive = async (fileId: string, retries = 3): Promise<string> => {
+  const downloadBase64FromDrive = async (fileId: string, retries = 4): Promise<string> => {
     const apiKey = import.meta.env.VITE_GOOGLE_DRIVE_API_KEY;
     if (!apiKey) throw new Error("Falta la API Key de Google Drive.");
     
-    // Función interna para convertir blob a base64
     const blobToBase64 = (blob: Blob): Promise<string> => {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -150,8 +168,12 @@ export const VistaGenerar: React.FC = () => {
       });
     };
 
-    const attemptFetch = async (targetUrl: string, useProxy = false) => {
-      const finalUrl = useProxy ? `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}` : targetUrl;
+    const attemptFetch = async (targetUrl: string, method: 'DIRECT' | 'PROXY1' | 'PROXY2' | 'PROXY3') => {
+      let finalUrl = targetUrl;
+      if (method === 'PROXY1') finalUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+      if (method === 'PROXY2') finalUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+      if (method === 'PROXY3') finalUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`;
+      
       const res = await fetch(finalUrl, { 
         mode: 'cors',
         cache: 'no-cache',
@@ -164,32 +186,52 @@ export const VistaGenerar: React.FC = () => {
     // Intentamos descargar la imagen original (Media)
     const mediaUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${apiKey}`;
     
-    for (let attempt = 1; attempt <= retries; attempt++) {
+    for (let attempt = 1; attempt <= 5; attempt++) {
       try {
-        // Intento 1: Directo, Intento 2: Proxy, Intento 3: Thumbnail
         let blob: Blob;
-        if (attempt < retries) {
-          blob = (attempt === 1) ? await attemptFetch(mediaUrl) : await attemptFetch(mediaUrl, true);
-        } else {
-          // ÚLTIMO RECURSO: Miniatura
-          const metaRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=thumbnailLink&key=${apiKey}`);
-          const metaData = await metaRes.json();
-          if (metaData.thumbnailLink) {
-            blob = await attemptFetch(metaData.thumbnailLink.replace('=s220', '=s1000'), true);
-          } else {
-            throw new Error("No hay miniatura disponible");
-          }
+        // Intento 1: Directo
+        // Intento 2: Proxy 1 (AllOrigins)
+        // Intento 3: Proxy 2 (CorsProxy.io)
+        // Intento 4: Proxy 3 (CodeTabs)
+        // Intento 5: Miniatura (Thumbnail) de alta calidad vía Proxy 1
+        
+        switch (attempt) {
+          case 1:
+            blob = await attemptFetch(mediaUrl, 'DIRECT');
+            break;
+          case 2:
+            blob = await attemptFetch(mediaUrl, 'PROXY1');
+            break;
+          case 3:
+            blob = await attemptFetch(mediaUrl, 'PROXY2');
+            break;
+          case 4:
+            blob = await attemptFetch(mediaUrl, 'PROXY3');
+            break;
+          case 5:
+          default:
+            const metaRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=thumbnailLink&key=${apiKey}`);
+            const metaData = await metaRes.json();
+            if (metaData.thumbnailLink) {
+              const highResThumb = metaData.thumbnailLink.replace('=s220', '=s1000');
+              blob = await attemptFetch(highResThumb, 'PROXY1');
+            } else {
+              throw new Error("No hay miniatura disponible");
+            }
+            break;
         }
         return await blobToBase64(blob);
-      } catch (e) {
+      } catch (e: any) {
+        console.warn(`Intento ${attempt} fallido para ${fileId}: ${e.message}`);
         if (attempt === retries) {
           console.error(`Fallo total descargando archivo ${fileId}:`, e);
-          throw new Error("No se pudo descargar la imagen tras varios intentos.");
+          throw new Error(`Fallo tras ${retries} intentos: ${e.message}`);
         }
-        await new Promise(r => setTimeout(r, 800 * attempt));
+        // Espera exponencial
+        await new Promise(r => setTimeout(r, 1000 * attempt));
       }
     }
-    throw new Error("Error inesperado en descarga.");
+    throw new Error("Error desconocido en descarga.");
   };
 
   const activeProfile = perfiles.find(p => p.ID_PERFIL === selectedProfile);
@@ -220,50 +262,66 @@ export const VistaGenerar: React.FC = () => {
     }
   };
 
-  const popuplateDriveBlobs = async (tagsToFetch: string[]) => {
+  const populateDriveBlobs = async (tagsToFetch: string[]) => {
     if (modoExportacion !== 'DRIVE') return [];
     if (!driveFiles || driveFiles.length === 0) return [];
     
     setIsExporting(true);
+    setExportProgress(0);
     const driveFotos: any[] = [];
     
-    // Solo traemos fotos de los tags seleccionados
-    const filesToFetch = driveFiles.filter(f => tagsToFetch.includes(extractTagFromName(f.name, todosLosTags)));
+    // Solo traemos fotos de los tags seleccionados, limitado a 4 por cada tag
+    const filesByTag: Record<string, any[]> = {};
+    driveFiles.forEach(f => {
+      const tag = extractTagFromName(f.name, todosLosTags);
+      if (tagsToFetch.includes(tag) && f.mimeType.startsWith('image/')) {
+        if (!filesByTag[tag]) filesByTag[tag] = [];
+        if (filesByTag[tag].length < 4) {
+          filesByTag[tag].push(f);
+        }
+      }
+    });
+
+    const filesToFetch = Object.values(filesByTag).flat();
+    const totalFiles = filesToFetch.length;
+
+    if (totalFiles === 0) {
+      return [];
+    }
     
     // Descarga con control de concurrencia básica
-    const results = [];
-    const BATCH_SIZE = 5; // Descargar de 5 en 5 para no saturar
+    const results: any[] = [];
+    const BATCH_SIZE = 3; // Reducimos para ser más gentiles con Google Drive y Proxies
     
-    for (let i = 0; i < filesToFetch.length; i += BATCH_SIZE) {
+    for (let i = 0; i < totalFiles; i += BATCH_SIZE) {
       const batch = filesToFetch.slice(i, i + BATCH_SIZE);
       const batchResults = await Promise.all(batch.map(async (file) => {
-        if (!file.mimeType.startsWith('image/')) return null;
         try {
           const blobData = await downloadBase64FromDrive(file.id);
+          if (!blobData) throw new Error("Datos de imagen vacíos");
           return {
             TAGNAME: extractTagFromName(file.name, todosLosTags),
             blobData,
             observacion: `Drive: ${file.name}`
           };
         } catch (e: any) {
-          console.warn(`No se pudo descargar ${file.name}, continuando...`, e);
+          console.warn(`No se pudo descargar ${file.name} del Drive:`, e);
           return null;
         }
       }));
       results.push(...batchResults);
-      if (i + BATCH_SIZE < filesToFetch.length) {
-        await new Promise(r => setTimeout(r, 300)); // Reposo entre lotes
+      
+      const currentProgress = Math.round(((i + batch.length) / totalFiles) * 80);
+      setExportProgress(currentProgress);
+
+      if (i + BATCH_SIZE < totalFiles) {
+        await new Promise(r => setTimeout(r, 500)); 
       }
     }
     
-    // Filtrar los resultados exitosos y agregarlos al array de fotos
     results.forEach(res => {
-      if (res) driveFotos.push(res);
+      if (res && res.blobData) driveFotos.push(res);
     });
-
-    if (driveFotos.length < filesToFetch.length) {
-       console.warn(`Se encontraron ${filesToFetch.length} fotos pero solo se descargaron ${driveFotos.length}`);
-    }
 
     return driveFotos;
   };
@@ -275,10 +333,11 @@ export const VistaGenerar: React.FC = () => {
     }
     
     setIsExporting(true);
+    setExportProgress(modoExportacion === 'LOCAL' ? 0 : 5);
     setExportError(null);
     try {
       // Intentamos traer si es DRIVE, y si falla levanta la excepcion (Protocolo de error)
-      const driveFotosDownloaded = await popuplateDriveBlobs(selectedTags);
+      const driveFotosDownloaded = await populateDriveBlobs(selectedTags);
       
       // Log backup
       await logExportAction('EXCEL');
@@ -300,11 +359,21 @@ export const VistaGenerar: React.FC = () => {
         };
       };
 
+      const totalItems = selectedTags.length;
+      let processedItems = 0;
+
       for (const tag of selectedTags) {
+        processedItems++;
+        // Si no es DRIVE (que ya usó el 80%), dividimos el progreso proporcionalmente
+        // Si es DRIVE, el 80-100% es la generación del Excel
+        const baseProgress = modoExportacion === 'DRIVE' ? 80 : 0;
+        const multiplier = modoExportacion === 'DRIVE' ? 20 : 100;
+        setExportProgress(baseProgress + Math.round((processedItems / totalItems) * multiplier));
+
         const activeInstrument = instrumentos.find(i => i.TAGNAME === tag);
-        const fotosDelTag = modoExportacion === 'DRIVE' 
+        const fotosDelTag = (modoExportacion === 'DRIVE' 
           ? driveFotosDownloaded.filter(f => f.TAGNAME === tag)
-          : fotos.filter(f => f.TAGNAME === tag);
+          : fotos.filter(f => f.TAGNAME === tag)).slice(0, 4);
         
         if (!activeInstrument) continue;
 
@@ -542,176 +611,223 @@ export const VistaGenerar: React.FC = () => {
     }
     
     setIsExporting(true);
+    setExportProgress(modoExportacion === 'LOCAL' ? 0 : 5);
     setExportError(null);
     let driveFotosDownloaded: any[] = [];
     try {
-      driveFotosDownloaded = await popuplateDriveBlobs(selectedTags);
+      driveFotosDownloaded = await populateDriveBlobs(selectedTags);
       
       // Log backup
       await logExportAction('PDF');
       
       const buildHtmlForTag = (tag: string) => {
         const activeInstrument = instrumentos.find(i => i.TAGNAME === tag);
-        const fotosDelTag = modoExportacion === 'DRIVE' 
+        const fotosDelTag = (modoExportacion === 'DRIVE' 
           ? driveFotosDownloaded.filter(f => f.TAGNAME === tag)
-          : fotos.filter(f => f.TAGNAME === tag);
+          : fotos.filter(f => f.TAGNAME === tag)).slice(0, 4);
 
         if (!activeInstrument) return '';
 
         return `
         <div class="protocol-page">
-          <table class="main-table">
+          <!-- CABECERA -->
+          <table class="grid-table">
             <tr>
-              <td rowspan="2" width="20%" class="center" style="padding: 4px;">
-                ${logoBase64 ? `<img src="${logoBase64}" style="max-width:90%; max-height:45px; object-fit:contain;" />` : 'LOGO'}
+              <td colspan="2" rowspan="2" class="center no-padding" style="width: 25%;">
+                ${logoBase64 ? `<img src="${logoBase64}" style="max-height: 50px; max-width: 90%; object-fit: contain; margin: 5px;" />` : 'LOGO'}
               </td>
-              <td rowspan="2" width="50%" class="bg-blue" style="font-size:14px;">PROTOCOLO DE PRUEBAS DE INSTRUMENTACIÓN</td>
-              <td class="bg-gray" width="15%">REVISIÓN:</td>
-              <td class="center" width="15%">${activeProfile.REVISION}</td>
+              <td colspan="4" rowspan="2" class="bg-blue center" style="font-size: 14px; width: 50%;">PROTOCOLO DE PRUEBAS DE INSTRUMENTACIÓN</td>
+              <td class="bg-blue" style="width: 12.5%;">REVISIÓN:</td>
+              <td class="center" style="width: 12.5%;">${activeProfile.REVISION}</td>
             </tr>
             <tr>
-              <td class="bg-gray">FECHA DE REVISIÓN:</td>
+              <td class="bg-blue" style="width: 12.5%;">FECHA REVISIÓN:</td>
               <td class="center">${activeProfile.FECHA_REVISION}</td>
             </tr>
-          </table>
-
-          <table class="main-table">
             <tr>
-              <td class="bg-gray" width="15%">CLIENTE:</td>
-              <td width="35%">${activeProfile.CLIENTE}</td>
-              <td class="bg-gray" width="15%">FECHA:</td>
-              <td width="35%">${activeProfile.FECHA}</td>
+              <td class="bg-blue">CLIENTE:</td>
+              <td colspan="4">${activeProfile.CLIENTE}</td>
+              <td colspan="2" class="bg-blue">FECHA:</td>
+              <td class="center font-bold">${activeProfile.FECHA}</td>
             </tr>
             <tr>
-              <td class="bg-gray">PROYECTO:</td>
-              <td>${activeProfile.PROYECTO}</td>
-              <td class="bg-gray">CONTRATO:</td>
-              <td>${activeProfile.CONTRATO}</td>
+              <td class="bg-blue">PROYECTO:</td>
+              <td colspan="4">${activeProfile.PROYECTO}</td>
+              <td colspan="2" class="bg-blue">CONTRATO:</td>
+              <td class="center">${activeProfile.CONTRATO}</td>
             </tr>
           </table>
 
-          <table class="main-table">
-            <tr><td colspan="4" class="bg-blue">1. INFORMACIÓN GENERAL DEL INSTRUMENTO</td></tr>
+          <!-- 1. INFORMACIÓN GENERAL -->
+          <table class="grid-table mt-4">
+            <tr><td colspan="8" class="bg-blue text-left">1. INFORMACIÓN GENERAL DEL INSTRUMENTO</td></tr>
             <tr>
-              <td class="bg-gray" width="20%">Tag No:</td>
-              <td class="bold uppercase" width="30%">${activeInstrument.TAGNAME}</td>
-              <td class="bg-gray" width="20%">Fabricante/Modelo:</td>
-              <td width="30%">${activeProfile.FABRICANTE_MODELO || 'N/A'}</td>
+              <td colspan="2" class="bg-blue text-left">TAG NO:</td>
+              <td colspan="2" class="font-bold uppercase">${activeInstrument.TAGNAME}</td>
+              <td colspan="2" class="bg-blue text-left">FABRICANTE/MODELO:</td>
+              <td colspan="2">${activeProfile.FABRICANTE_MODELO || 'N/A'}</td>
             </tr>
             <tr>
-              <td class="bg-gray">Tipo Cable / Desc:</td>
-              <td colspan="3" class="uppercase">${activeInstrument.TIPO_CABLE} / ${activeInstrument.DESCRIPCIÓN}</td>
+              <td colspan="2" class="bg-blue text-left">TIPO CABLE / DESC:</td>
+              <td colspan="6" class="uppercase">${activeInstrument.TIPO_CABLE} / ${activeInstrument.DESCRIPCIÓN}</td>
             </tr>
             <tr>
-              <td class="bg-gray">Rango de Operación:</td>
-              <td>${activeProfile.RANGO_OPERACION || 'N/A'}</td>
-              <td class="bg-gray">Clase de Exactitud:</td>
-              <td>${activeProfile.CLASE_EXACTITUD || 'N/A'}</td>
+              <td colspan="2" class="bg-blue text-left">RANGO OPERACIÓN:</td>
+              <td colspan="2">${activeProfile.RANGO_OPERACION || 'N/A'}</td>
+              <td colspan="2" class="bg-blue text-left">CLASE EXACTITUD:</td>
+              <td colspan="2">${activeProfile.CLASE_EXACTITUD || 'N/A'}</td>
             </tr>
             <tr>
-              <td class="bg-gray">Ubicación:</td>
-              <td class="uppercase">${activeInstrument.UBICACIÓN}</td>
-              <td class="bg-gray">Tag Cable SWC:</td>
-              <td class="uppercase">${activeInstrument.TAG_CABLE_SWC || 'N/A'}</td>
-            </tr>
-          </table>
-
-          <table class="main-table">
-            <tr><td colspan="4" class="bg-blue">2. CONDICIONES DE LA PRUEBA</td></tr>
-            <tr><td class="bg-gray" width="25%">Norma/Procedimiento:</td><td colspan="3">${activeProfile.NORMA_PROCEDIMIENTO}</td></tr>
-            <tr>
-              <td class="bg-gray">Tipo de Prueba:</td>
-              <td colspan="3">
-                <table style="width: 100%; border: none; margin: 0; padding: 0;">
-                  <tr>
-                    <td style="border: none; padding: 2px;">[${activeProfile.TIPO_PRUEBA_PLANO ? 'X':' '}] Equipo instalado en ubicación/PLANO</td>
-                    <td style="border: none; padding: 2px;">[${activeProfile.TIPO_PRUEBA_FUNC_SIM ? 'X':' '}] Prueba funcional simulada</td>
-                  </tr>
-                  <tr>
-                    <td style="border: none; padding: 2px;">[${activeProfile.TIPO_PRUEBA_LOOP ? 'X':' '}] Pruebas de lazo (loop check)</td>
-                    <td style="border: none; padding: 2px;">[${activeProfile.TIPO_PRUEBA_FUNC_LINEA ? 'X':' '}] Prueba funcional acoplada a línea</td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-            <tr>
-              <td class="bg-gray">Equipo de prueba 1:</td><td>${activeProfile.EQUIPO_PRUEBA_1}</td>
-              <td class="bg-gray">Certificado/Vigencia:</td><td>${activeProfile.CERT_FECHA_1}</td>
-            </tr>
-            <tr>
-              <td class="bg-gray">Equipo de prueba 2:</td><td>${activeProfile.EQUIPO_PRUEBA_2}</td>
-              <td class="bg-gray">Certificado/Vigencia:</td><td>${activeProfile.CERT_FECHA_2}</td>
+              <td colspan="2" class="bg-blue text-left">UBICACIÓN:</td>
+              <td colspan="2" class="uppercase">${activeInstrument.UBICACIÓN}</td>
+              <td colspan="2" class="bg-blue text-left">TAG CABLE SWC:</td>
+              <td colspan="2" class="uppercase">${activeInstrument.TAG_CABLE_SWC || 'N/A'}</td>
             </tr>
           </table>
 
-          <table class="main-table">
-            <tr><td colspan="3" class="bg-blue">3. PRUEBAS DE LAZO (LOOP CHECK)</td></tr>
+          <!-- 2. CONDICIONES DE LA PRUEBA -->
+          <table class="grid-table mt-4">
+            <tr><td colspan="8" class="bg-blue text-left">2. CONDICIONES DE LA PRUEBA</td></tr>
             <tr>
-              <td class="bg-gray center uppercase" width="33%">${activeProfile.LOOP_C1 || 'EQUIPO'}</td>
-              <td class="bg-gray center uppercase" width="33%">${activeProfile.LOOP_C2 || 'MEDIDA'}</td>
-              <td class="bg-gray center uppercase" width="34%">${activeProfile.LOOP_C3 || 'VALOR'}</td>
+              <td colspan="2" class="bg-blue text-left">NORMA/PROCEDIMIENTO:</td>
+              <td colspan="6">${activeProfile.NORMA_PROCEDIMIENTO}</td>
             </tr>
-            <tr><td class="center">${activeProfile.L1_C1 || ''}</td><td class="center">${activeProfile.L1_C2 || ''}</td><td class="center">${activeProfile.L1_C3 || ''}</td></tr>
-            <tr><td class="center">${activeProfile.L2_C1 || ''}</td><td class="center">${activeProfile.L2_C2 || ''}</td><td class="center">${activeProfile.L2_C3 || ''}</td></tr>
-            <tr><td class="center">${activeProfile.L3_C1 || ''}</td><td class="center">${activeProfile.L3_C2 || ''}</td><td class="center">${activeProfile.L3_C3 || ''}</td></tr>
-          </table>
-
-          <table class="main-table">
-            <tr><td colspan="3" class="bg-blue">4. INSPECCIÓN</td></tr>
             <tr>
-              <td class="bg-gray center" width="50%">Ítem Revisado</td>
-              <td class="bg-gray center" width="15%">Estado</td>
-              <td class="bg-gray center" width="35%">Observaciones</td>
+              <td colspan="2" rowspan="2" class="bg-blue text-left">TIPO DE PRUEBA:</td>
+              <td colspan="3">${activeProfile.TIPO_PRUEBA_PLANO ? '☑ Equipo instalado en ubicación/PLANO' : '☐ Equipo instalado en ubicación/PLANO'}</td>
+              <td colspan="3">${activeProfile.TIPO_PRUEBA_FUNC_SIM ? '☑ Prueba funcional simulada' : '☐ Prueba funcional simulada'}</td>
             </tr>
-            <tr><td>${activeProfile.LABEL_4_1}</td><td class="center bold">${activeProfile.INSP_4_1}</td><td>${activeProfile.OBS_4_1}</td></tr>
-            <tr><td>${activeProfile.LABEL_4_2}</td><td class="center bold">${activeProfile.INSP_4_2}</td><td>${activeProfile.OBS_4_2}</td></tr>
-            <tr><td>${activeProfile.LABEL_4_3}</td><td class="center bold">${activeProfile.INSP_4_3}</td><td>${activeProfile.OBS_4_3}</td></tr>
-            <tr><td>${activeProfile.LABEL_4_4}</td><td class="center bold">${activeProfile.INSP_4_4}</td><td>${activeProfile.OBS_4_4}</td></tr>
+            <tr>
+              <td colspan="3">${activeProfile.TIPO_PRUEBA_LOOP ? '☑ Pruebas de lazo (loop check)' : '☐ Pruebas de lazo (loop check)'}</td>
+              <td colspan="3">${activeProfile.TIPO_PRUEBA_FUNC_LINEA ? '☑ Prueba funcional acoplada a línea' : '☐ Prueba funcional acoplada a línea'}</td>
+            </tr>
+            <tr>
+              <td colspan="2" class="bg-blue text-left">EQUIPO PRUEBA 1:</td>
+              <td colspan="3">${activeProfile.EQUIPO_PRUEBA_1}</td>
+              <td colspan="2" class="bg-blue text-left">CERT./VIGENCIA:</td>
+              <td>${activeProfile.CERT_FECHA_1}</td>
+            </tr>
+            <tr>
+              <td colspan="2" class="bg-blue text-left">EQUIPO PRUEBA 2:</td>
+              <td colspan="3">${activeProfile.EQUIPO_PRUEBA_2}</td>
+              <td colspan="2" class="bg-blue text-left">CERT./VIGENCIA:</td>
+              <td>${activeProfile.CERT_FECHA_2}</td>
+            </tr>
           </table>
 
-          <table class="main-table">
-            <tr><td class="bg-blue">5. COMENTARIOS</td></tr>
-            <tr><td style="height: 48px; vertical-align: top;">${activeProfile.COMENTARIOS}</td></tr>
+          <!-- 3. PRUEBAS DE LAZO -->
+          <table class="grid-table mt-4">
+            <tr><td colspan="8" class="bg-blue text-left">3. PRUEBAS DE LAZO (LOOP CHECK)</td></tr>
+            <tr>
+              <td colspan="3" class="bg-blue uppercase">${activeProfile.LOOP_C1 || 'EQUIPO'}</td>
+              <td colspan="2" class="bg-blue uppercase">${activeProfile.LOOP_C2 || 'MEDIDA'}</td>
+              <td colspan="3" class="bg-blue uppercase">${activeProfile.LOOP_C3 || 'VALOR'}</td>
+            </tr>
+            <tr>
+              <td colspan="3" class="center">${activeProfile.L1_C1 || ''}</td>
+              <td colspan="2" class="center">${activeProfile.L1_C2 || ''}</td>
+              <td colspan="3" class="center">${activeProfile.L1_C3 || ''}</td>
+            </tr>
+            <tr>
+              <td colspan="3" class="center">${activeProfile.L2_C1 || ''}</td>
+              <td colspan="2" class="center">${activeProfile.L2_C2 || ''}</td>
+              <td colspan="3" class="center">${activeProfile.L2_C3 || ''}</td>
+            </tr>
+            <tr>
+              <td colspan="3" class="center">${activeProfile.L3_C1 || ''}</td>
+              <td colspan="2" class="center">${activeProfile.L3_C2 || ''}</td>
+              <td colspan="3" class="center">${activeProfile.L3_C3 || ''}</td>
+            </tr>
           </table>
 
+          <!-- 4. INSPECCIÓN -->
+          <table class="grid-table mt-4">
+            <tr><td colspan="8" class="bg-blue text-left">4. INSPECCIÓN</td></tr>
+            <tr>
+              <td colspan="4" class="bg-blue">ÍTEM REVISADO</td>
+              <td class="bg-blue">ESTADO</td>
+              <td colspan="3" class="bg-blue">OBSERVACIONES</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="text-left">${activeProfile.LABEL_4_1}</td>
+              <td class="center font-bold">${activeProfile.INSP_4_1}</td>
+              <td colspan="3" class="text-left">${activeProfile.OBS_4_1}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="text-left">${activeProfile.LABEL_4_2}</td>
+              <td class="center font-bold">${activeProfile.INSP_4_2}</td>
+              <td colspan="3" class="text-left">${activeProfile.OBS_4_2}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="text-left">${activeProfile.LABEL_4_3}</td>
+              <td class="center font-bold">${activeProfile.INSP_4_3}</td>
+              <td colspan="3" class="text-left">${activeProfile.OBS_4_3}</td>
+            </tr>
+            <tr>
+              <td colspan="4" class="text-left">${activeProfile.LABEL_4_4}</td>
+              <td class="center font-bold">${activeProfile.INSP_4_4}</td>
+              <td colspan="3" class="text-left">${activeProfile.OBS_4_4}</td>
+            </tr>
+          </table>
+
+          <!-- 5. COMENTARIOS -->
+          <table class="grid-table mt-4">
+            <tr><td colspan="8" class="bg-blue text-left">5. COMENTARIOS</td></tr>
+            <tr><td colspan="8" style="height: 40px; vertical-align: top; text-align: left;">${activeProfile.COMENTARIOS}</td></tr>
+          </table>
+
+          <!-- 6. REGISTRO FOTOGRÁFICO -->
           ${fotosDelTag.length > 0 ? `
-            <table class="main-table"><tr><td class="bg-blue" style="font-size:12px;">6. REGISTRO FOTOGRÁFICO</td></tr></table>
-            <div class="photo-grid">
+            <table class="grid-table mt-4 overflow-hidden">
+              <tr><td colspan="8" class="bg-blue text-left">6. REGISTRO FOTOGRÁFICO</td></tr>
+            </table>
+            <div class="photo-container">
               ${fotosDelTag.map((f, i) => `
-                <div class="photo-cell">
-                  <img src="${f.blobData}" class="photo-img" />
-                  <div class="bg-gray photo-caption">${f.observacion || `Foto ${i+1}`}</div>
+                <div class="photo-item">
+                  <div class="photo-box">
+                    <img src="${f.blobData}" />
+                  </div>
+                  <div class="photo-caption">${f.observacion || `Foto ${i+1}`}</div>
                 </div>
               `).join('')}
             </div>
           ` : ''}
 
-          <table class="main-table signatures-table">
+          <!-- FIRMAS -->
+          <table class="grid-table mt-4" style="page-break-inside: avoid;">
             <tr>
-              <td class="bg-gray center" width="33.33%">ELABORÓ</td>
-              <td class="bg-gray center" width="33.33%">REVISÓ</td>
-              <td class="bg-gray center" width="33.33%">APROBÓ (CLIENTE / INTERVENTOR)</td>
-            </tr>
-            <tr><td>NOMBRE: ${activeProfile.ELABORO_NOMBRE}</td><td>NOMBRE: ${activeProfile.REVISO_NOMBRE}</td><td>NOMBRE: ${activeProfile.APROBO_NOMBRE}</td></tr>
-            <tr><td>CARGO: ${activeProfile.ELABORO_CARGO}</td><td>CARGO: ${activeProfile.REVISO_CARGO}</td><td>CARGO: ${activeProfile.APROBO_CARGO}</td></tr>
-            <tr>
-              <td style="height: 70px; vertical-align: top; padding: 4px; position: relative;">
-                <span class="bold" style="font-size: 8px; color: #666;">FIRMA:</span>
-                ${activeProfile.ELABORO_FIRMA ? `<div style="text-align: center;"><img src="${activeProfile.ELABORO_FIRMA}" style="max-height: 50px; max-width: 95%; object-fit: contain;" /></div>` : ''}
-              </td>
-              <td style="height: 70px; vertical-align: top; padding: 4px; position: relative;">
-                <span class="bold" style="font-size: 8px; color: #666;">FIRMA:</span>
-                ${activeProfile.REVISO_FIRMA ? `<div style="text-align: center;"><img src="${activeProfile.REVISO_FIRMA}" style="max-height: 50px; max-width: 95%; object-fit: contain;" /></div>` : ''}
-              </td>
-              <td style="height: 70px; vertical-align: top; padding: 4px; position: relative;">
-                <span class="bold" style="font-size: 8px; color: #666;">FIRMA:</span>
-                ${activeProfile.APROBO_FIRMA ? `<div style="text-align: center;"><img src="${activeProfile.APROBO_FIRMA}" style="max-height: 50px; max-width: 95%; object-fit: contain;" /></div>` : ''}
-              </td>
+              <td colspan="3" class="bg-blue">ELABORÓ</td>
+              <td colspan="2" class="bg-blue">REVISÓ</td>
+              <td colspan="3" class="bg-blue">APROBÓ (CLIENTE / INTERVENTOR)</td>
             </tr>
             <tr>
-              <td>FECHA: ${activeProfile.FECHA}</td>
-              <td>FECHA: </td>
-              <td>FECHA: </td>
+              <td colspan="3" class="text-left">NOMBRE: ${activeProfile.ELABORO_NOMBRE}</td>
+              <td colspan="2" class="text-left">NOMBRE: ${activeProfile.REVISO_NOMBRE}</td>
+              <td colspan="3" class="text-left">NOMBRE: ${activeProfile.APROBO_NOMBRE}</td>
+            </tr>
+            <tr>
+              <td colspan="3" class="text-left">CARGO: ${activeProfile.ELABORO_CARGO}</td>
+              <td colspan="2" class="text-left">CARGO: ${activeProfile.REVISO_CARGO}</td>
+              <td colspan="3" class="text-left">CARGO: ${activeProfile.APROBO_CARGO}</td>
+            </tr>
+            <tr>
+              <td colspan="3" class="signature-box">
+                <span class="sign-label">FIRMA:</span>
+                ${activeProfile.ELABORO_FIRMA ? `<img src="${activeProfile.ELABORO_FIRMA}" class="sign-img" />` : ''}
+              </td>
+              <td colspan="2" class="signature-box">
+                <span class="sign-label">FIRMA:</span>
+                ${activeProfile.REVISO_FIRMA ? `<img src="${activeProfile.REVISO_FIRMA}" class="sign-img" />` : ''}
+              </td>
+              <td colspan="3" class="signature-box">
+                <span class="sign-label">FIRMA:</span>
+                ${activeProfile.APROBO_FIRMA ? `<img src="${activeProfile.APROBO_FIRMA}" class="sign-img" />` : ''}
+              </td>
+            </tr>
+            <tr>
+              <td colspan="3" class="text-left">FECHA: ${activeProfile.FECHA}</td>
+              <td colspan="2" class="text-left">FECHA: </td>
+              <td colspan="3" class="text-left">FECHA: </td>
             </tr>
           </table>
         </div>
@@ -724,35 +840,48 @@ export const VistaGenerar: React.FC = () => {
           <title>${title}</title>
           <style>
             @page { size: A4 portrait; margin: 10mm; }
-            body { font-family: 'Inter', 'Helvetica', 'Arial', sans-serif; font-size: 9px; color: #000; margin: 0; padding: 0; background: #fff; }
+            body { font-family: 'Calibri', 'Arial', sans-serif; font-size: 9px; color: #000; margin: 0; padding: 0; background: #fff; }
             .protocol-page { 
               width: 100%; 
-              min-height: 257mm; 
+              min-height: 275mm; 
               page-break-after: always; 
               position: relative;
               box-sizing: border-box;
-              display: block;
-              clear: both;
             }
             .protocol-page:last-child { page-break-after: auto; }
             
-            table.main-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; table-layout: fixed; }
-            th, td { border: 1px solid #000; padding: 4px; vertical-align: middle; word-wrap: break-word; }
-            .bg-blue { background-color: #1F3864 !important; color: #FFF !important; font-weight: bold; text-align: center; -webkit-print-color-adjust: exact; text-transform: uppercase; }
-            .bg-gray { background-color: #D9E1F2 !important; font-weight: bold; -webkit-print-color-adjust: exact; text-transform: uppercase; font-size: 7.5px; }
+            .grid-table { width: 100%; border-collapse: collapse; table-layout: fixed; border: 1px solid #000; }
+            .grid-table td { border: 1px solid #000; padding: 3px 5px; vertical-align: middle; }
+            .bg-blue { background-color: #1F3864 !important; color: #FFF !important; font-weight: bold; text-align: center; -webkit-print-color-adjust: exact; text-transform: uppercase; font-size: 8px; }
             .center { text-align: center; }
-            .bold { font-weight: bold; }
+            .text-left { text-align: left; }
+            .font-bold { font-weight: bold; }
             .uppercase { text-transform: uppercase; }
-            
-            .photo-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 10px; page-break-inside: avoid; }
-            .photo-cell { text-align: center; border: 1px solid #000; padding: 2px; break-inside: avoid; }
-            .photo-img { width: 100%; height: 200px; object-fit: contain; background: #fff; }
-            .photo-caption { padding: 4px; font-size: 8px; border-top: 1px solid #000; background-color: #f8f8f8 !important; -webkit-print-color-adjust: exact; }
-            
-            .signatures-table { margin-top: 10px; page-break-inside: avoid; }
-            
-            /* Prevenir saltos de página dentro de tablas críticas */
-            table { page-break-inside: avoid; }
+            .no-padding { padding: 0 !important; }
+            .mt-4 { margin-top: 5px; }
+
+            .photo-container { 
+              display: grid; 
+              grid-template-columns: 1fr 1fr; 
+              gap: 5px; 
+              margin-top: 0;
+            }
+            .photo-item { border: 1px solid #000; display: flex; flex-direction: column; break-inside: avoid; }
+            .photo-box { height: 160px; display: flex; align-items: center; justify-content: center; background: #fff; padding: 2px; }
+            .photo-box img { max-width: 100%; max-height: 100%; object-fit: contain; }
+            .photo-caption { 
+              border-top: 1px solid #000; 
+              padding: 2px; 
+              text-align: center; 
+              font-size: 8px; 
+              background: #f5f5f5 !important; 
+              font-weight: bold;
+              -webkit-print-color-adjust: exact;
+            }
+
+            .signature-box { height: 60px; vertical-align: top !important; position: relative; padding: 2px !important; }
+            .sign-label { font-size: 7px; font-weight: bold; color: #444; position: absolute; top: 2px; left: 4px; }
+            .sign-img { max-height: 45px; max-width: 90%; display: block; margin: 8px auto 0; object-fit: contain; }
           </style>
         </head>
         <body>
@@ -762,7 +891,14 @@ export const VistaGenerar: React.FC = () => {
       `;
 
       if (tipoSalida === 'UNIDO') {
-        const allHtmlContent = selectedTags.map(tag => buildHtmlForTag(tag)).join('');
+        const totalItems = selectedTags.length;
+        const allHtmlContent = selectedTags.map((tag, idx) => {
+          const content = buildHtmlForTag(tag);
+          const baseProgress = modoExportacion === 'DRIVE' ? 80 : 0;
+          const multiplier = modoExportacion === 'DRIVE' ? 20 : 100;
+          setExportProgress(baseProgress + Math.round(((idx + 1) / totalItems) * multiplier));
+          return content;
+        }).join('');
         const fullHtml = wrapHtml(allHtmlContent, `Protocolos_${activeProfile.NOMBRE_PERFIL}`);
         
         const printWindow = window.open('', '_blank');
@@ -779,10 +915,17 @@ export const VistaGenerar: React.FC = () => {
         }
       } else {
         // Modo SEPARADOS
+        const totalItems = selectedTags.length;
+        let idx = 0;
         for (const tag of selectedTags) {
+          idx++;
           const content = buildHtmlForTag(tag);
           if (!content) continue;
           
+          const baseProgress = modoExportacion === 'DRIVE' ? 80 : 0;
+          const multiplier = modoExportacion === 'DRIVE' ? 20 : 100;
+          setExportProgress(baseProgress + Math.round((idx / totalItems) * multiplier));
+
           const fullHtml = wrapHtml(content, `Protocolo_${tag}`);
           const printWindow = window.open('', '_blank');
           
@@ -810,217 +953,258 @@ export const VistaGenerar: React.FC = () => {
   };
 
   return (
-    <div className="p-4 space-y-6 max-w-lg mx-auto pb-24">
-      <h2 className="text-2xl font-bold text-[#1F3864] flex items-center gap-2"><Download size={24} /> Exportar Formatos</h2>
-      
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-6">
-        
-        {/* Toggle para Modo o Fuente de Fotos */}
-        <div className="bg-blue-50/50 p-2 rounded-xl flex gap-1 border border-blue-100">
-          <button 
-            className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all shadow-sm ${modoExportacion === 'LOCAL' ? 'bg-white text-blue-700' : 'bg-transparent text-gray-400 hover:bg-white/50'}`}
-            onClick={() => { setModoExportacion('LOCAL'); setSelectedTags([]); }}
-          >
-            App (Locales)
-          </button>
-          <button 
-            className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition-all shadow-sm ${modoExportacion === 'DRIVE' ? 'bg-white text-blue-700' : 'bg-transparent text-gray-400 hover:bg-white/50'}`}
-            onClick={() => { setModoExportacion('DRIVE'); setSelectedTags([]); }}
-          >
-            Google Drive (Masiva)
-          </button>
-        </div>
-
-        <div className="space-y-4">
-          <div className="flex justify-between items-end">
-            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest">
-              1. Instrumentos {modoExportacion === 'DRIVE' ? '(En Drive)' : 'Con Fotos'} ({filteredInstrumentos.length})
-            </label>
-            {filteredInstrumentos.length > 0 && (
-              <button onClick={handleSelectAll} className="text-[10px] text-blue-600 font-bold hover:underline uppercase">
-                {selectedTags.length === filteredInstrumentos.length ? 'Desmarcar todos' : 'Marcar todos'}
-              </button>
-            )}
-          </div>
-
-          {modoExportacion === 'DRIVE' && !isFetchingDrive && !driveFetchError && driveFiles.length > 0 && filteredInstrumentos.length === 0 && (
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-700 font-medium">
-              <p className="flex items-center gap-1.5 mb-1"><AlertCircle size={14} /> Se encontraron {driveFiles.length} archivos en Drive, pero <b>ninguno coincide</b> con los Tags de tus instrumentos.</p>
-              <p className="opacity-80">Asegúrate de que las fotos en Drive comiencen con el Tag exacto (ej: {instrumentos[0]?.TAGNAME || 'TAG-001'}_foto.jpg).</p>
-            </div>
-          )}
-
-          {modoExportacion === 'DRIVE' && isFetchingDrive && (
-            <div className="p-8 text-center animate-pulse">
-              <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-              <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">Sincronizando con Drive...</p>
-            </div>
-          )}
-
-          {driveFetchError && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 font-medium flex gap-3 items-start">
-              <AlertCircle className="shrink-0" size={16} />
-              <div>
-                <p className="font-bold uppercase mb-1">Error de conexión a Drive</p>
-                <p>{driveFetchError}</p>
-                <p className="mt-2 text-[10px] opacity-70 italic">Verifica que la carpeta sea PÚBLICA (Cualquier persona con el enlace).</p>
-              </div>
-            </div>
-          )}
-
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search size={16} className="text-gray-400" />
-              </div>
-              <input
-                type="text"
-                placeholder="Buscar por TAG o descripción..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1F3864] focus:outline-none text-sm font-medium transition-all"
-              />
-            </div>
-            <button 
-              onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
-              className="p-2 border rounded-lg transition-colors flex items-center justify-center bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100"
-              title={`Ordenar ${sortOrder === 'asc' ? 'Descendente' : 'Ascendente'}`}
-            >
-              {sortOrder === 'asc' ? <ArrowDownAZ size={18} /> : <ArrowUpZA size={18} />}
-            </button>
-            <button 
-              onClick={() => setShowFilters(!showFilters)}
-              className={`p-2 border rounded-lg transition-colors flex items-center justify-center ${showFilters || filtroUbicacion || filtroTipoCable ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'}`}
-              title="Filtros avanzados"
-            >
-              <Filter size={18} />
-            </button>
-          </div>
-
-          {showFilters && (
-            <div className="bg-white p-3 rounded-lg border border-gray-200 grid grid-cols-1 md:grid-cols-2 gap-3 mb-3 animate-in fade-in slide-in-from-top-2 duration-200">
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Ubicación</label>
-                <select 
-                  value={filtroUbicacion} 
-                  onChange={(e) => setFiltroUbicacion(e.target.value)}
-                  className="w-full p-2 text-xs border border-gray-200 rounded bg-gray-50 focus:ring-[#1F3864] focus:outline-none"
-                >
-                  <option value="">Todas</option>
-                  {ubicacionesUnicas.map(u => (
-                    <option key={u} value={u}>{u}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Tipo de Cable</label>
-                <select 
-                  value={filtroTipoCable} 
-                  onChange={(e) => setFiltroTipoCable(e.target.value)}
-                  className="w-full p-2 text-xs border border-gray-200 rounded bg-gray-50 focus:ring-[#1F3864] focus:outline-none"
-                >
-                  <option value="">Todos</option>
-                  {tiposCableUnicos.map(t => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          )}
-          
-          {driveFetchError && modoExportacion === 'DRIVE' && (
-            <div className="mb-3 p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg flex items-start gap-2">
-              <AlertCircle size={16} className="shrink-0 mt-0.5" />
-              <div>
-                <p className="font-bold uppercase tracking-tight">Error al conectar con Drive</p>
-                <p className="mt-1">{driveFetchError}</p>
-              </div>
-            </div>
-          )}
-
-          <div className="w-full h-48 overflow-y-auto bg-gray-50 border border-gray-100 rounded-xl p-2 space-y-1 custom-scrollbar">
-            {isFetchingDrive ? (
-               <div className="text-center py-12 flex flex-col items-center">
-                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-3"></div>
-                 <p className="text-xs text-blue-600 font-bold uppercase tracking-tight">Consultando Google Drive...</p>
-               </div>
-            ) : filteredInstrumentos.length === 0 ? (
-              <div className="text-center py-12 flex flex-col items-center">
-                <div className="bg-gray-100 p-3 rounded-full mb-3">
-                  <Camera className="text-gray-300" size={32} />
-                </div>
-                <p className="text-xs text-gray-400 font-bold uppercase tracking-tight">No hay instrumentos con fotos</p>
-              </div>
-            ) : (
-              filteredInstrumentos.map((inst, index) => (
-                <label key={`${inst.TAGNAME}-${index}`} className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer border transition-all ${
-                  selectedTags.includes(inst.TAGNAME) 
-                  ? 'bg-blue-50 border-blue-200' 
-                  : 'hover:bg-white hover:border-gray-300 border-transparent'
-                }`}>
-                  <input 
-                    type="checkbox" 
-                    checked={selectedTags.includes(inst.TAGNAME)}
-                    onChange={() => handleToggleTag(inst.TAGNAME)}
-                    className="w-4 h-4 rounded border-gray-300 text-[#1F3864] focus:ring-[#1F3864]" 
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-[#1F3864] uppercase">{inst.TAGNAME}</p>
-                    <p className="text-[9px] text-gray-400 truncate uppercase font-medium">{inst.DESCRIPCIÓN}</p>
-                  </div>
-                </label>
-              ))
-            )}
-          </div>
-          <div className="flex items-center gap-2 mt-3 p-2 bg-blue-50 rounded-lg">
-            <Check size={14} className="text-blue-600" />
+    <div className="p-4 space-y-6 max-w-5xl mx-auto pb-24">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <h2 className="text-2xl font-bold text-[#1F3864] flex items-center gap-2"><Download size={24} /> Exportar Formatos</h2>
+        <div className="flex items-center gap-2">
+          <div className="px-3 py-1 bg-blue-50 rounded-full border border-blue-100 flex items-center gap-2">
+            <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
             <p className="text-[10px] text-blue-700 font-bold uppercase tracking-tight">{selectedTags.length} Seleccionados</p>
           </div>
         </div>
+      </div>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-4">
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 space-y-4">
+            {/* Toggle para Modo o Fuente de Fotos */}
+            <div className="bg-gray-100 p-1 rounded-xl flex gap-1 border border-gray-200">
+              <button 
+                className={`flex-1 py-1.5 px-3 rounded-lg text-[10px] font-bold transition-all ${modoExportacion === 'LOCAL' ? 'bg-white text-blue-700 shadow-sm' : 'bg-transparent text-gray-400 hover:text-gray-600'}`}
+                onClick={() => { setModoExportacion('LOCAL'); setSelectedTags([]); }}
+              >
+                App (Locales)
+              </button>
+              <button 
+                className={`flex-1 py-1.5 px-3 rounded-lg text-[10px] font-bold transition-all ${modoExportacion === 'DRIVE' ? 'bg-white text-blue-700 shadow-sm' : 'bg-transparent text-gray-400 hover:text-gray-600'}`}
+                onClick={() => { setModoExportacion('DRIVE'); setSelectedTags([]); }}
+              >
+                Google Drive (Masiva)
+              </button>
+            </div>
 
-        <div>
-          <label className="block text-xs font-bold text-gray-500 mb-3 uppercase tracking-widest">2. Perfil de Inspección</label>
-          <select 
-            value={selectedProfile} 
-            onChange={e => setSelectedProfile(e.target.value)} 
-            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#1F3864] focus:outline-none text-sm font-medium"
-          >
-            <option value="">-- Seleccionar Perfil --</option>
-            {perfiles.map(p => <option key={p.ID_PERFIL} value={p.ID_PERFIL}>{p.NOMBRE_PERFIL.toUpperCase()}</option>)}
-          </select>
+            <div className="flex flex-col md:flex-row gap-3">
+              <div className="relative flex-1">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search size={16} className="text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Buscar por TAG o descripción..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1F3864] focus:outline-none text-sm font-medium transition-all"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                  className="px-3 py-2 border rounded-lg transition-colors flex items-center justify-center bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100 flex-1 md:flex-none"
+                  title={`Ordenar ${sortOrder === 'asc' ? 'Descendente' : 'Ascendente'}`}
+                >
+                  {sortOrder === 'asc' ? <ArrowDownAZ size={18} /> : <ArrowUpZA size={18} />}
+                </button>
+                <button 
+                  onClick={() => setShowFilters(!showFilters)}
+                  className={`px-3 py-2 border rounded-lg transition-colors flex items-center justify-center flex-1 md:flex-none ${showFilters || filtroUbicacion || filtroTipoCable ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'}`}
+                >
+                  <Filter size={18} className="mr-2 md:mr-0" />
+                  <span className="md:hidden text-xs font-bold uppercase">Filtros</span>
+                </button>
+              </div>
+            </div>
+
+            {showFilters && (
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1.5 tracking-wider">Ubicación</label>
+                  <select 
+                    value={filtroUbicacion} 
+                    onChange={(e) => setFiltroUbicacion(e.target.value)}
+                    className="w-full p-2 text-xs border border-gray-200 rounded-lg bg-white focus:ring-[#1F3864] focus:outline-none font-medium"
+                  >
+                    <option value="">Todas</option>
+                    {ubicacionesUnicas.map(u => (
+                      <option key={u} value={u}>{u}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1.5 tracking-wider">Tipo de Cable</label>
+                  <select 
+                    value={filtroTipoCable} 
+                    onChange={(e) => setFiltroTipoCable(e.target.value)}
+                    className="w-full p-2 text-xs border border-gray-200 rounded-lg bg-white focus:ring-[#1F3864] focus:outline-none font-medium"
+                  >
+                    <option value="">Todos</option>
+                    {tiposCableUnicos.map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  <button 
+                    onClick={() => {
+                      setFiltroUbicacion('');
+                      setFiltroTipoCable('');
+                      setSearchQuery('');
+                    }}
+                    className="w-full py-2 px-3 text-[10px] font-bold uppercase bg-gray-200 text-gray-600 rounded-lg hover:bg-gray-300 transition-colors"
+                  >
+                    Limpiar Filtros
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                {modoExportacion === 'DRIVE' ? 'Instrumentos En Drive' : 'Instrumentos Con Fotos'} ({filteredInstrumentos.length})
+              </label>
+              {filteredInstrumentos.length > 0 && (
+                <div className="flex gap-4">
+                   <button onClick={handleSelectAll} className="text-[10px] text-blue-600 font-black hover:text-blue-800 transition-colors uppercase tracking-widest">
+                    {selectedTags.length === filteredInstrumentos.length ? 'Deseleccionar Todo' : 'Seleccionar Todo'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="w-full min-h-[400px] max-h-[600px] overflow-y-auto bg-white rounded-xl space-y-1 custom-scrollbar">
+              {isFetchingDrive ? (
+                 <div className="text-center py-24 flex flex-col items-center">
+                   <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mb-4"></div>
+                   <p className="text-xs text-blue-600 font-bold uppercase tracking-widest">Consultando Google Drive...</p>
+                 </div>
+              ) : filteredInstrumentos.length === 0 ? (
+                <div className="text-center py-24 flex flex-col items-center">
+                  <div className="bg-gray-50 p-4 rounded-full mb-4">
+                    <Camera className="text-gray-200" size={40} />
+                  </div>
+                  <p className="text-sm text-gray-400 font-bold uppercase tracking-widest">No hay resultados</p>
+                  <p className="text-xs text-gray-400 mt-1">Intenta ajustando los filtros o la búsqueda</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 pt-2">
+                  {filteredInstrumentos.map((inst, index) => (
+                    <label 
+                      key={`${inst.TAGNAME}-${index}`} 
+                      className={`flex flex-col p-3 rounded-xl cursor-pointer border-2 transition-all group relative ${
+                        selectedTags.includes(inst.TAGNAME) 
+                        ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-500/10' 
+                        : 'bg-gray-50 border-gray-100 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <div className={`w-4 h-4 rounded border transition-colors flex items-center justify-center ${selectedTags.includes(inst.TAGNAME) ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-300'}`}>
+                          {selectedTags.includes(inst.TAGNAME) && <Check size={10} className="text-white" />}
+                        </div>
+                        <input 
+                          type="checkbox" 
+                          checked={selectedTags.includes(inst.TAGNAME)}
+                          onChange={() => handleToggleTag(inst.TAGNAME)}
+                          className="hidden" 
+                        />
+                      </div>
+                      <p className={`text-xs font-black uppercase truncate ${selectedTags.includes(inst.TAGNAME) ? 'text-blue-700' : 'text-[#1F3864]'}`}>
+                        {inst.TAGNAME}
+                      </p>
+                      <p className="text-[8px] text-gray-400 truncate uppercase mt-0.5 font-bold tracking-tighter">
+                        {inst.DESCRIPCIÓN || 'SIN DESCRIPCIÓN'}
+                      </p>
+                      {inst.UBICACIÓN && (
+                        <span className="mt-2 text-[7px] font-black uppercase text-gray-400 bg-gray-200/50 w-fit px-1.5 py-0.5 rounded">
+                          {inst.UBICACIÓN}
+                        </span>
+                      )}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
-        <div className="pt-6 border-t border-gray-50 flex flex-col gap-3">
-          {exportError && (
-            <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-[10px] font-bold uppercase tracking-tight flex items-center gap-2">
-              <AlertCircle size={14} />
-              {exportError}
+        <div className="space-y-4">
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 sticky top-4">
+            <h3 className="text-sm font-black text-[#1F3864] uppercase tracking-widest mb-4 flex items-center gap-2">
+              <Filter size={16} /> Configuración
+            </h3>
+            
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest">Procedimiento / Perfil</label>
+                <select 
+                  value={selectedProfile} 
+                  onChange={e => setSelectedProfile(e.target.value)} 
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#1F3864] focus:outline-none text-xs font-bold text-blue-900 appearance-none"
+                  style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23a1a1aa\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundPosition: 'right 1rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1rem' }}
+                >
+                  <option value="">-- Seleccionar Perfil --</option>
+                  {perfiles.map(p => <option key={p.ID_PERFIL} value={p.ID_PERFIL}>{p.NOMBRE_PERFIL.toUpperCase()}</option>)}
+                </select>
+              </div>
+
+              <div className="pt-4 border-t border-gray-100 flex flex-col gap-3">
+                {isExporting && (
+                  <div className="space-y-3 mb-2 p-4 bg-blue-50 rounded-2xl border border-blue-100">
+                    <div className="flex justify-between items-center text-[9px] font-black text-blue-700 uppercase tracking-widest">
+                      <span>{exportProgress < 100 ? 'Procesando...' : '¡Completado!'}</span>
+                      <span>{exportElapsedTime >= 60 ? `${Math.floor(exportElapsedTime / 60)}m ${exportElapsedTime % 60}s` : `${exportElapsedTime}s`}</span>
+                    </div>
+                    <div className="w-full bg-blue-200 rounded-full h-1.5 overflow-hidden">
+                      <div 
+                        className="bg-blue-600 h-full transition-all duration-300 ease-out"
+                        style={{ width: `${exportProgress}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-[8px] text-blue-500 font-bold uppercase tracking-tight text-center">
+                      {modoExportacion === 'DRIVE' ? 'Sincronizando fotos de Google Drive' : 'Generando formatos locales'}
+                    </p>
+                  </div>
+                )}
+
+                {!isExporting && (exportProgress === 100) && !exportError && (
+                  <div className="p-3 bg-green-50 border border-green-200 text-green-700 rounded-xl text-[10px] font-bold uppercase tracking-tight flex items-center justify-between">
+                    <Check size={14} /> Exito en {exportElapsedTime}s
+                  </div>
+                )}
+
+                {exportError && (
+                  <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-[10px] font-bold uppercase tracking-tight flex items-center gap-2">
+                    <AlertCircle size={14} className="shrink-0" />
+                    <span className="truncate">{exportError}</span>
+                  </div>
+                )}
+                
+                <Button 
+                  onClick={() => exportarPDF('UNIDO')} 
+                  variant="pdf" 
+                  icon={Printer} 
+                  disabled={selectedTags.length === 0 || !selectedProfile}
+                  className="w-full py-4 shadow-lg shadow-red-200 active:scale-[0.98] transition-all rounded-xl font-black text-[10px] uppercase tracking-widest"
+                >
+                  Generar Protocolos (PDF)
+                </Button>
+                
+                <Button 
+                  onClick={exportarExcel} 
+                  variant="success" 
+                  icon={FileSpreadsheet} 
+                  disabled={isExporting || selectedTags.length === 0 || !selectedProfile}
+                  className="w-full py-4 shadow-lg shadow-green-200 active:scale-[0.98] transition-all rounded-xl font-black text-[10px] uppercase tracking-widest"
+                >
+                  {isExporting ? 'Procesando...' : 'Descargar Excel (.xlsx)'}
+                </Button>
+                
+                <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 flex items-start gap-2">
+                  <AlertCircle size={14} className="text-amber-500 shrink-0 mt-0.5" />
+                  <p className="text-[8px] text-amber-700 font-bold leading-tight uppercase">
+                    Asegúrate de permitir ventanas emergentes para que el generador de PDF funcione correctamente.
+                  </p>
+                </div>
+              </div>
             </div>
-          )}
-          <Button 
-            onClick={() => exportarPDF('UNIDO')} 
-            variant="pdf" 
-            icon={Printer} 
-            disabled={selectedTags.length === 0 || !selectedProfile}
-            className="shadow-lg shadow-red-200 active:scale-95"
-          >
-            Generar Protocolos (PDF)
-          </Button>
-          <Button 
-            onClick={exportarExcel} 
-            variant="success" 
-            icon={FileSpreadsheet} 
-            disabled={isExporting || selectedTags.length === 0 || !selectedProfile}
-             className="shadow-lg shadow-green-200 active:scale-95"
-          >
-            {isExporting ? 'Procesando...' : 'Descargar Excel (.xlsx)'}
-          </Button>
-          
-          <div className="flex items-start gap-2 p-3 bg-amber-50 rounded-xl border border-amber-100 mt-2">
-            <AlertCircle size={14} className="text-amber-500 shrink-0 mt-0.5" />
-            <p className="text-[9px] text-amber-700 leading-normal font-medium">
-              Asegúrate de permitir ventanas emergentes para que el generador de PDF funcione correctamente al exportar.
-            </p>
           </div>
         </div>
       </div>
