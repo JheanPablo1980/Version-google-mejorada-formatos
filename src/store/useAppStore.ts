@@ -131,6 +131,7 @@ interface AppState {
   driveFolderLink: string | null;
   session: UserSession | null;
   rolePermissions: Record<UserRole, RolePermissions>;
+  adminPassword?: string;
   isInitialized: boolean;
   loadData: () => Promise<void>;
   savePerfil: (perfil: Perfil) => Promise<{ success: boolean; error?: string }>;
@@ -145,6 +146,7 @@ interface AppState {
   saveLogo: (base64: string) => Promise<void>;
   saveDriveFolderLink: (link: string) => Promise<void>;
   updateRolePermissions: (role: UserRole, permissions: Partial<RolePermissions>) => Promise<void>;
+  updateAdminPassword: (newPassword: string) => Promise<void>;
   syncWithSupabase: () => Promise<void>;
   clearInstrumentos: () => Promise<void>;
   clearFotos: () => Promise<void>;
@@ -173,6 +175,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       TECNICO: { admin: false, nuevo: true, fotos: true, galeria: true, perfiles: true, historial: true, generar: true },
       INVITADO: { admin: false, nuevo: false, fotos: false, galeria: true, perfiles: true, historial: false, generar: true }
     },
+    adminPassword: '123',
 
   devLogin: (role) => {
     // Ya no es necesario con el acceso directo, pero lo mantenemos por compatibilidad
@@ -181,7 +184,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   login: (role, password) => {
     if (role === 'ADMIN') {
-      if (password === '123') {
+      const currentPassword = get().adminPassword || '123';
+      if (password === currentPassword) {
         const adminSession: UserSession = {
           user: { email: ADMIN_EMAIL, id: 'admin-local', user_metadata: { full_name: 'Administrador' } },
           role: 'ADMIN'
@@ -340,6 +344,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const configLogo = await db.get('config', 'logo');
     const configDrive = await db.get('config', 'driveFolderLink');
     const configPermissions = await db.get('config', 'rolePermissions');
+    const configPassword = await db.get('config', 'adminPassword');
     
     // Cargar sesión guardada si existe
     const savedSession = localStorage.getItem('user_session');
@@ -364,6 +369,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         TECNICO: { admin: false, nuevo: true, fotos: true, galeria: true, perfiles: true, historial: true, generar: true },
         INVITADO: { admin: false, nuevo: false, fotos: false, galeria: true, perfiles: true, historial: false, generar: true }
       },
+      adminPassword: configPassword?.value || '123',
       session: initialSession,
       isInitialized: true
     });
@@ -378,6 +384,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         const logoItem = remoteConfig.find(c => c.id === 'logo');
         const driveItem = remoteConfig.find(c => c.id === 'drive_folder_link');
         const permsItem = remoteConfig.find(c => c.id === 'role_permissions');
+        const passItem = remoteConfig.find(c => c.id === 'admin_password');
 
         if (logoItem) {
           await db.put('config', { id: 'logo', value: logoItem.value });
@@ -390,6 +397,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         if (permsItem) {
           await db.put('config', { id: 'rolePermissions', value: permsItem.value });
           set({ rolePermissions: permsItem.value });
+        }
+        if (passItem) {
+          await db.put('config', { id: 'adminPassword', value: passItem.value });
+          set({ adminPassword: passItem.value });
         }
       }
     } catch (e) {
@@ -1019,6 +1030,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       await supabase.from('app_config').upsert({ id: 'role_permissions', value: updatedPermissions });
     } catch (e) {
       console.warn('No se pudo respaldar permisos en la nube:', e);
+    }
+  },
+
+  updateAdminPassword: async (newPassword) => {
+    const db = await initDB();
+    await db.put('config', { id: 'adminPassword', value: newPassword });
+    set({ adminPassword: newPassword });
+
+    try {
+      await supabase.from('app_config').upsert({ id: 'admin_password', value: newPassword });
+    } catch (e) {
+      console.warn('No se pudo respaldar password en la nube:', e);
     }
   },
 

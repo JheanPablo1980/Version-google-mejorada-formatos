@@ -23,6 +23,8 @@ export const Admin: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
   const [showInstruments, setShowInstruments] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [showPassChange, setShowPassChange] = useState(false);
   const [notification, setNotification] = useState<{msg: string, type: 'success' | 'error'} | null>(null);
   const [confirmStep, setConfirmStep] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -120,6 +122,23 @@ export const Admin: React.FC = () => {
 
   const handleTogglePermission = async (role: UserRole, key: keyof RolePermissions) => {
     await updateRolePermissions(role, { [key]: !rolePermissions[role][key] });
+  };
+  
+  const { updateAdminPassword } = useAppStore();
+
+  const handlePasswordChange = async () => {
+    if (newPassword.trim().length < 3) {
+      showNotification('La contraseña debe tener al menos 3 caracteres', 'error');
+      return;
+    }
+    try {
+      await updateAdminPassword(newPassword.trim());
+      showNotification('Contraseña actualizada correctamente');
+      setNewPassword('');
+      setShowPassChange(false);
+    } catch (e) {
+      showNotification('Error al actualizar contraseña', 'error');
+    }
   };
 
   const sectionIcons: Record<keyof RolePermissions, any> = {
@@ -315,6 +334,53 @@ export const Admin: React.FC = () => {
               Guardar
             </Button>
           </div>
+        </div>
+      </div>
+
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 text-center space-y-4">
+        <h3 className="font-bold text-[#1F3864] text-lg border-b pb-2 text-left flex items-center gap-2">
+          <Shield size={18} className="text-blue-500" /> Seguridad
+        </h3>
+        <div className="space-y-4">
+          {!showPassChange ? (
+            <Button 
+              onClick={() => setShowPassChange(true)} 
+              variant="secondary" 
+              className="w-full"
+              icon={Shield}
+            >
+              Cambiar Contraseña Admin
+            </Button>
+          ) : (
+            <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Nueva Contraseña"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full px-4 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold text-center"
+                  autoFocus
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={() => setShowPassChange(false)} 
+                  variant="secondary" 
+                  className="flex-1 !bg-gray-100 !text-gray-600"
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={handlePasswordChange} 
+                  variant="secondary" 
+                  className="flex-1 !bg-[#1F3864] !text-white"
+                >
+                  Confirmar
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
