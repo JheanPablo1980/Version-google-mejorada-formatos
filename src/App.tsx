@@ -32,8 +32,10 @@ export default function App() {
     );
   }
 
-  // Session check removed to allow direct access mode
-  const permissions = session ? (rolePermissions[session.role as UserRole] || rolePermissions.INVITADO) : rolePermissions.ADMIN;
+  // Permisos basados en la sesión activa o por defecto Invitado
+  const permissions = session 
+    ? (rolePermissions[session.role as UserRole] || rolePermissions.INVITADO) 
+    : rolePermissions.INVITADO;
 
   const navigation: { id: Tab; icon: any; label: string; roles: string[] }[] = [
     { id: 'admin', icon: Database, label: 'Admin', roles: ['ADMIN'] },
