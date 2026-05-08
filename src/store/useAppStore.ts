@@ -131,6 +131,7 @@ interface AppState {
   driveFolderLink: string | null;
   session: UserSession | null;
   rolePermissions: Record<UserRole, RolePermissions>;
+  isInitialized: boolean;
   loadData: () => Promise<void>;
   savePerfil: (perfil: Perfil) => Promise<{ success: boolean; error?: string }>;
   deletePerfil: (id: string) => Promise<void>;
@@ -166,6 +167,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     logoBase64: null,
     driveFolderLink: null,
     session: null,
+    isInitialized: false,
     rolePermissions: {
       ADMIN: { admin: true, nuevo: true, fotos: true, galeria: true, perfiles: true, historial: true, generar: true },
       TECNICO: { admin: false, nuevo: true, fotos: true, galeria: true, perfiles: true, historial: true, generar: true },
@@ -341,7 +343,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     
     // Cargar sesión guardada si existe
     const savedSession = localStorage.getItem('user_session');
-    const initialSession = savedSession ? JSON.parse(savedSession) : null;
+    let initialSession = null;
+    try {
+      initialSession = savedSession ? JSON.parse(savedSession) : null;
+    } catch (e) {
+      console.error('Error al parsear la sesión guardada:', e);
+      localStorage.removeItem('user_session');
+    }
 
     set({ 
       perfiles, 
@@ -356,7 +364,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         TECNICO: { admin: false, nuevo: true, fotos: true, galeria: true, perfiles: true, historial: true, generar: true },
         INVITADO: { admin: false, nuevo: false, fotos: false, galeria: true, perfiles: true, historial: false, generar: true }
       },
-      session: initialSession
+      session: initialSession,
+      isInitialized: true
     });
 
     // Supabase auth listeners disabled in direct access mode

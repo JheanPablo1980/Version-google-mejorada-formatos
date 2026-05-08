@@ -14,12 +14,23 @@ import { motion, AnimatePresence } from 'motion/react';
 type Tab = 'admin' | 'nuevo' | 'fotos' | 'galeria' | 'perfiles' | 'generar' | 'historial';
 
 export default function App() {
-  const { session, signOut, loadData, rolePermissions } = useAppStore();
+  const { session, signOut, loadData, rolePermissions, isInitialized } = useAppStore();
   const [activeTab, setActiveTab] = useState<Tab>('perfiles');
 
   useEffect(() => { 
     loadData().catch(err => console.error('Error loading data:', err)); 
   }, [loadData]);
+
+  if (!isInitialized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-[#1F3864] border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-[10px] font-bold text-[#1F3864] uppercase tracking-widest animate-pulse">Cargando Sistema...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Session check removed to allow direct access mode
   const permissions = session ? (rolePermissions[session.role as UserRole] || rolePermissions.INVITADO) : rolePermissions.ADMIN;
