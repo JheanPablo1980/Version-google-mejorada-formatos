@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Database, Plus, Camera, FileText, Download, History, LogOut, User as UserIcon, Image } from 'lucide-react';
+import { Database, Plus, Camera, FileText, Download, History, LogOut, User as UserIcon, Image, LayoutDashboard } from 'lucide-react';
 import { useAppStore, UserRole } from './store/useAppStore';
 import { Admin } from './components/Admin';
 import { NuevoRegistro } from './components/NuevoRegistro';
@@ -8,10 +8,11 @@ import { ListaPerfiles } from './components/ListaPerfiles';
 import { VistaGenerar } from './components/VistaGenerar';
 import { Historial } from './components/Historial';
 import { GaleriaFotos } from './components/GaleriaFotos';
+import { Dashboard } from './components/Dashboard';
 import { Login } from './components/Login';
 import { motion, AnimatePresence } from 'motion/react';
 
-type Tab = 'admin' | 'nuevo' | 'fotos' | 'galeria' | 'perfiles' | 'generar' | 'historial';
+type Tab = 'admin' | 'nuevo' | 'fotos' | 'galeria' | 'perfiles' | 'generar' | 'historial' | 'dashboard';
 
 export default function App() {
   const { session, signOut, loadData, rolePermissions, isInitialized } = useAppStore();
@@ -38,6 +39,7 @@ export default function App() {
     : rolePermissions.INVITADO;
 
   const navigation: { id: Tab; icon: any; label: string; roles: string[] }[] = [
+    { id: 'dashboard', icon: LayoutDashboard, label: 'Panel', roles: ['ADMIN'] },
     { id: 'admin', icon: Database, label: 'Admin', roles: ['ADMIN'] },
     { id: 'nuevo', icon: Database, label: 'BD', roles: ['ADMIN', 'TECNICO', 'INVITADO'] },
     { id: 'fotos', icon: Camera, label: 'Cámara', roles: ['ADMIN', 'TECNICO', 'INVITADO'] },
@@ -101,6 +103,7 @@ export default function App() {
             transition={{ duration: 0.2, ease: "easeOut" }}
           >
             {activeTab === 'admin' && <Admin />}
+            {activeTab === 'dashboard' && <Dashboard />}
             {activeTab === 'nuevo' && <NuevoRegistro />}
             {activeTab === 'fotos' && <RegistroFotos />}
             {activeTab === 'galeria' && <GaleriaFotos />}

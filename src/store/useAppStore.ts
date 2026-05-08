@@ -15,6 +15,7 @@ export type UserRole = 'ADMIN' | 'TECNICO' | 'INVITADO';
 
 export interface RolePermissions {
   admin: boolean;
+  dashboard: boolean;
   nuevo: boolean;
   fotos: boolean;
   galeria: boolean;
@@ -106,6 +107,7 @@ export interface Perfil {
 export interface ExportLog {
   id: string;
   user_email: string;
+  user_role?: UserRole;
   tagname: string;
   tipo_formato: 'EXCEL' | 'PDF' | 'DELETED';
   timestamp: string;
@@ -171,9 +173,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     session: null,
     isInitialized: false,
     rolePermissions: {
-      ADMIN: { admin: true, nuevo: true, fotos: true, galeria: true, perfiles: true, historial: true, generar: true },
-      TECNICO: { admin: false, nuevo: true, fotos: true, galeria: true, perfiles: true, historial: true, generar: true },
-      INVITADO: { admin: false, nuevo: false, fotos: false, galeria: true, perfiles: true, historial: false, generar: true }
+      ADMIN: { admin: true, dashboard: true, nuevo: true, fotos: true, galeria: true, perfiles: true, historial: true, generar: true },
+      TECNICO: { admin: false, dashboard: false, nuevo: true, fotos: true, galeria: true, perfiles: true, historial: true, generar: true },
+      INVITADO: { admin: false, dashboard: false, nuevo: false, fotos: false, galeria: true, perfiles: true, historial: false, generar: true }
     },
     adminPassword: '123',
 
@@ -356,6 +358,22 @@ export const useAppStore = create<AppState>((set, get) => ({
       localStorage.removeItem('user_session');
     }
 
+    // Valores por defecto
+    const defaultPermissions: Record<UserRole, RolePermissions> = {
+      ADMIN: { admin: true, dashboard: true, nuevo: true, fotos: true, galeria: true, perfiles: true, historial: true, generar: true },
+      TECNICO: { admin: false, dashboard: false, nuevo: true, fotos: true, galeria: true, perfiles: true, historial: true, generar: true },
+      INVITADO: { admin: false, dashboard: false, nuevo: false, fotos: false, galeria: true, perfiles: true, historial: false, generar: true }
+    };
+
+    // Combinar permisos guardados con los de por defecto para asegurar que nuevas llaves existan
+    const finalPermissions = { ...defaultPermissions };
+    if (configPermissions?.value) {
+      Object.keys(configPermissions.value).forEach((role) => {
+        const r = role as UserRole;
+        finalPermissions[r] = { ...defaultPermissions[r], ...configPermissions.value[r] };
+      });
+    }
+
     set({ 
       perfiles, 
       fotos, 
@@ -364,11 +382,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       conteoExportacion: conteoExportacion || [],
       logoBase64: configLogo?.value || null,
       driveFolderLink: configDrive?.value || null,
-      rolePermissions: configPermissions?.value || {
-        ADMIN: { admin: true, nuevo: true, fotos: true, galeria: true, perfiles: true, historial: true, generar: true },
-        TECNICO: { admin: false, nuevo: true, fotos: true, galeria: true, perfiles: true, historial: true, generar: true },
-        INVITADO: { admin: false, nuevo: false, fotos: false, galeria: true, perfiles: true, historial: false, generar: true }
-      },
+      rolePermissions: finalPermissions,
       adminPassword: configPassword?.value || '123',
       session: initialSession,
       isInitialized: true
@@ -862,6 +876,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       ...logInfo,
       id: crypto.randomUUID(),
       user_email: session.user.email,
+      user_role: session.role,
       timestamp: new Date().toISOString(),
     };
     
@@ -877,6 +892,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       await supabase.from('export_logs').insert({
         id: newLog.id,
         user_email: newLog.user_email,
+        user_role: newLog.user_role,
         tagname: newLog.tagname,
         tipo_formato: newLog.tipo_formato,
         id_perfil: newLog.id_perfil,

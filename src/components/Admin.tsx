@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Database, Image as ImageIcon, FileSpreadsheet, CloudUpload, Trash2, CheckCircle, Shield, Eye, EyeOff, Plus, Camera, History, Download, FileText } from 'lucide-react';
+import { Database, Image as ImageIcon, FileSpreadsheet, CloudUpload, Trash2, CheckCircle, Shield, Eye, EyeOff, Plus, Camera, History, Download, FileText, LayoutDashboard } from 'lucide-react';
 import { useAppStore, UserRole, RolePermissions } from '../store/useAppStore';
 import { Button } from './ui/Button';
 import * as XLSX from 'xlsx';
@@ -143,6 +143,7 @@ export const Admin: React.FC = () => {
 
   const sectionIcons: Record<keyof RolePermissions, any> = {
     admin: Shield,
+    dashboard: LayoutDashboard,
     nuevo: Plus,
     fotos: Camera,
     galeria: ImageIcon,
@@ -153,6 +154,7 @@ export const Admin: React.FC = () => {
 
   const sectionLabels: Record<keyof RolePermissions, string> = {
     admin: 'Admin',
+    dashboard: 'Panel',
     nuevo: 'BD',
     fotos: 'Cámara',
     galeria: 'Fotos',
