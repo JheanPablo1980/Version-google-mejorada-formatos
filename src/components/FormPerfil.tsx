@@ -3,7 +3,8 @@ import { ArrowLeft, Trash2, FileUp, Save } from 'lucide-react';
 import { useAppStore, Perfil } from '../store/useAppStore';
 import { Button } from './ui/Button';
 import { InputGroup } from './ui/InputGroup';
-import { PERFIL_INICIAL } from '../constants';
+import { PERFIL_INICIAL, PERFIL_POTENCIA_INICIAL } from '../constants';
+import { Zap, Activity } from 'lucide-react';
 
 interface FormPerfilProps {
   perfilToEdit?: Perfil | null;
@@ -55,7 +56,8 @@ export const FormPerfil: React.FC<FormPerfilProps> = ({ perfilToEdit, onBack }) 
       setTimeout(() => setConfirmClear(false), 3000);
       return;
     }
-    setFormData({ ...PERFIL_INICIAL, ID_PERFIL: formData.ID_PERFIL } as Perfil);
+    const basePerfil = formData.TIPO === 'POTENCIA' ? PERFIL_POTENCIA_INICIAL : PERFIL_INICIAL;
+    setFormData({ ...basePerfil, ID_PERFIL: formData.ID_PERFIL } as Perfil);
     setConfirmClear(false);
   };
 
@@ -75,25 +77,133 @@ export const FormPerfil: React.FC<FormPerfilProps> = ({ perfilToEdit, onBack }) 
       </div>
 
       <form onSubmit={handleSubmit} className="p-4 space-y-6">
+        <div className="flex items-center gap-2 mb-2">
+          <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+            formData.TIPO === 'POTENCIA' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
+          }`}>
+            Formato: {formData.TIPO}
+          </span>
+        </div>
         <section className="bg-white p-5 rounded-xl shadow-sm border-t-4 border-t-[#1F3864]">
-          <h3 className="font-bold text-sm mb-4 text-[#1F3864] uppercase tracking-widest border-b pb-2">Identificación</h3>
-          <InputGroup label="Nombre del Perfil" name="NOMBRE_PERFIL" value={formData.NOMBRE_PERFIL} onChange={handleChange} required className="mb-4" />
-          <div className="grid grid-cols-2 gap-4">
-            <InputGroup label="Revisión Format." name="REVISION" value={formData.REVISION} onChange={handleChange} />
-            <InputGroup label="Fecha de Revisión" name="FECHA_REVISION" value={formData.FECHA_REVISION} onChange={handleChange} />
-          </div>
-          <div className="grid grid-cols-2 gap-4 mt-4">
-            <InputGroup label="Cliente" name="CLIENTE" value={formData.CLIENTE} onChange={handleChange} />
-            <InputGroup label="Fecha Elaboración" name="FECHA" type="date" value={formData.FECHA} onChange={handleChange} />
-          </div>
-          <div className="grid grid-cols-2 gap-4 mt-4">
-            <InputGroup label="Proyecto" name="PROYECTO" value={formData.PROYECTO} onChange={handleChange} />
-            <InputGroup label="Contrato" name="CONTRATO" value={formData.CONTRATO} onChange={handleChange} />
-          </div>
-        </section>
+            <h3 className="font-bold text-sm mb-4 text-[#1F3864] uppercase tracking-widest border-b pb-2">Identificación</h3>
+            <InputGroup label="Nombre del Perfil" name="NOMBRE_PERFIL" value={formData.NOMBRE_PERFIL} onChange={handleChange} required className="mb-4" />
+            <div className="grid grid-cols-2 gap-4">
+              <InputGroup label="Revisión Format." name="REVISION" value={formData.REVISION} onChange={handleChange} />
+              <InputGroup label="Fecha de Revisión" name="FECHA_REVISION" value={formData.FECHA_REVISION} onChange={handleChange} />
+            </div>
+            <div className="grid grid-cols-2 gap-4 mt-4">
+              <InputGroup label="Cliente" name="CLIENTE" value={formData.CLIENTE} onChange={handleChange} />
+              <InputGroup label="Fecha Elaboración" name="FECHA" type="date" value={formData.FECHA} onChange={handleChange} />
+            </div>
+            <div className="grid grid-cols-2 gap-4 mt-4">
+              <InputGroup label="Proyecto" name="PROYECTO" value={formData.PROYECTO} onChange={handleChange} />
+              <InputGroup label="Contrato" name="CONTRATO" value={formData.CONTRATO} onChange={handleChange} />
+            </div>
+            {formData.TIPO === 'POTENCIA' && (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4 border-t border-gray-100 pt-4">
+                <InputGroup label="Código" name="POT_CODIGO" value={formData.POT_CODIGO} onChange={handleChange} />
+                <InputGroup label="AC-1 No" name="AC1_NO" value={formData.AC1_NO} onChange={handleChange} />
+                <InputGroup label="HC-1 No" name="HC1_NO" value={formData.HC1_NO} onChange={handleChange} />
+                <InputGroup label="Contratista" name="CONTRATISTA" value={formData.CONTRATISTA} onChange={handleChange} />
+                <InputGroup label="Área" name="AREA" value={formData.AREA} onChange={handleChange} />
+                <InputGroup label="Locación" name="LOCACION" value={formData.LOCACION} onChange={handleChange} />
+                <InputGroup label="Servicio" name="SERVICIO" value={formData.SERVICIO} onChange={handleChange} />
+                <InputGroup label="P & ID No." name="P_ID_NO" value={formData.P_ID_NO} onChange={handleChange} />
+                <InputGroup label="Rev (P&ID)" name="REV_P_ID" value={formData.REV_P_ID} onChange={handleChange} />
+                <InputGroup label="Paquete No." name="PAQUETE_NO" value={formData.PAQUETE_NO} onChange={handleChange} />
+                <InputGroup label="Plano No." name="PLANO_NO" value={formData.PLANO_NO} onChange={handleChange} />
+                <InputGroup label="Rev (Plano)" name="REV_PLANO" value={formData.REV_PLANO} onChange={handleChange} />
+              </div>
+            )}
+          </section>
 
-        <section className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-          <h3 className="font-bold text-sm mb-4 text-[#1F3864] uppercase tracking-widest border-b pb-2">1. Información del Instrumento</h3>
+        {formData.TIPO === 'POTENCIA' ? (
+          <>
+            <section className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 space-y-4">
+              <h3 className="font-bold text-sm mb-4 text-[#1F3864] uppercase tracking-widest border-b pb-2">Ítems de Chequeo</h3>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(num => (
+                <div key={num} className="mb-4 bg-gray-50/50 p-4 rounded-xl border border-gray-100">
+                  <InputGroup 
+                    label={`Ítem ${num}`} 
+                    name={`CHKL_${num}_DESC`} 
+                    value={(formData as any)[`CHKL_${num}_DESC`]} 
+                    onChange={handleChange} 
+                    textarea
+                    rows={2}
+                    className="mb-3"
+                  />
+                  <div className="flex gap-6 mt-3">
+                    {['CUMPLE', 'NO_CUMPLE', 'N/A'].map(opt => (
+                      <label key={opt} className="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-600">
+                        <input 
+                          type="radio" 
+                          name={`CHKL_${num}_ESTADO`} 
+                          value={opt} 
+                          checked={(formData as any)[`CHKL_${num}_ESTADO`] === opt} 
+                          onChange={handleChange} 
+                          className="text-orange-500 focus:ring-orange-500 w-4 h-4" 
+                        /> {opt}
+                      </label>
+                    ))}
+                    <button type="button" onClick={() => handleSignatureChange(`CHKL_${num}_ESTADO`, '')} className="text-xs text-red-500 ml-auto border border-red-500 rounded px-2 hover:bg-red-50">Borrar</button>
+                  </div>
+                </div>
+              ))}
+            </section>
+
+            <section className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+              <h3 className="font-bold text-sm mb-4 text-[#1F3864] uppercase tracking-widest border-b pb-2">Comentarios</h3>
+              <InputGroup label="Comentarios" name="COMENTARIOS" value={formData.COMENTARIOS} onChange={handleChange} textarea rows={5} />
+            </section>
+
+            <section className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+              <h3 className="font-bold text-sm mb-4 text-[#1F3864] uppercase tracking-widest border-b pb-2">Firmas y Gestión</h3>
+              <div className="space-y-8">
+                {[
+                  { num: '1', title: 'CONTRATISTA Y/O VENDOR' },
+                  { num: '2', title: 'PRECOMISIONAMIENTO' },
+                  { num: '3', title: 'COMISIONAMIENTO' }
+                ].map(item => (
+                  <div key={item.num} className="grid grid-cols-2 gap-x-4 border-b pb-6 border-gray-100 last:border-0 last:pb-0">
+                    <h4 className="col-span-2 font-bold text-xs mb-3 text-orange-700">{item.title}</h4>
+                    <InputGroup label="Compañía" name={`POT_COMPANIA_${item.num}`} value={(formData as any)[`POT_COMPANIA_${item.num}`]} onChange={handleChange} className="mb-4 col-span-2" />
+                    <InputGroup label="Nombre" name={`POT_NOMBRE_${item.num}`} value={(formData as any)[`POT_NOMBRE_${item.num}`]} onChange={handleChange} className="mb-4" />
+                    <InputGroup label="Fecha" name={`POT_FECHA_${item.num}`} value={(formData as any)[`POT_FECHA_${item.num}`]} onChange={handleChange} className="mb-4" />
+                    
+                    <div className="col-span-2 bg-gray-50/50 p-4 rounded-xl border border-dashed border-gray-300 flex flex-col items-center">
+                      <label className="text-[10px] font-bold text-gray-500 mb-3 uppercase tracking-wider">Firma</label>
+                      {(formData as any)[`POT_FIRMA_${item.num}`] ? (
+                        <div className="relative group">
+                          <div className="bg-white p-4 rounded-lg shadow-inner border border-gray-200">
+                            <img 
+                              src={(formData as any)[`POT_FIRMA_${item.num}`]} 
+                              alt={`Firma ${item.title}`} 
+                              className="h-16 object-contain mix-blend-multiply" 
+                            />
+                          </div>
+                          <button 
+                            type="button" 
+                            onClick={() => handleSignatureChange(`POT_FIRMA_${item.num}`, '')} 
+                            className="absolute -top-3 -right-3 bg-red-500 text-white rounded-full p-1.5 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Trash2 size={14}/>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="w-full flex justify-center">
+                          <SignatureUploadButton onUpload={(base64) => handleSignatureChange(`POT_FIRMA_${item.num}`, base64)} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </>
+        ) : (
+          <>
+            <section className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+              <h3 className="font-bold text-sm mb-4 text-[#1F3864] uppercase tracking-widest border-b pb-2">1. Información del Instrumento</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <InputGroup label="Tagname" name="TAGNAME" value={formData.TAGNAME} onChange={handleChange} />
             <InputGroup label="Tag Cable / SWC" name="TAG_CABLE_SWC" value={formData.TAG_CABLE_SWC} onChange={handleChange} />
@@ -251,8 +361,10 @@ export const FormPerfil: React.FC<FormPerfilProps> = ({ perfilToEdit, onBack }) 
             ))}
           </div>
         </section>
+        </>
+        )}
 
-        {saveError && (
+          {saveError && (
           <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl text-xs mb-4">
             <p className="font-bold mb-1">Error al sincronizar con la nube:</p>
             <p>{saveError}</p>
@@ -260,15 +372,15 @@ export const FormPerfil: React.FC<FormPerfilProps> = ({ perfilToEdit, onBack }) 
           </div>
         )}
 
-        <div className="flex gap-4 pt-4">
-          <Button type="button" onClick={handleClear} variant={confirmClear ? "danger" : "secondary"} icon={Trash2} className="flex-1" disabled={isSaving}>
-            {confirmClear ? "Confirmar Limpiar" : "Limpiar Todo"}
-          </Button>
-          <Button type="submit" variant="primary" icon={Save} className="flex-[2]" disabled={isSaving}>
-            {isSaving ? "Guardando y Sincronizando..." : "Guardar Perfil"}
-          </Button>
-        </div>
-      </form>
+          <div className="flex gap-4 pt-4">
+            <Button type="button" onClick={handleClear} variant={confirmClear ? "danger" : "secondary"} icon={Trash2} className="flex-1" disabled={isSaving}>
+              {confirmClear ? "Confirmar Limpiar" : "Limpiar Todo"}
+            </Button>
+            <Button type="submit" variant="primary" icon={Save} className="flex-[2]" disabled={isSaving}>
+              {isSaving ? "Guardando y Sincronizando..." : "Guardar Perfil"}
+            </Button>
+          </div>
+        </form>
     </div>
   );
 };

@@ -41,6 +41,7 @@ export interface Foto {
 
 export interface Perfil {
   ID_PERFIL: string;
+  TIPO: 'INSTRUMENTACION' | 'POTENCIA';
   NOMBRE_PERFIL: string;
   CLIENTE: string;
   PROYECTO: string;
@@ -102,6 +103,52 @@ export interface Perfil {
   APROBO_FIRMA: string;
   timestamp?: string;
   USER_EMAIL?: string;
+  POT_CODIGO?: string;
+  AC1_NO?: string;
+  HC1_NO?: string;
+  CONTRATISTA?: string;
+  AREA?: string;
+  LOCACION?: string;
+  SERVICIO?: string;
+  P_ID_NO?: string;
+  REV_P_ID?: string;
+  PAQUETE_NO?: string;
+  PLANO_NO?: string;
+  REV_PLANO?: string;
+  CHKL_1_DESC?: string;
+  CHKL_1_ESTADO?: 'CUMPLE' | 'NO_CUMPLE' | 'N/A' | '';
+  CHKL_2_DESC?: string;
+  CHKL_2_ESTADO?: 'CUMPLE' | 'NO_CUMPLE' | 'N/A' | '';
+  CHKL_3_DESC?: string;
+  CHKL_3_ESTADO?: 'CUMPLE' | 'NO_CUMPLE' | 'N/A' | '';
+  CHKL_4_DESC?: string;
+  CHKL_4_ESTADO?: 'CUMPLE' | 'NO_CUMPLE' | 'N/A' | '';
+  CHKL_5_DESC?: string;
+  CHKL_5_ESTADO?: 'CUMPLE' | 'NO_CUMPLE' | 'N/A' | '';
+  CHKL_6_DESC?: string;
+  CHKL_6_ESTADO?: 'CUMPLE' | 'NO_CUMPLE' | 'N/A' | '';
+  CHKL_7_DESC?: string;
+  CHKL_7_ESTADO?: 'CUMPLE' | 'NO_CUMPLE' | 'N/A' | '';
+  CHKL_8_DESC?: string;
+  CHKL_8_ESTADO?: 'CUMPLE' | 'NO_CUMPLE' | 'N/A' | '';
+  CHKL_9_DESC?: string;
+  CHKL_9_ESTADO?: 'CUMPLE' | 'NO_CUMPLE' | 'N/A' | '';
+  CHKL_10_DESC?: string;
+  CHKL_10_ESTADO?: 'CUMPLE' | 'NO_CUMPLE' | 'N/A' | '';
+  CHKL_11_DESC?: string;
+  CHKL_11_ESTADO?: 'CUMPLE' | 'NO_CUMPLE' | 'N/A' | '';
+  POT_COMPANIA_1?: string;
+  POT_FIRMA_1?: string;
+  POT_NOMBRE_1?: string;
+  POT_FECHA_1?: string;
+  POT_COMPANIA_2?: string;
+  POT_FIRMA_2?: string;
+  POT_NOMBRE_2?: string;
+  POT_FECHA_2?: string;
+  POT_COMPANIA_3?: string;
+  POT_FIRMA_3?: string;
+  POT_NOMBRE_3?: string;
+  POT_FECHA_3?: string;
 }
 
 export interface ExportLog {
@@ -129,7 +176,8 @@ interface AppState {
   instrumentos: Instrumento[];
   exportLogs: ExportLog[];
   conteoExportacion: ConteoExportacion[];
-  logoBase64: string | null;
+  logoInstrumentacion: string | null;
+  logoPotencia: string | null;
   driveFolderLink: string | null;
   session: UserSession | null;
   rolePermissions: Record<UserRole, RolePermissions>;
@@ -145,7 +193,7 @@ interface AppState {
   deleteInstrumentos: (tagnames: string[]) => Promise<{ success: boolean; error?: string }>;
   loadInstrumentosBulk: (dataArray: Instrumento[]) => Promise<void>;
   addInstrumento: (inst: Instrumento) => Promise<{ success: boolean; error?: string }>;
-  saveLogo: (base64: string) => Promise<void>;
+  saveLogo: (base64: string, type: 'INSTRUMENTACION' | 'POTENCIA') => Promise<void>;
   saveDriveFolderLink: (link: string) => Promise<void>;
   updateRolePermissions: (role: UserRole, permissions: Partial<RolePermissions>) => Promise<void>;
   updateAdminPassword: (newPassword: string) => Promise<void>;
@@ -168,7 +216,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     instrumentos: [],
     exportLogs: [],
     conteoExportacion: [],
-    logoBase64: null,
+    logoInstrumentacion: null,
+    logoPotencia: null,
     driveFolderLink: null,
     session: null,
     isInitialized: false,
@@ -331,7 +380,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       perfiles: [],
       fotos: [],
       instrumentos: [],
-      logoBase64: null,
+      logoInstrumentacion: null,
+      logoPotencia: null,
       driveFolderLink: null
     });
   },
@@ -343,7 +393,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     const instrumentosLocal = await db.getAll('instrumentos');
     const exportLogs = await db.getAll('export_logs');
     const conteoExportacion = await db.getAll('conteo_exportacion');
-    const configLogo = await db.get('config', 'logo');
+    const configLogoInst = await db.get('config', 'logo_instrumentacion');
+    const configLogoPot = await db.get('config', 'logo_potencia');
     const configDrive = await db.get('config', 'driveFolderLink');
     const configPermissions = await db.get('config', 'rolePermissions');
     const configPassword = await db.get('config', 'adminPassword');
@@ -380,7 +431,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       instrumentos: instrumentosLocal, 
       exportLogs: exportLogs || [],
       conteoExportacion: conteoExportacion || [],
-      logoBase64: configLogo?.value || null,
+      logoInstrumentacion: configLogoInst?.value || null,
+      logoPotencia: configLogoPot?.value || null,
       driveFolderLink: configDrive?.value || null,
       rolePermissions: finalPermissions,
       adminPassword: configPassword?.value || '123',
@@ -391,18 +443,23 @@ export const useAppStore = create<AppState>((set, get) => ({
     // Supabase auth listeners disabled in direct access mode
     console.log('App cargada en modo Directo (ADMIN)');
 
-    // Cargar Configuración Global desde Supabase (Logo y Drive)
+    // Cargar Configuración Global desde Supabase (Logos y Drive)
     try {
       const { data: remoteConfig, error: configError } = await supabase.from('app_config').select('*');
       if (remoteConfig && !configError) {
-        const logoItem = remoteConfig.find(c => c.id === 'logo');
+        const logoInstItem = remoteConfig.find(c => c.id === 'logo_instrumentacion');
+        const logoPotItem = remoteConfig.find(c => c.id === 'logo_potencia');
         const driveItem = remoteConfig.find(c => c.id === 'drive_folder_link');
         const permsItem = remoteConfig.find(c => c.id === 'role_permissions');
         const passItem = remoteConfig.find(c => c.id === 'admin_password');
 
-        if (logoItem) {
-          await db.put('config', { id: 'logo', value: logoItem.value });
-          set({ logoBase64: logoItem.value });
+        if (logoInstItem) {
+          await db.put('config', { id: 'logo_instrumentacion', value: logoInstItem.value });
+          set({ logoInstrumentacion: logoInstItem.value });
+        }
+        if (logoPotItem) {
+          await db.put('config', { id: 'logo_potencia', value: logoPotItem.value });
+          set({ logoPotencia: logoPotItem.value });
         }
         if (driveItem) {
           await db.put('config', { id: 'driveFolderLink', value: driveItem.value });
@@ -460,6 +517,33 @@ export const useAppStore = create<AppState>((set, get) => ({
           TAGNAME: p.tagname || '',
           DESCRIPCION: p.descripcion || '',
           TIPO_CABLE: p.tipo_cable || '',
+          TIPO: p.tipo || 'INSTRUMENTACION',
+          POT_CODIGO: p.pot_codigo || '',
+          AC1_NO: p.ac1_no || '',
+          HC1_NO: p.hc1_no || '',
+          CONTRATISTA: p.contratista || '',
+          AREA: p.area || '',
+          LOCACION: p.locacion || '',
+          SERVICIO: p.servicio || '',
+          P_ID_NO: p.p_id_no || '',
+          REV_P_ID: p.rev_p_id || '',
+          PAQUETE_NO: p.paquete_no || '',
+          PLANO_NO: p.plano_no || '',
+          REV_PLANO: p.rev_plano || '',
+          CHKL_1_DESC: p.chkl_1_desc || '', CHKL_1_ESTADO: p.chkl_1_estado || '',
+          CHKL_2_DESC: p.chkl_2_desc || '', CHKL_2_ESTADO: p.chkl_2_estado || '',
+          CHKL_3_DESC: p.chkl_3_desc || '', CHKL_3_ESTADO: p.chkl_3_estado || '',
+          CHKL_4_DESC: p.chkl_4_desc || '', CHKL_4_ESTADO: p.chkl_4_estado || '',
+          CHKL_5_DESC: p.chkl_5_desc || '', CHKL_5_ESTADO: p.chkl_5_estado || '',
+          CHKL_6_DESC: p.chkl_6_desc || '', CHKL_6_ESTADO: p.chkl_6_estado || '',
+          CHKL_7_DESC: p.chkl_7_desc || '', CHKL_7_ESTADO: p.chkl_7_estado || '',
+          CHKL_8_DESC: p.chkl_8_desc || '', CHKL_8_ESTADO: p.chkl_8_estado || '',
+          CHKL_9_DESC: p.chkl_9_desc || '', CHKL_9_ESTADO: p.chkl_9_estado || '',
+          CHKL_10_DESC: p.chkl_10_desc || '', CHKL_10_ESTADO: p.chkl_10_estado || '',
+          CHKL_11_DESC: p.chkl_11_desc || '', CHKL_11_ESTADO: p.chkl_11_estado || '',
+          POT_COMPANIA_1: p.pot_compania_1 || '', POT_FIRMA_1: p.pot_firma_1 || '', POT_NOMBRE_1: p.pot_nombre_1 || '', POT_FECHA_1: p.pot_fecha_1 || '',
+          POT_COMPANIA_2: p.pot_compania_2 || '', POT_FIRMA_2: p.pot_firma_2 || '', POT_NOMBRE_2: p.pot_nombre_2 || '', POT_FECHA_2: p.pot_fecha_2 || '',
+          POT_COMPANIA_3: p.pot_compania_3 || '', POT_FIRMA_3: p.pot_firma_3 || '', POT_NOMBRE_3: p.pot_nombre_3 || '', POT_FECHA_3: p.pot_fecha_3 || '',
           UBICACION: p.ubicacion || '',
           OBSERVACION: p.observacion || '',
           FABRICANTE_MODELO: p.fabricante_modelo || '',
@@ -526,6 +610,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (perfiles.length > 0) {
       const perfilesToSync = perfiles.map(p => ({
         id_perfil: p.ID_PERFIL,
+        tipo: p.TIPO || 'INSTRUMENTACION',
         nombre_perfil: p.NOMBRE_PERFIL,
         cliente: p.CLIENTE,
         proyecto: p.PROYECTO,
@@ -563,7 +648,33 @@ export const useAppStore = create<AppState>((set, get) => ({
         elaboro_nombre: p.ELABORO_NOMBRE, elaboro_cargo: p.ELABORO_CARGO, elaboro_firma: p.ELABORO_FIRMA,
         reviso_nombre: p.REVISO_NOMBRE, reviso_cargo: p.REVISO_CARGO, reviso_firma: p.REVISO_FIRMA,
         aprobo_nombre: p.APROBO_NOMBRE, aprobo_cargo: p.APROBO_CARGO, aprobo_firma: p.APROBO_FIRMA,
-        user_email: p.USER_EMAIL || ''
+        user_email: p.USER_EMAIL || '',
+        pot_codigo: p.POT_CODIGO,
+        ac1_no: p.AC1_NO,
+        hc1_no: p.HC1_NO,
+        contratista: p.CONTRATISTA,
+        area: p.AREA,
+        locacion: p.LOCACION,
+        servicio: p.SERVICIO,
+        p_id_no: p.P_ID_NO,
+        rev_p_id: p.REV_P_ID,
+        paquete_no: p.PAQUETE_NO,
+        plano_no: p.PLANO_NO,
+        rev_plano: p.REV_PLANO,
+        chkl_1_desc: p.CHKL_1_DESC, chkl_1_estado: p.CHKL_1_ESTADO,
+        chkl_2_desc: p.CHKL_2_DESC, chkl_2_estado: p.CHKL_2_ESTADO,
+        chkl_3_desc: p.CHKL_3_DESC, chkl_3_estado: p.CHKL_3_ESTADO,
+        chkl_4_desc: p.CHKL_4_DESC, chkl_4_estado: p.CHKL_4_ESTADO,
+        chkl_5_desc: p.CHKL_5_DESC, chkl_5_estado: p.CHKL_5_ESTADO,
+        chkl_6_desc: p.CHKL_6_DESC, chkl_6_estado: p.CHKL_6_ESTADO,
+        chkl_7_desc: p.CHKL_7_DESC, chkl_7_estado: p.CHKL_7_ESTADO,
+        chkl_8_desc: p.CHKL_8_DESC, chkl_8_estado: p.CHKL_8_ESTADO,
+        chkl_9_desc: p.CHKL_9_DESC, chkl_9_estado: p.CHKL_9_ESTADO,
+        chkl_10_desc: p.CHKL_10_DESC, chkl_10_estado: p.CHKL_10_ESTADO,
+        chkl_11_desc: p.CHKL_11_DESC, chkl_11_estado: p.CHKL_11_ESTADO,
+        pot_compania_1: p.POT_COMPANIA_1, pot_firma_1: p.POT_FIRMA_1, pot_nombre_1: p.POT_NOMBRE_1, pot_fecha_1: p.POT_FECHA_1,
+        pot_compania_2: p.POT_COMPANIA_2, pot_firma_2: p.POT_FIRMA_2, pot_nombre_2: p.POT_NOMBRE_2, pot_fecha_2: p.POT_FECHA_2,
+        pot_compania_3: p.POT_COMPANIA_3, pot_firma_3: p.POT_FIRMA_3, pot_nombre_3: p.POT_NOMBRE_3, pot_fecha_3: p.POT_FECHA_3
       }));
       for (let i = 0; i < perfilesToSync.length; i += 500) {
         const { error } = await supabase.from('perfiles').upsert(perfilesToSync.slice(i, i + 500));
@@ -661,6 +772,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const payload: any = {
         id_perfil: perfil.ID_PERFIL,
+        tipo: perfil.TIPO || 'INSTRUMENTACION',
         nombre_perfil: perfil.NOMBRE_PERFIL || '',
         cliente: perfil.CLIENTE || '',
         proyecto: perfil.PROYECTO || '',
@@ -699,7 +811,33 @@ export const useAppStore = create<AppState>((set, get) => ({
         reviso_nombre: perfil.REVISO_NOMBRE || '', reviso_cargo: perfil.REVISO_CARGO || '', reviso_firma: perfil.REVISO_FIRMA || '',
         aprobo_nombre: perfil.APROBO_NOMBRE || '', aprobo_cargo: perfil.APROBO_CARGO || '', aprobo_firma: perfil.APROBO_FIRMA || '',
         timestamp: perfil.timestamp || new Date().toISOString(),
-        user_email: perfil.USER_EMAIL || userEmail
+        user_email: perfil.USER_EMAIL || userEmail,
+        pot_codigo: perfil.POT_CODIGO,
+        ac1_no: perfil.AC1_NO,
+        hc1_no: perfil.HC1_NO,
+        contratista: perfil.CONTRATISTA,
+        area: perfil.AREA,
+        locacion: perfil.LOCACION,
+        servicio: perfil.SERVICIO,
+        p_id_no: perfil.P_ID_NO,
+        rev_p_id: perfil.REV_P_ID,
+        paquete_no: perfil.PAQUETE_NO,
+        plano_no: perfil.PLANO_NO,
+        rev_plano: perfil.REV_PLANO,
+        chkl_1_desc: perfil.CHKL_1_DESC, chkl_1_estado: perfil.CHKL_1_ESTADO,
+        chkl_2_desc: perfil.CHKL_2_DESC, chkl_2_estado: perfil.CHKL_2_ESTADO,
+        chkl_3_desc: perfil.CHKL_3_DESC, chkl_3_estado: perfil.CHKL_3_ESTADO,
+        chkl_4_desc: perfil.CHKL_4_DESC, chkl_4_estado: perfil.CHKL_4_ESTADO,
+        chkl_5_desc: perfil.CHKL_5_DESC, chkl_5_estado: perfil.CHKL_5_ESTADO,
+        chkl_6_desc: perfil.CHKL_6_DESC, chkl_6_estado: perfil.CHKL_6_ESTADO,
+        chkl_7_desc: perfil.CHKL_7_DESC, chkl_7_estado: perfil.CHKL_7_ESTADO,
+        chkl_8_desc: perfil.CHKL_8_DESC, chkl_8_estado: perfil.CHKL_8_ESTADO,
+        chkl_9_desc: perfil.CHKL_9_DESC, chkl_9_estado: perfil.CHKL_9_ESTADO,
+        chkl_10_desc: perfil.CHKL_10_DESC, chkl_10_estado: perfil.CHKL_10_ESTADO,
+        chkl_11_desc: perfil.CHKL_11_DESC, chkl_11_estado: perfil.CHKL_11_ESTADO,
+        pot_compania_1: perfil.POT_COMPANIA_1, pot_firma_1: perfil.POT_FIRMA_1, pot_nombre_1: perfil.POT_NOMBRE_1, pot_fecha_1: perfil.POT_FECHA_1,
+        pot_compania_2: perfil.POT_COMPANIA_2, pot_firma_2: perfil.POT_FIRMA_2, pot_nombre_2: perfil.POT_NOMBRE_2, pot_fecha_2: perfil.POT_FECHA_2,
+        pot_compania_3: perfil.POT_COMPANIA_3, pot_firma_3: perfil.POT_FIRMA_3, pot_nombre_3: perfil.POT_NOMBRE_3, pot_fecha_3: perfil.POT_FECHA_3
       };
 
       const { data: existingRemote } = await supabase.from('perfiles').select('id_perfil').eq('id_perfil', perfil.ID_PERFIL).maybeSingle();
@@ -857,10 +995,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     const chunkSize = 500;
     for (let i = 0; i < remoteData.length; i += chunkSize) {
       const chunk = remoteData.slice(i, i + chunkSize);
-      const { error } = await supabase.from('instrumentos').upsert(chunk, { onConflict: 'tagname' });
-      if (error) {
-        console.error('CRITICAL: Error syncing bulk data chunk to Supabase:', error);
-        return; // Detener en caso de error para no corromper la info parcial
+      try {
+        const { error } = await supabase.from('instrumentos').upsert(chunk, { onConflict: 'tagname' });
+        if (error) {
+          console.error('CRITICAL: Error syncing bulk data chunk to Supabase:', error);
+          throw error; // Detener en caso de error para no corromper la info parcial
+        }
+      } catch (err) {
+          console.error('CRITICAL: Exception syncing bulk data chunk to Supabase:', err);
+          throw err;
       }
     }
     console.log('Bulk data synced successfully to Supabase');
@@ -1018,13 +1161,18 @@ export const useAppStore = create<AppState>((set, get) => ({
     return { success: true };
   },
 
-  saveLogo: async (base64) => {
+  saveLogo: async (base64, type) => {
     const db = await initDB();
-    await db.put('config', { id: 'logo', value: base64 });
-    set({ logoBase64: base64 });
+    const configId = type === 'INSTRUMENTACION' ? 'logo_instrumentacion' : 'logo_potencia';
+    await db.put('config', { id: configId, value: base64 });
+    if (type === 'INSTRUMENTACION') {
+      set({ logoInstrumentacion: base64 });
+    } else {
+      set({ logoPotencia: base64 });
+    }
 
     try {
-      await supabase.from('app_config').upsert({ id: 'logo', value: base64 });
+      await supabase.from('app_config').upsert({ id: configId, value: base64 });
     } catch (e) {
       console.warn('Error syncing logo:', e);
     }

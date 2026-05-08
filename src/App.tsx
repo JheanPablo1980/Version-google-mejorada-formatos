@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Database, Plus, Camera, FileText, Download, History, LogOut, User as UserIcon, Image, LayoutDashboard } from 'lucide-react';
+import { Database, Plus, Camera, FileText, Download, History, LogOut, User as UserIcon, Image, LayoutDashboard, Zap } from 'lucide-react';
 import { useAppStore, UserRole } from './store/useAppStore';
 import { Admin } from './components/Admin';
 import { NuevoRegistro } from './components/NuevoRegistro';

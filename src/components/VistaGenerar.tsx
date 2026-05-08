@@ -30,7 +30,7 @@ function extractTagFromName(name: string, tagsDb: string[]) {
 }
 
 export const VistaGenerar: React.FC = () => {
-  const { instrumentos, perfiles, fotos, logoBase64, saveExportLog, saveConteoExportacion, driveFolderLink } = useAppStore();
+  const { instrumentos, perfiles, fotos, logoInstrumentacion, logoPotencia, saveExportLog, saveConteoExportacion, driveFolderLink } = useAppStore();
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedProfile, setSelectedProfile] = useState('');
   const [isExporting, setIsExporting] = useState(false);
@@ -377,6 +377,8 @@ export const VistaGenerar: React.FC = () => {
         
         if (!activeInstrument) continue;
 
+        const currentLogo = activeProfile.TIPO === 'POTENCIA' ? logoPotencia : logoInstrumentacion;
+
         const safeSheetName = tag.replace(/[\\*?:\/\[\]]/g, '').substring(0, 26);
         const ws1 = wb.addWorksheet(`${safeSheetName}`);
         
@@ -387,10 +389,10 @@ export const VistaGenerar: React.FC = () => {
         
         // Logo
         ws1.mergeCells('A1:B2'); applyStyle(ws1.getCell('A1'));
-        if (logoBase64) {
+        if (currentLogo) {
           try {
             const logoId = wb.addImage({ 
-              base64: logoBase64.split(',')[1], 
+              base64: currentLogo.split(',')[1], 
               extension: 'png' 
             });
             ws1.addImage(logoId, { tl: { col: 0.1, row: 0.1 }, ext: { width: 120, height: 35 } });
@@ -399,7 +401,11 @@ export const VistaGenerar: React.FC = () => {
           }
         }
 
-        ws1.mergeCells('C1:F2'); ws1.getCell('C1').value = 'PROTOCOLO DE PRUEBAS DE INSTRUMENTACIÓN'; applyStyle(ws1.getCell('C1'), true); 
+        ws1.mergeCells('C1:F2'); 
+        ws1.getCell('C1').value = activeProfile.TIPO === 'POTENCIA' 
+          ? 'PROTOCOLO DE PRUEBAS DE POTENCIA' 
+          : 'PROTOCOLO DE PRUEBAS DE INSTRUMENTACIÓN'; 
+        applyStyle(ws1.getCell('C1'), true); 
         ws1.getCell('G1').value = 'REVISIÓN:'; applyStyle(ws1.getCell('G1'), true);
         ws1.getCell('H1').value = activeProfile.REVISION; applyStyle(ws1.getCell('H1'));
         ws1.getCell('G2').value = 'FECHA DE REVISIÓN:'; applyStyle(ws1.getCell('G2'), true);
@@ -628,15 +634,153 @@ export const VistaGenerar: React.FC = () => {
 
         if (!activeInstrument) return '';
 
+        const currentLogo = activeProfile.TIPO === 'POTENCIA' ? logoPotencia : logoInstrumentacion;
+
+        if (activeProfile.TIPO === 'POTENCIA') {
+          return `
+          <div class="protocol-page">
+            <!-- CABECERA -->
+            <table class="grid-table">
+              <tr>
+                <td colspan="2" rowspan="3" class="center no-padding" style="width: 25%;">
+                  ${currentLogo ? `<img src="${currentLogo}" style="max-height: 50px; max-width: 90%; object-fit: contain; margin: 5px;" />` : 'LOGO'}
+                </td>
+                <td colspan="4" class="center">Ingeniería y Proyectos</td>
+                <td class="bg-blue" style="width: 12.5%;">Código:</td>
+                <td class="center" style="width: 12.5%;">${activeProfile.POT_CODIGO || ''}</td>
+              </tr>
+              <tr>
+                <td colspan="4" rowspan="2" class="center" style="font-size: 14px; font-weight: bold;">
+                  Formato Precomisionamiento<br/>Lista de chequeo Motor baja tensión<br/>CHKL-ELE-08
+                </td>
+                <td class="bg-blue">Fecha:</td>
+                <td class="center">${activeProfile.FECHA_REVISION || ''}</td>
+              </tr>
+              <tr>
+                <td class="bg-blue">Versión:</td>
+                <td class="center">${activeProfile.REVISION || ''}</td>
+              </tr>
+              <tr>
+                <td colspan="3" class="text-left font-bold" style="width: 37.5%">PROYECTO: <span style="font-weight: normal">${activeProfile.PROYECTO || ''}</span></td>
+                <td colspan="3" class="text-left font-bold" style="width: 37.5%">AC-1 No: <span style="font-weight: normal">${activeProfile.AC1_NO || ''}</span></td>
+                <td colspan="2" class="text-left font-bold" style="width: 25%">HC-1 No: <span style="font-weight: normal">${activeProfile.HC1_NO || ''}</span></td>
+              </tr>
+              <tr>
+                <td colspan="3" class="text-left font-bold">CONTRATISTA: <span style="font-weight: normal">${activeProfile.CONTRATISTA || ''}</span></td>
+                <td colspan="3" class="text-left font-bold">AREA: <span style="font-weight: normal">${activeProfile.AREA || ''}</span></td>
+                <td colspan="2" class="text-left font-bold">LOCACION: <span style="font-weight: normal">${activeProfile.LOCACION || ''}</span></td>
+              </tr>
+              <tr>
+                <td colspan="3" class="text-left font-bold">SERVICIO: <span style="font-weight: normal">${activeProfile.SERVICIO || ''}</span></td>
+                <td colspan="3" class="text-left font-bold">P & ID No: <span style="font-weight: normal">${activeProfile.P_ID_NO || ''}</span></td>
+                <td colspan="2" class="text-left font-bold">REV: <span style="font-weight: normal">${activeProfile.REV_P_ID || ''}</span></td>
+              </tr>
+              <tr>
+                <td colspan="3" class="text-left font-bold">PAQUETE No: <span style="font-weight: normal">${activeProfile.PAQUETE_NO || ''}</span></td>
+                <td colspan="3" class="text-left font-bold">PLANO No: <span style="font-weight: normal">${activeProfile.PLANO_NO || ''}</span></td>
+                <td colspan="2" class="text-left font-bold">REV: <span style="font-weight: normal">${activeProfile.REV_PLANO || ''}</span></td>
+              </tr>
+            </table>
+
+            <!-- LISTA DE CHEQUEO -->
+            <table class="grid-table mt-4">
+              <tr>
+                <td rowspan="2" class="bg-blue center font-bold" style="width: 10%;">ITEM</td>
+                <td rowspan="2" class="bg-blue center font-bold" style="width: 60%;">DESCRIPCION</td>
+                <td colspan="3" class="bg-blue center font-bold" style="width: 30%;">ESTADO</td>
+              </tr>
+              <tr>
+                <td class="bg-blue center font-bold" style="width: 10%;">CUMPLE</td>
+                <td class="bg-blue center font-bold" style="width: 10%;">NO CUMPLE</td>
+                <td class="bg-blue center font-bold" style="width: 10%;">N/A</td>
+              </tr>
+              ${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(num => `
+                <tr>
+                  <td class="center font-bold">${num}</td>
+                  <td class="text-left">${(activeProfile as any)[`CHKL_${num}_DESC`] || ''}</td>
+                  <td class="center">${(activeProfile as any)[`CHKL_${num}_ESTADO`] === 'CUMPLE' ? 'X' : ''}</td>
+                  <td class="center">${(activeProfile as any)[`CHKL_${num}_ESTADO`] === 'NO_CUMPLE' ? 'X' : ''}</td>
+                  <td class="center">${(activeProfile as any)[`CHKL_${num}_ESTADO`] === 'N/A' ? 'X' : ''}</td>
+                </tr>
+              `).join('')}
+              <tr>
+                <td colspan="5" style="text-align: left; padding: 10px; height: 100px; vertical-align: top;">
+                  <div style="font-weight: bold;">Comentarios:</div>
+                  <div style="white-space: pre-wrap; font-family: monospace;">${activeProfile.COMENTARIOS || ''}</div>
+                </td>
+              </tr>
+            </table>
+
+            <!-- FIRMAS -->
+            <table class="grid-table mt-4" style="page-break-inside: avoid;">
+              <tr>
+                <td colspan="3" class="bg-blue">CONTRATISTA Y/O VENDOR</td>
+                <td colspan="3" class="bg-blue">PRECOMISIONAMIENTO</td>
+                <td colspan="2" class="bg-blue">COMISIONAMIENTO</td>
+              </tr>
+              <tr>
+                <td class="text-left font-bold" style="width: 15%">COMPAÑÍA</td>
+                <td colspan="2" class="text-left">${activeProfile.POT_COMPANIA_1 || ''}</td>
+                <td colspan="3" class="text-left">${activeProfile.POT_COMPANIA_2 || ''}</td>
+                <td colspan="2" class="text-left">${activeProfile.POT_COMPANIA_3 || ''}</td>
+              </tr>
+              <tr>
+                <td class="text-left font-bold">FIRMA</td>
+                <td colspan="2" class="signature-box" style="height: 60px;">
+                  ${activeProfile.POT_FIRMA_1 ? `<img src="${activeProfile.POT_FIRMA_1}" class="sign-img" style="max-height: 50px;" />` : ''}
+                </td>
+                <td colspan="3" class="signature-box" style="height: 60px;">
+                  ${activeProfile.POT_FIRMA_2 ? `<img src="${activeProfile.POT_FIRMA_2}" class="sign-img" style="max-height: 50px;" />` : ''}
+                </td>
+                <td colspan="2" class="signature-box" style="height: 60px;">
+                  ${activeProfile.POT_FIRMA_3 ? `<img src="${activeProfile.POT_FIRMA_3}" class="sign-img" style="max-height: 50px;" />` : ''}
+                </td>
+              </tr>
+              <tr>
+                <td class="text-left font-bold">NOMBRE</td>
+                <td colspan="2" class="text-left">${activeProfile.POT_NOMBRE_1 || ''}</td>
+                <td colspan="3" class="text-left">${activeProfile.POT_NOMBRE_2 || ''}</td>
+                <td colspan="2" class="text-left">${activeProfile.POT_NOMBRE_3 || ''}</td>
+              </tr>
+              <tr>
+                <td class="text-left font-bold">FECHA</td>
+                <td colspan="2" class="text-left">${activeProfile.POT_FECHA_1 || ''}</td>
+                <td colspan="3" class="text-left">${activeProfile.POT_FECHA_2 || ''}</td>
+                <td colspan="2" class="text-left">${activeProfile.POT_FECHA_3 || ''}</td>
+              </tr>
+            </table>
+
+            ${fotosDelTag.length > 0 ? `
+              <div style="page-break-before: always; margin-top: 20px;"></div>
+              <table class="grid-table mt-4 overflow-hidden">
+                <tr><td colspan="8" class="bg-blue text-left">REGISTRO FOTOGRÁFICO</td></tr>
+              </table>
+              <div class="photo-container">
+                ${fotosDelTag.map((f, i) => `
+                  <div class="photo-item">
+                    <div class="photo-box">
+                      <img src="${f.blobData}" />
+                    </div>
+                    <div class="photo-caption">${f.observacion || `Foto ${i+1}`}</div>
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
+          </div>
+          `;
+        }
+
         return `
         <div class="protocol-page">
           <!-- CABECERA -->
           <table class="grid-table">
             <tr>
               <td colspan="2" rowspan="2" class="center no-padding" style="width: 25%;">
-                ${logoBase64 ? `<img src="${logoBase64}" style="max-height: 50px; max-width: 90%; object-fit: contain; margin: 5px;" />` : 'LOGO'}
+                ${currentLogo ? `<img src="${currentLogo}" style="max-height: 50px; max-width: 90%; object-fit: contain; margin: 5px;" />` : 'LOGO'}
               </td>
-              <td colspan="4" rowspan="2" class="bg-blue center" style="font-size: 14px; width: 50%;">PROTOCOLO DE PRUEBAS DE INSTRUMENTACIÓN</td>
+              <td colspan="4" rowspan="2" class="bg-blue center" style="font-size: 14px; width: 50%;">
+                PROTOCOLO DE PRUEBAS DE ${activeProfile.TIPO === 'POTENCIA' ? 'POTENCIA' : 'INSTRUMENTACIÓN'}
+              </td>
               <td class="bg-blue" style="width: 12.5%;">REVISIÓN:</td>
               <td class="center" style="width: 12.5%;">${activeProfile.REVISION}</td>
             </tr>

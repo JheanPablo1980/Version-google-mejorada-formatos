@@ -9,7 +9,6 @@ export const Admin: React.FC = () => {
   const { 
     instrumentos, 
     loadInstrumentosBulk, 
-    logoBase64, 
     saveLogo, 
     syncWithSupabase, 
     totalFactoryReset,
@@ -28,7 +27,8 @@ export const Admin: React.FC = () => {
   const [notification, setNotification] = useState<{msg: string, type: 'success' | 'error'} | null>(null);
   const [confirmStep, setConfirmStep] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const logoInputRef = useRef<HTMLInputElement>(null);
+  const logoInstInputRef = useRef<HTMLInputElement>(null);
+  const logoPotInputRef = useRef<HTMLInputElement>(null);
 
   const showNotification = (msg: string, type: 'success' | 'error' = 'success') => {
     setNotification({ msg, type });
@@ -215,7 +215,8 @@ export const Admin: React.FC = () => {
         await loadInstrumentosBulk(formattedData);
         showNotification(`${formattedData.length} instrumentos cargados`);
       } catch (error: any) { 
-        showNotification("Error leyendo el archivo: " + (error.message || 'Error desconocido'), 'error'); 
+        showNotification("Error leyendo el archivo o guardando en bd local: " + (error.message || 'Error desconocido'), 'error'); 
+        console.error("Error bulk load:", error);
       } finally { 
         setIsProcessing(false); 
         if(fileInputRef.current) fileInputRef.current.value = ''; 
@@ -224,14 +225,16 @@ export const Admin: React.FC = () => {
     reader.readAsArrayBuffer(file);
   };
 
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const { logoInstrumentacion, logoPotencia } = useAppStore();
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'INSTRUMENTACION' | 'POTENCIA') => {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
       const reader = new FileReader();
       reader.onloadend = async () => {
-        await saveLogo(reader.result as string);
-        showNotification('Logo actualizado');
+        await saveLogo(reader.result as string, type);
+        showNotification(`Logo ${type.toLowerCase()} actualizado`);
       };
       reader.readAsDataURL(file);
     } catch (error) { 
@@ -262,18 +265,38 @@ export const Admin: React.FC = () => {
         <Database size={24} /> Base de Datos & Configuración
       </h2>
       
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 text-center space-y-4">
-        <h3 className="font-bold text-[#1F3864] text-lg border-b pb-2">Logo del Formato</h3>
-        {logoBase64 && (
-          <div className="bg-gray-50 border p-2 rounded-lg inline-block w-full max-w-[200px] h-[80px] flex items-center justify-center">
-            <img src={logoBase64} alt="Logo" className="max-w-full max-h-full object-contain" />
-          </div>
-        )}
-        <p className="text-sm text-gray-500">Este logo aparecerá en el encabezado de los reportes PDF y Excel.</p>
-        <input type="file" accept="image/*" className="hidden" ref={logoInputRef} onChange={handleLogoUpload} />
-        <Button onClick={() => logoInputRef.current?.click()} icon={ImageIcon} variant="secondary">
-          {logoBase64 ? 'Cambiar Logo' : 'Subir Logo'}
-        </Button>
+      <div className="grid grid-cols-1 gap-4">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 text-center space-y-4">
+          <h3 className="font-bold text-[#1F3864] text-lg border-b pb-2 flex items-center justify-center gap-2">
+            <ImageIcon size={18} className="text-blue-500" /> Logo Instrumentación
+          </h3>
+          {logoInstrumentacion && (
+            <div className="bg-gray-50 border p-2 rounded-lg inline-block w-full max-w-[200px] h-[80px] flex items-center justify-center">
+              <img src={logoInstrumentacion} alt="Logo Inst" className="max-w-full max-h-full object-contain" />
+            </div>
+          )}
+          <p className="text-[10px] text-gray-500">Logo para reportes de Instrumentación.</p>
+          <input type="file" accept="image/*" className="hidden" ref={logoInstInputRef} onChange={(e) => handleLogoUpload(e, 'INSTRUMENTACION')} />
+          <Button onClick={() => logoInstInputRef.current?.click()} icon={ImageIcon} variant="secondary" className="w-full">
+            {logoInstrumentacion ? 'Cambiar Logo Instr.' : 'Subir Logo Instr.'}
+          </Button>
+        </div>
+
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 text-center space-y-4">
+          <h3 className="font-bold text-[#1F3864] text-lg border-b pb-2 flex items-center justify-center gap-2">
+            <ImageIcon size={18} className="text-orange-500" /> Logo Potencia
+          </h3>
+          {logoPotencia && (
+            <div className="bg-gray-50 border p-2 rounded-lg inline-block w-full max-w-[200px] h-[80px] flex items-center justify-center">
+              <img src={logoPotencia} alt="Logo Pot" className="max-w-full max-h-full object-contain" />
+            </div>
+          )}
+          <p className="text-[10px] text-gray-500">Logo para reportes de Potencia.</p>
+          <input type="file" accept="image/*" className="hidden" ref={logoPotInputRef} onChange={(e) => handleLogoUpload(e, 'POTENCIA')} />
+          <Button onClick={() => logoPotInputRef.current?.click()} icon={ImageIcon} variant="secondary" className="w-full">
+            {logoPotencia ? 'Cambiar Logo Pot.' : 'Subir Logo Pot.'}
+          </Button>
+        </div>
       </div>
 
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 text-center space-y-4">
