@@ -29,6 +29,16 @@ export const FormPerfil: React.FC<FormPerfilProps> = ({ perfilToEdit, onBack }) 
     setFormData(prev => ({ ...prev, [fieldName]: base64 }));
   };
 
+  let comData: any = {};
+  if (formData.TIPO === 'POTENCIA_COM') {
+    try { comData = JSON.parse(formData.POT_COM_DATA || '{}'); } catch(e){}
+  }
+
+  const handleComDataChange = (field: string, value: string) => {
+    const updated = { ...comData, [field]: value };
+    setFormData(prev => ({...prev, POT_COM_DATA: JSON.stringify(updated)}));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.NOMBRE_PERFIL) {
@@ -56,7 +66,9 @@ export const FormPerfil: React.FC<FormPerfilProps> = ({ perfilToEdit, onBack }) 
       setTimeout(() => setConfirmClear(false), 3000);
       return;
     }
-    const basePerfil = formData.TIPO === 'POTENCIA' ? PERFIL_POTENCIA_INICIAL : PERFIL_INICIAL;
+    let basePerfil = PERFIL_INICIAL;
+    if (formData.TIPO === 'POTENCIA') basePerfil = PERFIL_POTENCIA_INICIAL;
+    else if (formData.TIPO === 'POTENCIA_COM') basePerfil = PERFIL_POTENCIA_COM_INICIAL;
     setFormData({ ...basePerfil, ID_PERFIL: formData.ID_PERFIL } as Perfil);
     setConfirmClear(false);
   };
@@ -162,6 +174,143 @@ export const FormPerfil: React.FC<FormPerfilProps> = ({ perfilToEdit, onBack }) 
                 {[
                   { num: '1', title: 'CONTRATISTA Y/O VENDOR' },
                   { num: '2', title: 'PRECOMISIONAMIENTO' },
+                  { num: '3', title: 'COMISIONAMIENTO' }
+                ].map(item => (
+                  <div key={item.num} className="grid grid-cols-2 gap-x-4 border-b pb-6 border-gray-100 last:border-0 last:pb-0">
+                    <h4 className="col-span-2 font-bold text-xs mb-3 text-orange-700">{item.title}</h4>
+                    <InputGroup label="Compañía" name={`POT_COMPANIA_${item.num}`} value={(formData as any)[`POT_COMPANIA_${item.num}`]} onChange={handleChange} className="mb-4 col-span-2" />
+                    <InputGroup label="Nombre" name={`POT_NOMBRE_${item.num}`} value={(formData as any)[`POT_NOMBRE_${item.num}`]} onChange={handleChange} className="mb-4" />
+                    <InputGroup label="Fecha" name={`POT_FECHA_${item.num}`} value={(formData as any)[`POT_FECHA_${item.num}`]} onChange={handleChange} className="mb-4" />
+                    
+                    <div className="col-span-2 bg-gray-50/50 p-4 rounded-xl border border-dashed border-gray-300 flex flex-col items-center">
+                      <label className="text-[10px] font-bold text-gray-500 mb-3 uppercase tracking-wider">Firma</label>
+                      {(formData as any)[`POT_FIRMA_${item.num}`] ? (
+                        <div className="relative group">
+                          <div className="bg-white p-4 rounded-lg shadow-inner border border-gray-200">
+                            <img 
+                              src={(formData as any)[`POT_FIRMA_${item.num}`]} 
+                              alt={`Firma ${item.title}`} 
+                              className="h-16 object-contain mix-blend-multiply" 
+                            />
+                          </div>
+                          <button 
+                            type="button" 
+                            onClick={() => handleSignatureChange(`POT_FIRMA_${item.num}`, '')} 
+                            className="absolute -top-3 -right-3 bg-red-500 text-white rounded-full p-1.5 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Trash2 size={14}/>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="w-full flex justify-center">
+                          <SignatureUploadButton onUpload={(base64) => handleSignatureChange(`POT_FIRMA_${item.num}`, base64)} />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </>
+        ) : formData.TIPO === 'POTENCIA_COM' ? (
+          <>
+             <section className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 space-y-4">
+              <h3 className="font-bold text-sm mb-4 text-[#1F3864] uppercase tracking-widest border-b pb-2">Información del Motor</h3>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <InputGroup label="Tag No." name="TAGNAME" value={formData.TAGNAME} onChange={handleChange} />
+                <InputGroup label="Clasificación de Área" name="AREA" value={formData.AREA} onChange={handleChange} />
+                <InputGroup label="Fabricante" name="FABRICANTE_MODELO" value={formData.FABRICANTE_MODELO} onChange={handleChange} />
+                <InputGroup label="Modelo No." name="POT_COM_MODELO" value={comData.POT_COM_MODELO || ''} onChange={(e) => handleComDataChange('POT_COM_MODELO', e.target.value)} />
+                <InputGroup label="Nema" name="POT_COM_NEMA" value={comData.POT_COM_NEMA || ''} onChange={(e) => handleComDataChange('POT_COM_NEMA', e.target.value)} />
+                <InputGroup label="Serie No." name="POT_COM_SERIE" value={comData.POT_COM_SERIE || ''} onChange={(e) => handleComDataChange('POT_COM_SERIE', e.target.value)} />
+                <InputGroup label="Clasificación" name="POT_COM_CLASIFICACION" value={comData.POT_COM_CLASIFICACION || ''} onChange={(e) => handleComDataChange('POT_COM_CLASIFICACION', e.target.value)} />
+                <InputGroup label="Potencia HP" name="POT_COM_POTENCIA_HP" value={comData.POT_COM_POTENCIA_HP || ''} onChange={(e) => handleComDataChange('POT_COM_POTENCIA_HP', e.target.value)} />
+                <InputGroup label="Velocidad RPM" name="POT_COM_VELOCIDAD_RPM" value={comData.POT_COM_VELOCIDAD_RPM || ''} onChange={(e) => handleComDataChange('POT_COM_VELOCIDAD_RPM', e.target.value)} />
+                <InputGroup label="Clase de Aisl." name="POT_COM_CLASE_AISL" value={comData.POT_COM_CLASE_AISL || ''} onChange={(e) => handleComDataChange('POT_COM_CLASE_AISL', e.target.value)} />
+                <InputGroup label="Servicio" name="SERVICIO" value={formData.SERVICIO} onChange={handleChange} />
+                <InputGroup label="Voltaje V" name="POT_COM_VOLTAJE_V" value={comData.POT_COM_VOLTAJE_V || ''} onChange={(e) => handleComDataChange('POT_COM_VOLTAJE_V', e.target.value)} />
+                <InputGroup label="F.L.A. AMP" name="POT_COM_FLA_AMP" value={comData.POT_COM_FLA_AMP || ''} onChange={(e) => handleComDataChange('POT_COM_FLA_AMP', e.target.value)} />
+                <InputGroup label="Frecuencia Hz" name="POT_COM_FRECUENCIA_HZ" value={comData.POT_COM_FRECUENCIA_HZ || ''} onChange={(e) => handleComDataChange('POT_COM_FRECUENCIA_HZ', e.target.value)} />
+              </div>
+            </section>
+            
+            <section className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 space-y-4 overflow-x-auto">
+              <h3 className="font-bold text-sm mb-4 text-[#1F3864] uppercase tracking-widest border-b pb-2">Requerimientos Pruebas Funcionales</h3>
+              <table className="w-full text-xs text-left min-w-[700px]">
+                <thead>
+                  <tr className="bg-gray-50 border-b">
+                    <th className="p-2 w-16 text-center">Check</th>
+                    <th className="p-2">1.1 REQUERIMIENTOS PRUEBAS FUNCIONALES</th>
+                    <th className="p-2 w-24">Resultados</th>
+                    <th className="p-2 w-32">Iniciales / Fecha</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { c: '01', l: 'Realice la prueba de inyección sobre los relés de protección y medición. Chequee los ratings y setting de protección de los fusibles. Anexe los data sheet.' },
+                    { c: '02', l: 'Mida la resistencia de Aislamiento del cableado de control Mínimo 10 MΩ con Megger de 500 V. Registre el serial del equipo.' },
+                    { c: '03', l: 'Prueba funcional del arrancador Interruptor/Contactor incluyendo la interfase de control.' },
+                    { c: '04', l: 'Prueba funcional Mecánica y Eléctrica de los Interlocks incluido las señales de disparo. Liste las pruebas funcionales en una hoja y anéxela.' },
+                    { c: '05', l: 'Verifique el aterrizaje del motor de acuerdo con las especificaciones del proyecto.' },
+                    { c: '06', l: 'Mida la resistencia de Aislamiento del Heater. Mínimo 10 MΩ con Megger de 500 V.' },
+                    { c: '07', l: 'Mida la resistencia de Aislamiento del cable y devanados del motor. Mínimo 100 MΩ con Megger de 1000 V.' }
+                  ].map((row, i) => (
+                    <tr key={row.c} className="border-b">
+                      <td className="p-2 text-center font-bold text-gray-500">{row.c}</td>
+                      <td className="p-2 text-gray-700 whitespace-pre-wrap">{row.l}</td>
+                      <td className="p-2"><input type="text" className="w-full border rounded p-1" value={comData[`RES_${i}`] || ''} onChange={(e) => handleComDataChange(`RES_${i}`, e.target.value)} /></td>
+                      <td className="p-2"><input type="text" className="w-full border rounded p-1" value={comData[`INI_${i}`] || ''} onChange={(e) => handleComDataChange(`INI_${i}`, e.target.value)} /></td>
+                    </tr>
+                  ))}
+                  <tr>
+                    <td className="p-2" colSpan={2}>
+                      <span className="font-bold text-gray-700 mr-2">NOTA.</span>
+                      Registre el # del serial de todos los instrumentos involucrados en las pruebas:
+                      <input type="text" className="w-full border rounded p-1 mt-1" value={comData['NOTA_SERIALES'] || ''} onChange={(e) => handleComDataChange('NOTA_SERIALES', e.target.value)} />
+                    </td>
+                    <td className="p-2 border-l border-b" colSpan={2}></td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <h3 className="font-bold text-sm mt-8 mb-4 text-[#1F3864] uppercase tracking-widest border-b pb-2">Pruebas de Funcionamiento</h3>
+              <table className="w-full text-xs text-left min-w-[700px]">
+                 <thead>
+                  <tr className="bg-gray-50 border-b">
+                    <th className="p-2">PRUEBAS DE FUNCIONAMIENTO REQUERIDAS</th>
+                    <th className="p-2 w-32">RESULTADOS</th>
+                    <th className="p-2 w-32">INICIAL. Y FECHA</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    'Corra el motor sin carga (Desacoplado) por 1 a 4 horas. Registre los datos. Nota: 1 Hora para motores<40 KW. 4 horas para motores>40 KW',
+                    'Verificar correspondencia de cargas',
+                    'Verifique el sentido de rotación.',
+                    'Corriente de arranque',
+                    'Tiempo de arranque'
+                  ].map((lbl, i) => (
+                    <tr key={i} className="border-b">
+                      <td className="p-2 text-gray-700">{lbl}</td>
+                      <td className="p-2"><input type="text" className="w-full border rounded p-1" value={comData[`FUNC_RES_${i}`] || ''} onChange={(e) => handleComDataChange(`FUNC_RES_${i}`, e.target.value)} /></td>
+                      <td className="p-2"><input type="text" className="w-full border rounded p-1" value={comData[`FUNC_INI_${i}`] || ''} onChange={(e) => handleComDataChange(`FUNC_INI_${i}`, e.target.value)} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+
+             <section className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+              <h3 className="font-bold text-sm mb-4 text-[#1F3864] uppercase tracking-widest border-b pb-2">Comentarios</h3>
+              <InputGroup label="Comentarios" name="COMENTARIOS" value={formData.COMENTARIOS} onChange={handleChange} textarea rows={5} />
+            </section>
+
+            <section className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+              <h3 className="font-bold text-sm mb-4 text-[#1F3864] uppercase tracking-widest border-b pb-2">Firmas y Gestión</h3>
+              <div className="space-y-8">
+                {[
+                  { num: '1', title: 'CONTRATISTA Y/O VENDOR' },
+                  { num: '2', title: 'GESTOR DEL CONTRATO' },
                   { num: '3', title: 'COMISIONAMIENTO' }
                 ].map(item => (
                   <div key={item.num} className="grid grid-cols-2 gap-x-4 border-b pb-6 border-gray-100 last:border-0 last:pb-0">

@@ -4,7 +4,7 @@ import { useAppStore, Perfil } from '../store/useAppStore';
 import { Button } from './ui/Button';
 import { FormPerfil } from './FormPerfil';
 import { motion, AnimatePresence } from 'motion/react';
-import { PERFIL_INICIAL, PERFIL_POTENCIA_INICIAL } from '../constants';
+import { PERFIL_INICIAL, PERFIL_POTENCIA_INICIAL, PERFIL_POTENCIA_COM_INICIAL } from '../constants';
 
 export const ListaPerfiles: React.FC = () => {
   const { perfiles, deletePerfil } = useAppStore();
@@ -43,8 +43,11 @@ export const ListaPerfiles: React.FC = () => {
     });
   };
 
-  const handleCreateNew = (tipo: 'INSTRUMENTACION' | 'POTENCIA') => {
-    const baseData = tipo === 'INSTRUMENTACION' ? PERFIL_INICIAL : PERFIL_POTENCIA_INICIAL;
+  const handleCreateNew = (tipo: 'INSTRUMENTACION' | 'POTENCIA' | 'POTENCIA_COM') => {
+    let baseData;
+    if (tipo === 'INSTRUMENTACION') baseData = PERFIL_INICIAL;
+    else if (tipo === 'POTENCIA') baseData = PERFIL_POTENCIA_INICIAL;
+    else baseData = PERFIL_POTENCIA_COM_INICIAL;
     setEditingPerfil({ ...baseData, ID_PERFIL: crypto.randomUUID() } as Perfil);
     setView('form');
   };
@@ -81,7 +84,7 @@ export const ListaPerfiles: React.FC = () => {
 
       <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 flex flex-col items-center shadow-sm">
         <h3 className="text-lg font-bold text-[#1F3864] mb-4">Selecciona el Tipo de Perfil</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
           <button
             onClick={() => handleCreateNew('INSTRUMENTACION')}
             className="group p-4 bg-white border-2 border-transparent hover:border-blue-500 rounded-2xl shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center gap-3"
@@ -90,8 +93,8 @@ export const ListaPerfiles: React.FC = () => {
               <Activity size={32} className="text-blue-600" />
             </div>
             <div>
-              <span className="block font-bold text-[#1F3864] text-sm">Instrumentación</span>
-              <span className="text-[10px] text-gray-500">Formatos para calibración, lazos e inspección.</span>
+              <span className="block font-bold text-[#1F3864] text-sm leading-tight">Instrumentación</span>
+              <span className="block text-[10px] text-gray-500 mt-1">Calibración, lazos e inspección</span>
             </div>
           </button>
           <button
@@ -102,8 +105,20 @@ export const ListaPerfiles: React.FC = () => {
               <Zap size={32} className="text-orange-600" />
             </div>
             <div>
-              <span className="block font-bold text-[#1F3864] text-sm">Potencia</span>
-              <span className="text-[10px] text-gray-500">Formatos para transformadores, motores y tableros.</span>
+              <span className="block font-bold text-[#1F3864] text-sm leading-tight">Potencia (Precomisionamiento)</span>
+              <span className="block text-[10px] text-gray-500 mt-1">Transformadores, motores y tableros</span>
+            </div>
+          </button>
+          <button
+            onClick={() => handleCreateNew('POTENCIA_COM')}
+            className="group p-4 bg-white border-2 border-transparent hover:border-red-500 rounded-2xl shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center gap-3"
+          >
+            <div className="p-3 bg-red-50 rounded-full group-hover:bg-red-100 transition-colors">
+              <CheckCircle size={32} className="text-red-600" />
+            </div>
+            <div>
+              <span className="block font-bold text-[#1F3864] text-sm leading-tight">Potencia (Comisionamiento)</span>
+              <span className="block text-[10px] text-gray-500 mt-1">Motor Eléctrico Bajo Voltaje</span>
             </div>
           </button>
         </div>
@@ -143,7 +158,7 @@ export const ListaPerfiles: React.FC = () => {
               
               <div>
                 <div className="flex items-center gap-2">
-                  {perfil.TIPO === 'POTENCIA' ? (
+                  {perfil.TIPO === 'POTENCIA' || perfil.TIPO === 'POTENCIA_COM' ? (
                     <div className="bg-orange-100 text-orange-600 p-1 rounded-sm"><Zap size={14} /></div>
                   ) : (
                     <div className="bg-blue-100 text-blue-600 p-1 rounded-sm"><FileText size={14} /></div>

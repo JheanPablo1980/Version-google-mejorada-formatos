@@ -215,11 +215,11 @@ export function Dashboard() {
         </div>
 
         {/* Ranking de Tags */}
-        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col">
-          <h3 className="text-sm font-black text-[#1F3864] uppercase tracking-widest mb-4 flex items-center gap-2">
+        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col lg:h-[390px]">
+          <h3 className="text-sm font-black text-[#1F3864] uppercase tracking-widest mb-4 flex items-center gap-2 flex-shrink-0">
             <Package size={18} className="text-yellow-500" /> Top Instrumentos
           </h3>
-          <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-2">
+          <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-2 min-h-0">
             {tagStats.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
                 <TagIcon size={48} className="mb-2" />

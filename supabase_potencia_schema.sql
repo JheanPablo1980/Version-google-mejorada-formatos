@@ -92,4 +92,8 @@ BEGIN
     ALTER TABLE perfiles ADD COLUMN pot_fecha_3 text;
   END IF;
 
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='perfiles' AND column_name='pot_com_data') THEN
+    ALTER TABLE perfiles ADD COLUMN pot_com_data text;
+  END IF;
+
 END $$;

@@ -41,7 +41,7 @@ export interface Foto {
 
 export interface Perfil {
   ID_PERFIL: string;
-  TIPO: 'INSTRUMENTACION' | 'POTENCIA';
+  TIPO: 'INSTRUMENTACION' | 'POTENCIA' | 'POTENCIA_COM';
   NOMBRE_PERFIL: string;
   CLIENTE: string;
   PROYECTO: string;
@@ -149,6 +149,7 @@ export interface Perfil {
   POT_FIRMA_3?: string;
   POT_NOMBRE_3?: string;
   POT_FECHA_3?: string;
+  POT_COM_DATA?: string;
 }
 
 export interface ExportLog {
@@ -544,6 +545,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           POT_COMPANIA_1: p.pot_compania_1 || '', POT_FIRMA_1: p.pot_firma_1 || '', POT_NOMBRE_1: p.pot_nombre_1 || '', POT_FECHA_1: p.pot_fecha_1 || '',
           POT_COMPANIA_2: p.pot_compania_2 || '', POT_FIRMA_2: p.pot_firma_2 || '', POT_NOMBRE_2: p.pot_nombre_2 || '', POT_FECHA_2: p.pot_fecha_2 || '',
           POT_COMPANIA_3: p.pot_compania_3 || '', POT_FIRMA_3: p.pot_firma_3 || '', POT_NOMBRE_3: p.pot_nombre_3 || '', POT_FECHA_3: p.pot_fecha_3 || '',
+          POT_COM_DATA: p.pot_com_data || '',
           UBICACION: p.ubicacion || '',
           OBSERVACION: p.observacion || '',
           FABRICANTE_MODELO: p.fabricante_modelo || '',
@@ -674,7 +676,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         chkl_11_desc: p.CHKL_11_DESC, chkl_11_estado: p.CHKL_11_ESTADO,
         pot_compania_1: p.POT_COMPANIA_1, pot_firma_1: p.POT_FIRMA_1, pot_nombre_1: p.POT_NOMBRE_1, pot_fecha_1: p.POT_FECHA_1,
         pot_compania_2: p.POT_COMPANIA_2, pot_firma_2: p.POT_FIRMA_2, pot_nombre_2: p.POT_NOMBRE_2, pot_fecha_2: p.POT_FECHA_2,
-        pot_compania_3: p.POT_COMPANIA_3, pot_firma_3: p.POT_FIRMA_3, pot_nombre_3: p.POT_NOMBRE_3, pot_fecha_3: p.POT_FECHA_3
+        pot_compania_3: p.POT_COMPANIA_3, pot_firma_3: p.POT_FIRMA_3, pot_nombre_3: p.POT_NOMBRE_3, pot_fecha_3: p.POT_FECHA_3,
+        pot_com_data: p.POT_COM_DATA || ''
       }));
       for (let i = 0; i < perfilesToSync.length; i += 500) {
         const { error } = await supabase.from('perfiles').upsert(perfilesToSync.slice(i, i + 500));
@@ -837,7 +840,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         chkl_11_desc: perfil.CHKL_11_DESC, chkl_11_estado: perfil.CHKL_11_ESTADO,
         pot_compania_1: perfil.POT_COMPANIA_1, pot_firma_1: perfil.POT_FIRMA_1, pot_nombre_1: perfil.POT_NOMBRE_1, pot_fecha_1: perfil.POT_FECHA_1,
         pot_compania_2: perfil.POT_COMPANIA_2, pot_firma_2: perfil.POT_FIRMA_2, pot_nombre_2: perfil.POT_NOMBRE_2, pot_fecha_2: perfil.POT_FECHA_2,
-        pot_compania_3: perfil.POT_COMPANIA_3, pot_firma_3: perfil.POT_FIRMA_3, pot_nombre_3: perfil.POT_NOMBRE_3, pot_fecha_3: perfil.POT_FECHA_3
+        pot_compania_3: perfil.POT_COMPANIA_3, pot_firma_3: perfil.POT_FIRMA_3, pot_nombre_3: perfil.POT_NOMBRE_3, pot_fecha_3: perfil.POT_FECHA_3,
+        pot_com_data: perfil.POT_COM_DATA || ''
       };
 
       const { data: existingRemote } = await supabase.from('perfiles').select('id_perfil').eq('id_perfil', perfil.ID_PERFIL).maybeSingle();
