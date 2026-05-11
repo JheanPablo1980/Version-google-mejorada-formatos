@@ -9,19 +9,24 @@ export const Admin: React.FC = () => {
   const { 
     instrumentos, 
     loadInstrumentosBulk, 
+    potenciaEquipos,
+    loadPotenciaEquiposBulk,
     saveLogo, 
     syncWithSupabase, 
     totalFactoryReset,
     clearInstrumentos,
+    clearPotenciaEquipos,
     clearFotos,
     clearPerfiles,
     rolePermissions,
     updateRolePermissions
   } = useAppStore();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isProcessingPot, setIsProcessingPot] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
   const [showInstruments, setShowInstruments] = useState(false);
+  const [showPotencia, setShowPotencia] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [showPassChange, setShowPassChange] = useState(false);
   const [notification, setNotification] = useState<{msg: string, type: 'success' | 'error'} | null>(null);
@@ -47,6 +52,24 @@ export const Admin: React.FC = () => {
       showNotification('Tabla de Instrumentos borrada');
     } catch (e: any) {
       showNotification('Error al borrar instrumentos', 'error');
+    } finally {
+      setIsClearing(false);
+      setConfirmStep(null);
+    }
+  };
+
+  const handleClearPotencia = async () => {
+    if (confirmStep !== 'potencia_db') {
+      setConfirmStep('potencia_db');
+      setTimeout(() => setConfirmStep(null), 3000);
+      return;
+    }
+    try {
+      setIsClearing(true);
+      await clearPotenciaEquipos();
+      showNotification('Tabla de Potencia borrada');
+    } catch (e: any) {
+      showNotification('Error al borrar equipos de potencia', 'error');
     } finally {
       setIsClearing(false);
       setConfirmStep(null);
@@ -180,30 +203,43 @@ export const Admin: React.FC = () => {
           throw new Error("El archivo está vacío");
         }
 
+        // Optimize: Find column mappings once
+        const firstRow = rawJson[0];
+        const rowKeys = Object.keys(firstRow);
+        
+        const getMappedKey = (targets: string[]) => {
+          for (const t of targets) {
+            const found = rowKeys.find(rk => {
+              const normalizedKey = rk.toString()
+                .replace(/[\r\n\t]+/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .toUpperCase();
+              const targetKey = t.toUpperCase().trim();
+              return normalizedKey === targetKey || normalizedKey.includes(targetKey);
+            });
+            if (found) return found;
+          }
+          return null;
+        };
+
+        const keyMap = {
+          TAG_CABLE_SWC: getMappedKey(['TAG CABLE SWC', 'TAG CABLE']),
+          TAGNAME: getMappedKey(['TAGNAME', 'TAG']),
+          DESCRIPCION: getMappedKey(['DESCRIPCIÓN', 'DESCRIPTION', 'DESCRIPCION']),
+          TIPO_CABLE: getMappedKey(['TIPO CABLE', 'TIPO']),
+          UBICACION: getMappedKey(['UBICACIÓN', 'UBICACION', 'LOCATION']),
+          OBSERVACION: getMappedKey(['OBSERVACIÓN', 'OBSERVACION', 'REMARKS', 'NOTES'])
+        };
+
         const formattedData: any = rawJson.map((row: any) => {
-          const findKey = (keys: string[]) => {
-            const rowKeys = Object.keys(row);
-            for (const k of keys) {
-              const found = rowKeys.find(rk => {
-                const normalizedKey = rk.toString()
-                  .replace(/[\r\n\t]+/g, ' ')
-                  .replace(/\s+/g, ' ')
-                  .trim()
-                  .toUpperCase();
-                const targetKey = k.toUpperCase().trim();
-                return normalizedKey === targetKey || normalizedKey.includes(targetKey);
-              });
-              if (found) return row[found];
-            }
-            return '';
-          };
           return {
-            TAG_CABLE_SWC: findKey(['TAG CABLE SWC', 'TAG CABLE']),
-            TAGNAME: findKey(['TAGNAME', 'TAG']), 
-            DESCRIPCIÓN: findKey(['DESCRIPCIÓN', 'DESCRIPTION', 'DESCRIPCION']),
-            TIPO_CABLE: findKey(['TIPO CABLE', 'TIPO']),
-            UBICACIÓN: findKey(['UBICACIÓN', 'UBICACION', 'LOCATION']),
-            OBSERVACIÓN: findKey(['OBSERVACIÓN', 'OBSERVACION', 'REMARKS', 'NOTES'])
+            TAG_CABLE_SWC: keyMap.TAG_CABLE_SWC ? row[keyMap.TAG_CABLE_SWC] : '',
+            TAGNAME: keyMap.TAGNAME ? row[keyMap.TAGNAME] : '', 
+            DESCRIPCIÓN: keyMap.DESCRIPCION ? row[keyMap.DESCRIPCION] : '',
+            TIPO_CABLE: keyMap.TIPO_CABLE ? row[keyMap.TIPO_CABLE] : '',
+            UBICACIÓN: keyMap.UBICACION ? row[keyMap.UBICACION] : '',
+            OBSERVACIÓN: keyMap.OBSERVACION ? row[keyMap.OBSERVACION] : ''
           };
         }).filter(item => item.TAGNAME && item.TAGNAME.toString().trim() !== '');
 
@@ -225,6 +261,73 @@ export const Admin: React.FC = () => {
     reader.readAsArrayBuffer(file);
   };
 
+  const processFilePotencia = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsProcessingPot(true);
+    
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const workbook = XLSX.read(bstr, { type: 'array' });
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rawJson: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+        if (!rawJson || rawJson.length === 0) {
+          throw new Error("El archivo está vacío");
+        }
+
+        // Optimize: Find column mappings once
+        const firstRow = rawJson[0];
+        const rowKeys = Object.keys(firstRow);
+        
+        const getMappedKey = (targets: string[]) => {
+          for (const t of targets) {
+            const found = rowKeys.find(rk => {
+              const normalizedKey = rk.toString()
+                .replace(/[\r\n\t]+/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .toUpperCase();
+              const targetKey = t.toUpperCase().trim();
+              return normalizedKey === targetKey || normalizedKey.includes(targetKey);
+            });
+            if (found) return found;
+          }
+          return null;
+        };
+
+        const keyMap = {
+          TAG: getMappedKey(['TAG', 'TAGNAME']),
+          DESCRIPCION: getMappedKey(['DESCRIPCIÓN', 'DESCRIPTION', 'DESCRIPCION'])
+        };
+
+        const formattedData: any = rawJson.map((row: any) => {
+          return {
+            TAG: keyMap.TAG ? row[keyMap.TAG] : '', 
+            DESCRIPCIÓN: keyMap.DESCRIPCION ? row[keyMap.DESCRIPCION] : ''
+          };
+        }).filter(item => item.TAG && item.TAG.toString().trim() !== '');
+
+        if (formattedData.length === 0) {
+          showNotification("No se encontraron equipos. Verifique las columnas 'TAG' y 'DESCRIPCIÓN'.", 'error');
+          return;
+        }
+
+        await loadPotenciaEquiposBulk(formattedData);
+        showNotification(`${formattedData.length} equipos de potencia cargados`);
+      } catch (error: any) { 
+        showNotification("Error leyendo el archivo: " + (error.message || 'Error desconocido'), 'error'); 
+      } finally { 
+        setIsProcessingPot(false); 
+        if(filePotInputRef.current) filePotInputRef.current.value = ''; 
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const filePotInputRef = useRef<HTMLInputElement>(null);
   const { logoInstrumentacion, logoPotencia } = useAppStore();
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'INSTRUMENTACION' | 'POTENCIA') => {
@@ -307,6 +410,17 @@ export const Admin: React.FC = () => {
         <input type="file" accept=".xlsx, .xls, .csv" className="hidden" ref={fileInputRef} onChange={processFile} />
         <Button onClick={() => fileInputRef.current?.click()} icon={FileSpreadsheet} disabled={isProcessing} className="w-full">
           {isProcessing ? 'Procesando...' : 'Cargar Base de Datos'}
+        </Button>
+      </div>
+
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 text-center space-y-4">
+        <h3 className="font-bold text-[#1F3864] text-lg border-b pb-2 text-left flex items-center gap-2">
+          <Database size={18} className="text-orange-500" /> Listado Maestro de Potencia
+        </h3>
+        <p className="text-sm text-gray-500 text-left">Sube el archivo Excel o CSV con el listado de TAGs de potencia.</p>
+        <input type="file" accept=".xlsx, .xls, .csv" className="hidden" ref={filePotInputRef} onChange={processFilePotencia} />
+        <Button onClick={() => filePotInputRef.current?.click()} icon={FileSpreadsheet} disabled={isProcessingPot} className="w-full !bg-orange-600">
+          {isProcessingPot ? 'Procesando...' : 'Cargar BD Potencia'}
         </Button>
       </div>
 
@@ -426,6 +540,15 @@ export const Admin: React.FC = () => {
             {confirmStep === 'instrumentos' ? '¿Confirmar Borrado?' : 'Limpiar Instrumentos'}
           </Button>
           <Button 
+            onClick={handleClearPotencia} 
+            variant={confirmStep === 'potencia_db' ? 'danger' : 'secondary'} 
+            className={`flex-1 transition-all ${confirmStep === 'potencia_db' ? '!bg-red-500 !text-white' : '!bg-orange-50 !text-orange-700 !border-orange-200 hover:!bg-orange-100'}`}
+            icon={Database}
+            disabled={isClearing}
+          >
+            {confirmStep === 'potencia_db' ? '¿Confirmar Borrado?' : 'Limpiar BD Potencia'}
+          </Button>
+          <Button 
             onClick={handleClearFotos} 
             variant={confirmStep === 'fotos' ? 'danger' : 'secondary'} 
             className={`flex-1 transition-all ${confirmStep === 'fotos' ? '!bg-red-500 !text-white' : '!bg-orange-50 !text-orange-700 !border-orange-200 hover:!bg-orange-100'}`}
@@ -511,65 +634,125 @@ export const Admin: React.FC = () => {
         ))}
       </div>
 
-      <div className="bg-[#1F3864] text-white p-6 rounded-xl shadow-lg flex items-center justify-between mb-2">
-        <div>
-          <p className="text-xs text-blue-200 font-semibold tracking-wider uppercase">Total Instrumentos Cargados</p>
-          <p className="text-4xl font-bold">{instrumentos.length}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="bg-[#1F3864] text-white p-6 rounded-xl shadow-lg flex items-center justify-between">
+          <div>
+            <p className="text-xs text-blue-200 font-semibold tracking-wider uppercase">Instrumentos</p>
+            <p className="text-3xl font-bold">{instrumentos.length}</p>
+          </div>
+          <Database className="text-blue-800 opacity-50" size={32} />
         </div>
-        <Database className="text-blue-800 opacity-50" size={48} />
+        <div className="bg-orange-600 text-white p-6 rounded-xl shadow-lg flex items-center justify-between">
+          <div>
+            <p className="text-xs text-orange-200 font-semibold tracking-wider uppercase">Equipos Potencia</p>
+            <p className="text-3xl font-bold">{potenciaEquipos.length}</p>
+          </div>
+          <Database className="text-orange-800 opacity-50" size={32} />
+        </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <button 
-          className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
-          onClick={() => setShowInstruments(!showInstruments)}
-        >
-          <div className="flex items-center gap-2 font-bold text-[#1F3864]">
-            <FileSpreadsheet size={18} className="text-green-600" />
-            <span>Ver Listado Maestro ({instrumentos.length})</span>
-          </div>
-          <motion.div animate={{ rotate: showInstruments ? 180 : 0 }}>
-            <CloudUpload size={18} className="text-gray-400" />
-          </motion.div>
-        </button>
-
-        <AnimatePresence>
-          {showInstruments && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="border-t border-gray-100"
-            >
-              <div className="overflow-x-auto max-h-[400px]">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-gray-50 text-gray-500 uppercase font-bold sticky top-0 z-10">
-                    <tr>
-                      <th className="px-4 py-2 border-b">TAGNAME</th>
-                      <th className="px-4 py-2 border-b">Descripción</th>
-                      <th className="px-4 py-2 border-b">Ubicación</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {instrumentos.length > 0 ? (
-                      instrumentos.map((inst, idx) => (
-                        <tr key={idx} className="hover:bg-blue-50/50 transition-colors">
-                          <td className="px-4 py-2 font-mono font-bold text-blue-700">{inst.TAGNAME}</td>
-                          <td className="px-4 py-2 text-gray-600 truncate max-w-[150px]">{inst.DESCRIPCIÓN}</td>
-                          <td className="px-4 py-2 text-gray-400 italic">{inst.UBICACIÓN}</td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={3} className="px-4 py-10 text-center text-gray-400 italic">No hay instrumentos cargados.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+      <div className="space-y-4">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <button 
+            className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+            onClick={() => setShowInstruments(!showInstruments)}
+          >
+            <div className="flex items-center gap-2 font-bold text-[#1F3864]">
+              <FileSpreadsheet size={18} className="text-blue-600" />
+              <span>Maestro Instrumentación ({instrumentos.length})</span>
+            </div>
+            <motion.div animate={{ rotate: showInstruments ? 180 : 0 }}>
+              <Download size={18} className="text-gray-400" />
             </motion.div>
-          )}
-        </AnimatePresence>
+          </button>
+
+          <AnimatePresence>
+            {showInstruments && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="border-t border-gray-100"
+              >
+                <div className="overflow-x-auto max-h-[300px]">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-gray-50 text-gray-500 uppercase font-bold sticky top-0 z-10">
+                      <tr>
+                        <th className="px-4 py-2 border-b">TAGNAME</th>
+                        <th className="px-4 py-2 border-b">Descripción</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {instrumentos.length > 0 ? (
+                        instrumentos.map((inst, idx) => (
+                          <tr key={idx} className="hover:bg-blue-50/50 transition-colors">
+                            <td className="px-4 py-2 font-mono font-bold text-blue-700">{inst.TAGNAME}</td>
+                            <td className="px-4 py-2 text-gray-600 truncate max-w-[200px]">{inst.DESCRIPCIÓN}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={2} className="px-4 py-10 text-center text-gray-400 italic">No hay instrumentos.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <button 
+            className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+            onClick={() => setShowPotencia(!showPotencia)}
+          >
+            <div className="flex items-center gap-2 font-bold text-[#1F3864]">
+              <FileSpreadsheet size={18} className="text-orange-600" />
+              <span>Maestro Potencia ({potenciaEquipos.length})</span>
+            </div>
+            <motion.div animate={{ rotate: showPotencia ? 180 : 0 }}>
+              <Download size={18} className="text-gray-400" />
+            </motion.div>
+          </button>
+
+          <AnimatePresence>
+            {showPotencia && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="border-t border-gray-100"
+              >
+                <div className="overflow-x-auto max-h-[300px]">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-gray-50 text-gray-500 uppercase font-bold sticky top-0 z-10">
+                      <tr>
+                        <th className="px-4 py-2 border-b">TAG</th>
+                        <th className="px-4 py-2 border-b">Descripción</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {potenciaEquipos.length > 0 ? (
+                        potenciaEquipos.map((p, idx) => (
+                          <tr key={idx} className="hover:bg-orange-50/50 transition-colors">
+                            <td className="px-4 py-2 font-mono font-bold text-orange-700">{p.TAG}</td>
+                            <td className="px-4 py-2 text-gray-600 truncate max-w-[200px]">{p.DESCRIPCIÓN}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={2} className="px-4 py-10 text-center text-gray-400 italic">No hay equipos de potencia.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
     </div>
   );

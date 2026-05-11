@@ -11,6 +11,11 @@ export interface Instrumento {
   OBSERVACIÓN: string;
 }
 
+export interface PotenciaEquipo {
+  TAG: string;
+  DESCRIPCIÓN: string;
+}
+
 export type UserRole = 'ADMIN' | 'TECNICO' | 'INVITADO';
 
 export interface RolePermissions {
@@ -175,6 +180,7 @@ interface AppState {
   perfiles: Perfil[];
   fotos: Foto[];
   instrumentos: Instrumento[];
+  potenciaEquipos: PotenciaEquipo[];
   exportLogs: ExportLog[];
   conteoExportacion: ConteoExportacion[];
   logoInstrumentacion: string | null;
@@ -194,12 +200,16 @@ interface AppState {
   deleteInstrumentos: (tagnames: string[]) => Promise<{ success: boolean; error?: string }>;
   loadInstrumentosBulk: (dataArray: Instrumento[]) => Promise<void>;
   addInstrumento: (inst: Instrumento) => Promise<{ success: boolean; error?: string }>;
+  deletePotenciaEquipos: (tagnames: string[]) => Promise<{ success: boolean; error?: string }>;
+  loadPotenciaEquiposBulk: (dataArray: PotenciaEquipo[]) => Promise<void>;
+  addPotenciaEquipo: (inst: PotenciaEquipo) => Promise<{ success: boolean; error?: string }>;
   saveLogo: (base64: string, type: 'INSTRUMENTACION' | 'POTENCIA') => Promise<void>;
   saveDriveFolderLink: (link: string) => Promise<void>;
   updateRolePermissions: (role: UserRole, permissions: Partial<RolePermissions>) => Promise<void>;
   updateAdminPassword: (newPassword: string) => Promise<void>;
   syncWithSupabase: () => Promise<void>;
   clearInstrumentos: () => Promise<void>;
+  clearPotenciaEquipos: () => Promise<void>;
   clearFotos: () => Promise<void>;
   clearPerfiles: () => Promise<void>;
   totalFactoryReset: () => Promise<void>;
@@ -215,6 +225,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     perfiles: [],
     fotos: [],
     instrumentos: [],
+    potenciaEquipos: [],
     exportLogs: [],
     conteoExportacion: [],
     logoInstrumentacion: null,
@@ -302,6 +313,24 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  clearPotenciaEquipos: async () => {
+    const db = await initDB();
+    try {
+      const tx = db.transaction('potencia_equipos', 'readwrite');
+      await tx.store.clear();
+      await tx.done;
+    } catch (dbError) {
+      console.error('Error clearing local IndexedDB:', dbError);
+    }
+    set({ potenciaEquipos: [] });
+    try {
+      const { error } = await supabase.from('potencia_equipos').delete().neq('tag', '_borrado_manual_');
+      if (error) throw error;
+    } catch (e: any) {
+      console.error('Error clearing remote potencia_equipos:', e);
+    }
+  },
+
   clearFotos: async () => {
     const db = await initDB();
     try {
@@ -347,10 +376,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     
     // 1. Limpiar IndexedDB (Tablas locales)
     try {
-      const tx = db.transaction(['perfiles', 'fotos', 'instrumentos', 'config', 'conteo_exportacion'], 'readwrite');
+      const tx = db.transaction(['perfiles', 'fotos', 'instrumentos', 'potencia_equipos', 'config', 'conteo_exportacion'], 'readwrite');
       await tx.objectStore('perfiles').clear();
       await tx.objectStore('fotos').clear();
       await tx.objectStore('instrumentos').clear();
+      await tx.objectStore('potencia_equipos').clear();
       await tx.objectStore('config').clear();
       await tx.objectStore('conteo_exportacion').clear();
       await tx.done;
@@ -362,6 +392,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const results = await Promise.all([
         supabase.from('instrumentos').delete().neq('tagname', '_reset_'),
+        supabase.from('potencia_equipos').delete().neq('tag', '_reset_'),
         supabase.from('fotos').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
         supabase.from('perfiles').delete().neq('id_perfil', '_reset_'),
         supabase.from('export_logs').delete().neq('id', '_reset_'),
@@ -381,6 +412,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       perfiles: [],
       fotos: [],
       instrumentos: [],
+      potenciaEquipos: [],
       logoInstrumentacion: null,
       logoPotencia: null,
       driveFolderLink: null
@@ -392,6 +424,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const perfiles = await db.getAll('perfiles');
     const fotos = await db.getAll('fotos');
     const instrumentosLocal = await db.getAll('instrumentos');
+    const potenciaEquiposLocal = await db.getAll('potencia_equipos');
     const exportLogs = await db.getAll('export_logs');
     const conteoExportacion = await db.getAll('conteo_exportacion');
     const configLogoInst = await db.get('config', 'logo_instrumentacion');
@@ -430,6 +463,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       perfiles, 
       fotos, 
       instrumentos: instrumentosLocal, 
+      potenciaEquipos: potenciaEquiposLocal,
       exportLogs: exportLogs || [],
       conteoExportacion: conteoExportacion || [],
       logoInstrumentacion: configLogoInst?.value || null,
@@ -500,6 +534,23 @@ export const useAppStore = create<AppState>((set, get) => ({
 
         set({ instrumentos: mappedInst });
         console.log('Instrumentos cargados desde Supabase');
+      }
+
+      // Cargar Potencia Equipos desde Supabase
+      const { data: remotePotencia, error: potError } = await supabase.from('potencia_equipos').select('*');
+      if (remotePotencia && !potError) {
+        const mappedPotencia = remotePotencia.map(p => ({
+          TAG: p.tag,
+          DESCRIPCIÓN: p.descripcion
+        }));
+        
+        const tx = db.transaction('potencia_equipos', 'readwrite');
+        await tx.store.clear();
+        for (const item of mappedPotencia) await tx.store.put(item);
+        await tx.done;
+
+        set({ potenciaEquipos: mappedPotencia });
+        console.log('Equipos de Potencia cargados desde Supabase');
       }
 
       // Cargar Perfiles desde Supabase
@@ -606,7 +657,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   syncWithSupabase: async () => {
-    const { perfiles, fotos, instrumentos } = get();
+    const { perfiles, fotos, instrumentos, potenciaEquipos } = get();
     
     // 1. Sincronizar perfiles
     if (perfiles.length > 0) {
@@ -711,7 +762,27 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
     }
 
-    // 3. Sincronizar fotos
+    // 3. Sincronizar potenciaEquipos
+    if (potenciaEquipos.length > 0) {
+      const uniqueDataMap = new Map();
+      for (const item of potenciaEquipos) {
+        if (item.TAG && item.TAG.toString().trim() !== '') {
+          uniqueDataMap.set(item.TAG.toString().trim(), item);
+        }
+      }
+      
+      const toSync = Array.from(uniqueDataMap.values()).map(i => ({
+        tag: i.TAG.toString().trim(),
+        descripcion: i.DESCRIPCIÓN
+      }));
+      
+      for (let i = 0; i < toSync.length; i += 500) {
+        const { error } = await supabase.from('potencia_equipos').upsert(toSync.slice(i, i + 500), { onConflict: 'tag' });
+        if (error) console.error('Error syncing potencia_equipos:', error);
+      }
+    }
+
+    // 4. Sincronizar fotos
     if (fotos.length > 0) {
       const fotosToSync = fotos.map(f => ({
         id: f.id,
@@ -866,33 +937,57 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
 
       if (perfil.TAGNAME) {
-        const instData = {
-          TAGNAME: perfil.TAGNAME,
-          TAG_CABLE_SWC: perfil.TAG_CABLE_SWC || '',
-          DESCRIPCIÓN: perfil.DESCRIPCION || '',
-          TIPO_CABLE: perfil.TIPO_CABLE || '',
-          UBICACIÓN: perfil.UBICACION || '',
-          OBSERVACIÓN: perfil.OBSERVACION || ''
-        };
-        await db.put('instrumentos', instData);
-        set((state) => ({
-          instrumentos: [...state.instrumentos.filter(i => i.TAGNAME !== perfil.TAGNAME), instData]
-        }));
+        if (perfil.TIPO === 'INSTRUMENTACION') {
+          const instData = {
+            TAGNAME: perfil.TAGNAME,
+            TAG_CABLE_SWC: perfil.TAG_CABLE_SWC || '',
+            DESCRIPCIÓN: perfil.DESCRIPCION || '',
+            TIPO_CABLE: perfil.TIPO_CABLE || '',
+            UBICACIÓN: perfil.UBICACION || '',
+            OBSERVACIÓN: perfil.OBSERVACION || ''
+          };
+          await db.put('instrumentos', instData);
+          set((state) => ({
+            instrumentos: [...state.instrumentos.filter(i => i.TAGNAME !== perfil.TAGNAME), instData]
+          }));
 
-        const instPayload = {
-          tagname: perfil.TAGNAME,
-          tag_cable_swc: perfil.TAG_CABLE_SWC || '',
-          descripcion: perfil.DESCRIPCION || '',
-          tipo_cable: perfil.TIPO_CABLE || '',
-          ubicacion: perfil.UBICACION || '',
-          observacion: perfil.OBSERVACION || ''
-        };
+          const instPayload = {
+            tagname: perfil.TAGNAME,
+            tag_cable_swc: perfil.TAG_CABLE_SWC || '',
+            descripcion: perfil.DESCRIPCION || '',
+            tipo_cable: perfil.TIPO_CABLE || '',
+            ubicacion: perfil.UBICACION || '',
+            observacion: perfil.OBSERVACION || ''
+          };
 
-        const { data: existingInst } = await supabase.from('instrumentos').select('tagname').eq('tagname', perfil.TAGNAME).maybeSingle();
-        if (!existingInst) {
-          await supabase.from('instrumentos').insert(instPayload);
+          const { data: existingInst } = await supabase.from('instrumentos').select('tagname').eq('tagname', perfil.TAGNAME).maybeSingle();
+          if (!existingInst) {
+            await supabase.from('instrumentos').insert(instPayload);
+          } else {
+            await supabase.from('instrumentos').update(instPayload).eq('tagname', perfil.TAGNAME);
+          }
         } else {
-          await supabase.from('instrumentos').update(instPayload).eq('tagname', perfil.TAGNAME);
+          // Es POTENCIA o POTENCIA_COM
+          const potData = {
+            TAG: perfil.TAGNAME,
+            DESCRIPCIÓN: perfil.DESCRIPCION || ''
+          };
+          await db.put('potencia_equipos', potData);
+          set((state) => ({
+            potenciaEquipos: [...state.potenciaEquipos.filter(i => i.TAG !== perfil.TAGNAME), potData]
+          }));
+
+          const potPayload = {
+            tag: perfil.TAGNAME,
+            descripcion: perfil.DESCRIPCION || ''
+          };
+
+          const { data: existingPot } = await supabase.from('potencia_equipos').select('tag').eq('tag', perfil.TAGNAME).maybeSingle();
+          if (!existingPot) {
+            await supabase.from('potencia_equipos').insert(potPayload);
+          } else {
+            await supabase.from('potencia_equipos').update(potPayload).eq('tag', perfil.TAGNAME);
+          }
         }
       }
     } catch (e: any) {
@@ -982,7 +1077,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     const db = await initDB();
     const tx = db.transaction('instrumentos', 'readwrite');
     await tx.store.clear();
-    for (const item of deduplicatedArray) await tx.store.put(item);
+    // Use put in batch if possible, or just loop
+    for (const item of deduplicatedArray) tx.store.put(item);
     await tx.done;
 
     // Sync remote
@@ -997,20 +1093,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     
     // Process in chunks of 500 to avoid payload size errors
     const chunkSize = 500;
+    const promises = [];
     for (let i = 0; i < remoteData.length; i += chunkSize) {
       const chunk = remoteData.slice(i, i + chunkSize);
-      try {
-        const { error } = await supabase.from('instrumentos').upsert(chunk, { onConflict: 'tagname' });
-        if (error) {
-          console.error('CRITICAL: Error syncing bulk data chunk to Supabase:', error);
-          throw error; // Detener en caso de error para no corromper la info parcial
-        }
-      } catch (err) {
-          console.error('CRITICAL: Exception syncing bulk data chunk to Supabase:', err);
-          throw err;
-      }
+      promises.push(supabase.from('instrumentos').upsert(chunk, { onConflict: 'tagname' }));
     }
-    console.log('Bulk data synced successfully to Supabase');
+    
+    const results = await Promise.all(promises);
+    const errors = results.filter(r => r.error);
+    if (errors.length > 0) {
+      console.error('Some chunks failed to sync to Supabase:', errors);
+    } else {
+      console.log('Bulk data synced successfully to Supabase');
+    }
 
     set({ instrumentos: deduplicatedArray });
   },
@@ -1136,7 +1231,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     
     // 3. Sincronización con la nube (Supabase)
-    // No usamos .select() para que la respuesta sea más rápida
     try {
       const { error } = await supabase.from('instrumentos').insert([{
         tag_cable_swc: inst.TAG_CABLE_SWC || '',
@@ -1150,12 +1244,113 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (error) {
         console.error('Error de Supabase (Sincronización diferida):', error);
         return { 
-          success: true, // Retornamos true porque ya se guardó localmente correctamente
+          success: true, 
           error: `Guardado local: OK. Sincronización nube: FALLÓ (${error.message})` 
         };
       }
     } catch (e: any) {
       console.error('Excepción en Supabase:', e);
+      return { 
+        success: true, 
+        error: `Guardado local: OK. Error de red nube: ${e.message}` 
+      };
+    }
+
+    return { success: true };
+  },
+
+  deletePotenciaEquipos: async (tagnames: string[]) => {
+    const db = await initDB();
+    const session = get().session;
+    try {
+      const tx = db.transaction('potencia_equipos', 'readwrite');
+      for (const tag of tagnames) {
+        tx.store.delete(tag);
+      }
+      await tx.done;
+
+      set((state) => ({ potenciaEquipos: state.potenciaEquipos.filter(i => !tagnames.includes(i.TAG)) }));
+
+      try {
+        await supabase.from('potencia_equipos').delete().in('tag', tagnames);
+      } catch (e) {
+        console.warn('Error deleting from supabase: ', e);
+      }
+
+      if (session) {
+        for (const tag of tagnames) {
+          const logInfo: Omit<ExportLog, 'id' | 'timestamp' | 'user_email'> = { tagname: tag, tipo_formato: 'DELETED', id_perfil: '' };
+          get().saveExportLog(logInfo);
+        }
+      }
+
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: 'Error al eliminar: ' + e.message };
+    }
+  },
+
+  loadPotenciaEquiposBulk: async (dataArray) => {
+    const uniqueDataMap = new Map();
+    for (const item of dataArray) {
+      if (item.TAG && item.TAG.toString().trim() !== '') {
+        uniqueDataMap.set(item.TAG.toString().trim(), item);
+      }
+    }
+    const deduplicatedArray = Array.from(uniqueDataMap.values());
+
+    const db = await initDB();
+    const tx = db.transaction('potencia_equipos', 'readwrite');
+    await tx.store.clear();
+    for (const item of deduplicatedArray) tx.store.put(item);
+    await tx.done;
+
+    const remoteData = deduplicatedArray.map(i => ({
+      tag: i.TAG.toString().trim(),
+      descripcion: i.DESCRIPCIÓN
+    }));
+    
+    const chunkSize = 500;
+    const promises = [];
+    for (let i = 0; i < remoteData.length; i += chunkSize) {
+      const chunk = remoteData.slice(i, i + chunkSize);
+      promises.push(supabase.from('potencia_equipos').upsert(chunk, { onConflict: 'tag' }));
+    }
+    
+    const results = await Promise.all(promises);
+    const errors = results.filter(r => r.error);
+    if (errors.length > 0) {
+      console.error('Some chunks failed to sync to Supabase:', errors);
+    }
+
+    set({ potenciaEquipos: deduplicatedArray });
+  },
+
+  addPotenciaEquipo: async (inst: PotenciaEquipo) => {
+    const db = await initDB();
+    const exists = await db.get('potencia_equipos', inst.TAG);
+    if (exists) return { success: false, error: 'Este TAG ya existe localmente.' };
+    
+    try {
+      await db.put('potencia_equipos', inst);
+      set((state) => ({ potenciaEquipos: [...state.potenciaEquipos, inst] }));
+    } catch (e: any) {
+      return { success: false, error: 'Error al guardar localmente: ' + e.message };
+    }
+    
+    try {
+      const { error } = await supabase.from('potencia_equipos').insert([{
+        tag: inst.TAG,
+        descripcion: inst.DESCRIPCIÓN || ''
+      }]);
+
+      if (error) {
+        return { 
+          success: true, 
+          error: `Guardado local: OK. Sincronización nube: FALLÓ (${error.message})` 
+        };
+      }
+    } catch (e: any) {
       return { 
         success: true, 
         error: `Guardado local: OK. Error de red nube: ${e.message}` 

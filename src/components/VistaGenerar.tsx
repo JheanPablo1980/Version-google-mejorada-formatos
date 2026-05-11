@@ -30,7 +30,17 @@ function extractTagFromName(name: string, tagsDb: string[]) {
 }
 
 export const VistaGenerar: React.FC = () => {
-  const { instrumentos, perfiles, fotos, logoInstrumentacion, logoPotencia, saveExportLog, saveConteoExportacion, driveFolderLink } = useAppStore();
+  const { 
+    instrumentos, 
+    potenciaEquipos,
+    perfiles, 
+    fotos, 
+    logoInstrumentacion, 
+    logoPotencia, 
+    saveExportLog, 
+    saveConteoExportacion, 
+    driveFolderLink 
+  } = useAppStore();
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedProfile, setSelectedProfile] = useState('');
   const [isExporting, setIsExporting] = useState(false);
@@ -38,6 +48,7 @@ export const VistaGenerar: React.FC = () => {
   const [exportStartTime, setExportStartTime] = useState<number | null>(null);
   const [exportElapsedTime, setExportElapsedTime] = useState(0);
   const [modoExportacion, setModoExportacion] = useState<'LOCAL' | 'DRIVE'>('LOCAL');
+  const [activeCategory, setActiveCategory] = useState<'INSTRUMENTACION' | 'POTENCIA' | 'POTENCIA_COM'>('INSTRUMENTACION');
   
   const [driveFiles, setDriveFiles] = useState<{name: string, id: string, mimeType: string}[]>([]);
   const [isFetchingDrive, setIsFetchingDrive] = useState(false);
@@ -50,37 +61,51 @@ export const VistaGenerar: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   const tagsConFotos = [...new Set(fotos.map(f => f.TAGNAME))];
-  const todosLosTags = instrumentos.map(i => i.TAGNAME);
+  const tagsInstrumentos = instrumentos.map(i => i.TAGNAME);
+  const tagsPotencia = potenciaEquipos.map(e => e.TAG);
+  const todosLosTags = [...tagsInstrumentos, ...tagsPotencia];
   const tagsDrive = [...new Set(driveFiles.map(f => extractTagFromName(f.name, todosLosTags)))];
   
-  const instrumentosConFotos = modoExportacion === 'LOCAL' 
-    ? instrumentos.filter(inst => tagsConFotos.includes(inst.TAGNAME)) 
-    : instrumentos.filter(inst => tagsDrive.includes(inst.TAGNAME));
+  const currentItems = activeCategory === 'INSTRUMENTACION' ? instrumentos : potenciaEquipos;
+  const tagKey = activeCategory === 'INSTRUMENTACION' ? 'TAGNAME' : 'TAG';
+
+  const itemsConFotos = modoExportacion === 'LOCAL' 
+    ? currentItems.filter(item => tagsConFotos.includes((item as any)[tagKey])) 
+    : currentItems.filter(item => tagsDrive.includes((item as any)[tagKey]));
 
   const ubicacionesUnicas = useMemo(() => {
-    const u = new Set(instrumentosConFotos.map(i => i.UBICACIÓN).filter(Boolean));
+    if (activeCategory !== 'INSTRUMENTACION') return [];
+    const u = new Set(itemsConFotos.map(i => (i as any).UBICACIÓN).filter(Boolean));
     return Array.from(u).sort();
-  }, [instrumentosConFotos]);
+  }, [itemsConFotos, activeCategory]);
 
   const tiposCableUnicos = useMemo(() => {
-    const t = new Set(instrumentosConFotos.map(i => i.TIPO_CABLE).filter(Boolean));
+    if (activeCategory !== 'INSTRUMENTACION') return [];
+    const t = new Set(itemsConFotos.map(i => (i as any).TIPO_CABLE).filter(Boolean));
     return Array.from(t).sort();
-  }, [instrumentosConFotos]);
+  }, [itemsConFotos, activeCategory]);
 
-  const filteredInstrumentos = useMemo(() => {
-    const filtered = instrumentosConFotos.filter(inst => {
-      const matchesSearch = inst.TAGNAME.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            (inst.DESCRIPCIÓN || '').toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesUbicacion = filtroUbicacion ? inst.UBICACIÓN === filtroUbicacion : true;
-      const matchesTipo = filtroTipoCable ? inst.TIPO_CABLE === filtroTipoCable : true;
-      return matchesSearch && matchesUbicacion && matchesTipo;
+  const filteredItems = useMemo(() => {
+    const filtered = itemsConFotos.filter(item => {
+      const tag = (item as any)[tagKey] || '';
+      const matchesSearch = tag.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            (item.DESCRIPCIÓN || '').toLowerCase().includes(searchQuery.toLowerCase());
+      
+      if (activeCategory === 'INSTRUMENTACION') {
+        const matchesUbicacion = filtroUbicacion ? (item as any).UBICACIÓN === filtroUbicacion : true;
+        const matchesTipo = filtroTipoCable ? (item as any).TIPO_CABLE === filtroTipoCable : true;
+        return matchesSearch && matchesUbicacion && matchesTipo;
+      }
+      return matchesSearch;
     });
 
     return filtered.sort((a, b) => {
-      const cmp = a.TAGNAME.localeCompare(b.TAGNAME);
+      const tagA = (a as any)[tagKey] || '';
+      const tagB = (b as any)[tagKey] || '';
+      const cmp = tagA.localeCompare(tagB);
       return sortOrder === 'asc' ? cmp : -cmp;
     });
-  }, [instrumentosConFotos, searchQuery, filtroUbicacion, filtroTipoCable, sortOrder]);
+  }, [itemsConFotos, activeCategory, tagKey, searchQuery, filtroUbicacion, filtroTipoCable, sortOrder]);
 
   useEffect(() => {
     if (modoExportacion === 'DRIVE') {
@@ -241,8 +266,8 @@ export const VistaGenerar: React.FC = () => {
   };
 
   const handleSelectAll = () => {
-    if (selectedTags.length === filteredInstrumentos.length) setSelectedTags([]); 
-    else setSelectedTags(filteredInstrumentos.map(i => i.TAGNAME)); 
+    if (selectedTags.length === filteredItems.length) setSelectedTags([]); 
+    else setSelectedTags(filteredItems.map(i => (i as any)[tagKey])); 
   };
 
   const [exportError, setExportError] = useState<string | null>(null);
@@ -328,7 +353,7 @@ export const VistaGenerar: React.FC = () => {
 
   const exportarExcel = async () => {
     if (selectedTags.length === 0 || !activeProfile) { 
-      setExportError("Selecciona al menos un instrumento y un perfil."); 
+      setExportError("Selecciona al menos un ítem y un perfil."); 
       return; 
     }
     
@@ -370,14 +395,14 @@ export const VistaGenerar: React.FC = () => {
         const multiplier = modoExportacion === 'DRIVE' ? 20 : 100;
         setExportProgress(baseProgress + Math.round((processedItems / totalItems) * multiplier));
 
-        const activeInstrument = instrumentos.find(i => i.TAGNAME === tag);
+        const activeItem = currentItems.find(i => (i as any)[tagKey] === tag);
         const fotosDelTag = (modoExportacion === 'DRIVE' 
           ? driveFotosDownloaded.filter(f => f.TAGNAME === tag)
           : fotos.filter(f => f.TAGNAME === tag)).slice(0, 4);
         
-        if (!activeInstrument) continue;
+        if (!activeItem) continue;
 
-        const currentLogo = activeProfile.TIPO === 'POTENCIA' ? logoPotencia : logoInstrumentacion;
+        const currentLogo = (activeProfile.TIPO === 'POTENCIA' || activeProfile.TIPO === 'POTENCIA_COM') ? logoPotencia : logoInstrumentacion;
 
         const safeSheetName = tag.replace(/[\\*?:\/\[\]]/g, '').substring(0, 26);
         const ws1 = wb.addWorksheet(`${safeSheetName}`);
@@ -422,24 +447,30 @@ export const VistaGenerar: React.FC = () => {
         ws1.getCell('H4').value = activeProfile.CONTRATO; applyStyle(ws1.getCell('H4')); ws1.getCell('H4').alignment = {horizontal:'left'};
 
         // 1. INFORMACIÓN GENERAL
-        ws1.mergeCells('A6:H6'); ws1.getCell('A6').value = '1. INFORMACIÓN GENERAL DEL INSTRUMENTO'; applyStyle(ws1.getCell('A6'), true); ws1.getCell('A6').alignment = {horizontal:'left'};
+        ws1.mergeCells('A6:H6'); ws1.getCell('A6').value = activeProfile.TIPO.startsWith('POTENCIA') ? '1. INFORMACIÓN DEL EQUIPO' : '1. INFORMACIÓN GENERAL DEL INSTRUMENTO'; applyStyle(ws1.getCell('A6'), true); ws1.getCell('A6').alignment = {horizontal:'left'};
             ws1.mergeCells('A7:B7'); ws1.getCell('A7').value = 'Tag No:'; applyStyle(ws1.getCell('A7'), true); ws1.getCell('A7').alignment = {horizontal:'left'};
-        ws1.mergeCells('C7:D7'); ws1.getCell('C7').value = activeInstrument.TAGNAME; applyStyle(ws1.getCell('C7')); ws1.getCell('C7').alignment = {horizontal:'left'};
+        ws1.mergeCells('C7:D7'); ws1.getCell('C7').value = (activeItem as any)[tagKey]; applyStyle(ws1.getCell('C7')); ws1.getCell('C7').alignment = {horizontal:'left'};
         ws1.mergeCells('E7:F7'); ws1.getCell('E7').value = 'Fabricante/Modelo:'; applyStyle(ws1.getCell('E7'), true); ws1.getCell('E7').alignment = {horizontal:'left'};
         ws1.mergeCells('G7:H7'); ws1.getCell('G7').value = activeProfile.FABRICANTE_MODELO || 'N/A'; applyStyle(ws1.getCell('G7')); ws1.getCell('G7').alignment = {horizontal:'left'};
         
-        ws1.mergeCells('A8:B8'); ws1.getCell('A8').value = 'Tipo Cable / Desc:'; applyStyle(ws1.getCell('A8'), true); ws1.getCell('A8').alignment = {horizontal:'left'};
-        ws1.mergeCells('C8:H8'); ws1.getCell('C8').value = `${activeInstrument.TIPO_CABLE} / ${activeInstrument.DESCRIPCIÓN}`; applyStyle(ws1.getCell('C8')); ws1.getCell('C8').alignment = {horizontal:'left'};
+        ws1.mergeCells('A8:B8'); ws1.getCell('A8').value = activeProfile.TIPO.startsWith('POTENCIA') ? 'Descripción:' : 'Tipo Cable / Desc:'; applyStyle(ws1.getCell('A8'), true); ws1.getCell('A8').alignment = {horizontal:'left'};
+        ws1.mergeCells('C8:H8'); 
+        ws1.getCell('C8').value = activeProfile.TIPO.startsWith('POTENCIA') 
+          ? (activeItem as any).DESCRIPCIÓN || ''
+          : `${(activeItem as any).TIPO_CABLE || ''} / ${(activeItem as any).DESCRIPCIÓN || ''}`;
+        applyStyle(ws1.getCell('C8')); ws1.getCell('C8').alignment = {horizontal:'left'};
         
-        ws1.mergeCells('A9:B9'); ws1.getCell('A9').value = 'Rango de Operación:'; applyStyle(ws1.getCell('A9'), true); ws1.getCell('A9').alignment = {horizontal:'left'};
-        ws1.mergeCells('C9:D9'); ws1.getCell('C9').value = activeProfile.RANGO_OPERACION || 'N/A'; applyStyle(ws1.getCell('C9')); ws1.getCell('C9').alignment = {horizontal:'left'};
-        ws1.mergeCells('E9:F9'); ws1.getCell('E9').value = 'Clase de Exactitud:'; applyStyle(ws1.getCell('E9'), true); ws1.getCell('E9').alignment = {horizontal:'left'};
-        ws1.mergeCells('G9:H9'); ws1.getCell('G9').value = activeProfile.CLASE_EXACTITUD || 'N/A'; applyStyle(ws1.getCell('G9')); ws1.getCell('G9').alignment = {horizontal:'left'};
- 
-        ws1.mergeCells('A10:B10'); ws1.getCell('A10').value = 'Ubicación:'; applyStyle(ws1.getCell('A10'), true); ws1.getCell('A10').alignment = {horizontal:'left'};
-        ws1.mergeCells('C10:D10'); ws1.getCell('C10').value = activeInstrument.UBICACIÓN; applyStyle(ws1.getCell('C10')); ws1.getCell('C10').alignment = {horizontal:'left'};
-        ws1.mergeCells('E10:F10'); ws1.getCell('E10').value = 'Tag Cable SWC:'; applyStyle(ws1.getCell('E10'), true); ws1.getCell('E10').alignment = {horizontal:'left'};
-        ws1.mergeCells('G10:H10'); ws1.getCell('G10').value = activeInstrument.TAG_CABLE_SWC || 'N/A'; applyStyle(ws1.getCell('G10')); ws1.getCell('G10').alignment = {horizontal:'left'};
+        if (!activeProfile.TIPO.startsWith('POTENCIA')) {
+          ws1.mergeCells('A9:B9'); ws1.getCell('A9').value = 'Rango de Operación:'; applyStyle(ws1.getCell('A9'), true); ws1.getCell('A9').alignment = {horizontal:'left'};
+          ws1.mergeCells('C9:D9'); ws1.getCell('C9').value = activeProfile.RANGO_OPERACION || 'N/A'; applyStyle(ws1.getCell('C9')); ws1.getCell('C9').alignment = {horizontal:'left'};
+          ws1.mergeCells('E9:F9'); ws1.getCell('E9').value = 'Clase de Exactitud:'; applyStyle(ws1.getCell('E9'), true); ws1.getCell('E9').alignment = {horizontal:'left'};
+          ws1.mergeCells('G9:H9'); ws1.getCell('G9').value = activeProfile.CLASE_EXACTITUD || 'N/A'; applyStyle(ws1.getCell('G9')); ws1.getCell('G9').alignment = {horizontal:'left'};
+    
+          ws1.mergeCells('A10:B10'); ws1.getCell('A10').value = 'Ubicación:'; applyStyle(ws1.getCell('A10'), true); ws1.getCell('A10').alignment = {horizontal:'left'};
+          ws1.mergeCells('C10:D10'); ws1.getCell('C10').value = (activeItem as any).UBICACIÓN || ''; applyStyle(ws1.getCell('C10')); ws1.getCell('C10').alignment = {horizontal:'left'};
+          ws1.mergeCells('E10:F10'); ws1.getCell('E10').value = 'Tag Cable SWC:'; applyStyle(ws1.getCell('E10'), true); ws1.getCell('E10').alignment = {horizontal:'left'};
+          ws1.mergeCells('G10:H10'); ws1.getCell('G10').value = (activeItem as any).TAG_CABLE_SWC || 'N/A'; applyStyle(ws1.getCell('G10')); ws1.getCell('G10').alignment = {horizontal:'left'};
+        }
 
         // 2. CONDICIONES DE LA PRUEBA
         ws1.mergeCells('A12:H12'); ws1.getCell('A12').value = '2. CONDICIONES DE LA PRUEBA'; applyStyle(ws1.getCell('A12'), true); ws1.getCell('A12').alignment = {horizontal:'left'};
@@ -553,25 +584,50 @@ export const VistaGenerar: React.FC = () => {
         }
 
         // Firmas
-        ws1.mergeCells(`A${currentRow}:C${currentRow}`); ws1.getCell(`A${currentRow}`).value = 'ELABORÓ'; applyStyle(ws1.getCell(`A${currentRow}`), true);
-        ws1.mergeCells(`D${currentRow}:E${currentRow}`); ws1.getCell(`D${currentRow}`).value = 'REVISÓ'; applyStyle(ws1.getCell(`D${currentRow}`), true);
-        ws1.mergeCells(`F${currentRow}:H${currentRow}`); ws1.getCell(`F${currentRow}`).value = 'APROBÓ (CLIENTE / INTERVENTOR)'; applyStyle(ws1.getCell(`F${currentRow}`), true);
+        const isPotencia = activeProfile.TIPO.startsWith('POTENCIA');
         
-        ws1.mergeCells(`A${currentRow+1}:C${currentRow+1}`); ws1.getCell(`A${currentRow+1}`).value = `NOMBRE: ${activeProfile.ELABORO_NOMBRE}`; applyStyle(ws1.getCell(`A${currentRow+1}`)); ws1.getCell(`A${currentRow+1}`).alignment = {horizontal:'left'};
-        ws1.mergeCells(`D${currentRow+1}:E${currentRow+1}`); ws1.getCell(`D${currentRow+1}`).value = `NOMBRE: ${activeProfile.REVISO_NOMBRE}`; applyStyle(ws1.getCell(`D${currentRow+1}`)); ws1.getCell('D' + (currentRow+1)).alignment = {horizontal:'left'};
-        ws1.mergeCells(`F${currentRow+1}:H${currentRow+1}`); ws1.getCell(`F${currentRow+1}`).value = `NOMBRE: ${activeProfile.APROBO_NOMBRE}`; applyStyle(ws1.getCell(`F${currentRow+1}`)); ws1.getCell('F' + (currentRow+1)).alignment = {horizontal:'left'};
+        ws1.mergeCells(`A${currentRow}:C${currentRow}`); 
+        ws1.getCell(`A${currentRow}`).value = isPotencia ? 'CONTRATISTA Y/O VENDOR' : 'ELABORÓ'; 
+        applyStyle(ws1.getCell(`A${currentRow}`), true);
 
-        ws1.mergeCells(`A${currentRow+2}:C${currentRow+2}`); ws1.getCell(`A${currentRow+2}`).value = `CARGO: ${activeProfile.ELABORO_CARGO}`; applyStyle(ws1.getCell(`A${currentRow+2}`)); ws1.getCell('A' + (currentRow+2)).alignment = {horizontal:'left'};
-        ws1.mergeCells(`D${currentRow+2}:E${currentRow+2}`); ws1.getCell(`D${currentRow+2}`).value = `CARGO: ${activeProfile.REVISO_CARGO}`; applyStyle(ws1.getCell(`D${currentRow+2}`)); ws1.getCell('D' + (currentRow+2)).alignment = {horizontal:'left'};
-        ws1.mergeCells(`F${currentRow+2}:H${currentRow+2}`); ws1.getCell(`F${currentRow+2}`).value = `CARGO: ${activeProfile.APROBO_CARGO}`; applyStyle(ws1.getCell(`F${currentRow+2}`)); ws1.getCell('F' + (currentRow+2)).alignment = {horizontal:'left'};
+        ws1.mergeCells(`D${currentRow}:E${currentRow}`); 
+        ws1.getCell(`D${currentRow}`).value = isPotencia ? (activeProfile.TIPO === 'POTENCIA_COM' ? 'GESTOR DEL CONTRATO' : 'PRECOMISIONAMIENTO') : 'REVISÓ'; 
+        applyStyle(ws1.getCell(`D${currentRow}`), true);
+
+        ws1.mergeCells(`F${currentRow}:H${currentRow}`); 
+        ws1.getCell(`F${currentRow}`).value = isPotencia ? 'COMISIONAMIENTO' : 'APROBÓ (CLIENTE / INTERVENTOR)'; 
+        applyStyle(ws1.getCell(`F${currentRow}`), true);
+        
+        // Fila de NOMBRES / COMPAÑÍAS
+        if (isPotencia) {
+          ws1.mergeCells(`A${currentRow+1}:C${currentRow+1}`); ws1.getCell(`A${currentRow+1}`).value = `COMPAÑÍA: ${activeProfile.POT_COMPANIA_1 || ''}`; applyStyle(ws1.getCell(`A${currentRow+1}`)); ws1.getCell(`A${currentRow+1}`).alignment = {horizontal:'left'};
+          ws1.mergeCells(`D${currentRow+1}:E${currentRow+1}`); ws1.getCell(`D${currentRow+1}`).value = `COMPAÑÍA: ${activeProfile.POT_COMPANIA_2 || ''}`; applyStyle(ws1.getCell(`D${currentRow+1}`)); ws1.getCell('D' + (currentRow+1)).alignment = {horizontal:'left'};
+          ws1.mergeCells(`F${currentRow+1}:H${currentRow+1}`); ws1.getCell(`F${currentRow+1}`).value = `COMPAÑÍA: ${activeProfile.POT_COMPANIA_3 || ''}`; applyStyle(ws1.getCell(`F${currentRow+1}`)); ws1.getCell('F' + (currentRow+1)).alignment = {horizontal:'left'};
+
+          ws1.mergeCells(`A${currentRow+2}:C${currentRow+2}`); ws1.getCell(`A${currentRow+2}`).value = `NOMBRE: ${activeProfile.POT_NOMBRE_1 || ''}`; applyStyle(ws1.getCell(`A${currentRow+2}`)); ws1.getCell('A' + (currentRow+2)).alignment = {horizontal:'left'};
+          ws1.mergeCells(`D${currentRow+2}:E${currentRow+2}`); ws1.getCell(`D${currentRow+2}`).value = `NOMBRE: ${activeProfile.POT_NOMBRE_2 || ''}`; applyStyle(ws1.getCell(`D${currentRow+2}`)); ws1.getCell('D' + (currentRow+2)).alignment = {horizontal:'left'};
+          ws1.mergeCells(`F${currentRow+2}:H${currentRow+2}`); ws1.getCell(`F${currentRow+2}`).value = `NOMBRE: ${activeProfile.POT_NOMBRE_3 || ''}`; applyStyle(ws1.getCell(`F${currentRow+2}`)); ws1.getCell('F' + (currentRow+2)).alignment = {horizontal:'left'};
+          
+          ws1.mergeCells(`A${currentRow+6}:C${currentRow+6}`); ws1.getCell(`A${currentRow+6}`).value = `FECHA: ${activeProfile.POT_FECHA_1 || ''}`; applyStyle(ws1.getCell(`A${currentRow+6}`)); ws1.getCell('A' + (currentRow+6)).alignment = {horizontal:'left'};
+          ws1.mergeCells(`D${currentRow+6}:E${currentRow+6}`); ws1.getCell(`D${currentRow+6}`).value = `FECHA: ${activeProfile.POT_FECHA_2 || ''}`; applyStyle(ws1.getCell(`D${currentRow+6}`)); ws1.getCell('D' + (currentRow+6)).alignment = {horizontal:'left'};
+          ws1.mergeCells(`F${currentRow+6}:H${currentRow+6}`); ws1.getCell(`F${currentRow+6}`).value = `FECHA: ${activeProfile.POT_FECHA_3 || ''}`; applyStyle(ws1.getCell(`F${currentRow+6}`)); ws1.getCell('F' + (currentRow+6)).alignment = {horizontal:'left'};
+        } else {
+          ws1.mergeCells(`A${currentRow+1}:C${currentRow+1}`); ws1.getCell(`A${currentRow+1}`).value = `NOMBRE: ${activeProfile.ELABORO_NOMBRE}`; applyStyle(ws1.getCell(`A${currentRow+1}`)); ws1.getCell(`A${currentRow+1}`).alignment = {horizontal:'left'};
+          ws1.mergeCells(`D${currentRow+1}:E${currentRow+1}`); ws1.getCell(`D${currentRow+1}`).value = `NOMBRE: ${activeProfile.REVISO_NOMBRE}`; applyStyle(ws1.getCell(`D${currentRow+1}`)); ws1.getCell('D' + (currentRow+1)).alignment = {horizontal:'left'};
+          ws1.mergeCells(`F${currentRow+1}:H${currentRow+1}`); ws1.getCell(`F${currentRow+1}`).value = `NOMBRE: ${activeProfile.APROBO_NOMBRE}`; applyStyle(ws1.getCell(`F${currentRow+1}`)); ws1.getCell('F' + (currentRow+1)).alignment = {horizontal:'left'};
+
+          ws1.mergeCells(`A${currentRow+2}:C${currentRow+2}`); ws1.getCell(`A${currentRow+2}`).value = `CARGO: ${activeProfile.ELABORO_CARGO}`; applyStyle(ws1.getCell(`A${currentRow+2}`)); ws1.getCell('A' + (currentRow+2)).alignment = {horizontal:'left'};
+          ws1.mergeCells(`D${currentRow+2}:E${currentRow+2}`); ws1.getCell(`D${currentRow+2}`).value = `CARGO: ${activeProfile.REVISO_CARGO}`; applyStyle(ws1.getCell(`D${currentRow+2}`)); ws1.getCell('D' + (currentRow+2)).alignment = {horizontal:'left'};
+          ws1.mergeCells(`F${currentRow+2}:H${currentRow+2}`); ws1.getCell(`F${currentRow+2}`).value = `CARGO: ${activeProfile.APROBO_CARGO}`; applyStyle(ws1.getCell(`F${currentRow+2}`)); ws1.getCell('F' + (currentRow+2)).alignment = {horizontal:'left'};
+          
+          ws1.mergeCells(`A${currentRow+6}:C${currentRow+6}`); ws1.getCell(`A${currentRow+6}`).value = `FECHA: ${activeProfile.FECHA}`; applyStyle(ws1.getCell(`A${currentRow+6}`)); ws1.getCell('A' + (currentRow+6)).alignment = {horizontal:'left'};
+          ws1.mergeCells(`D${currentRow+6}:E${currentRow+6}`); ws1.getCell(`D${currentRow+6}`).value = `FECHA: `; applyStyle(ws1.getCell(`D${currentRow+6}`)); ws1.getCell('D' + (currentRow+6)).alignment = {horizontal:'left'};
+          ws1.mergeCells(`F${currentRow+6}:H${currentRow+6}`); ws1.getCell(`F${currentRow+6}`).value = `FECHA: `; applyStyle(ws1.getCell(`F${currentRow+6}`)); ws1.getCell('F' + (currentRow+6)).alignment = {horizontal:'left'};
+        }
 
         ws1.mergeCells(`A${currentRow+3}:C${currentRow+5}`); ws1.getCell(`A${currentRow+3}`).value = 'FIRMA:'; applyStyle(ws1.getCell(`A${currentRow+3}`)); ws1.getCell(`A${currentRow+3}`).font = { bold: true }; ws1.getCell(`A${currentRow+3}`).alignment = {vertical:'top', horizontal:'left'};
         ws1.mergeCells(`D${currentRow+3}:E${currentRow+5}`); ws1.getCell(`D${currentRow+3}`).value = 'FIRMA:'; applyStyle(ws1.getCell(`D${currentRow+3}`)); ws1.getCell(`D${currentRow+3}`).font = { bold: true }; ws1.getCell(`D${currentRow+3}`).alignment = {vertical:'top', horizontal:'left'};
         ws1.mergeCells(`F${currentRow+3}:H${currentRow+5}`); ws1.getCell(`F${currentRow+3}`).value = 'FIRMA:'; applyStyle(ws1.getCell(`F${currentRow+3}`)); ws1.getCell(`F${currentRow+3}`).font = { bold: true }; ws1.getCell(`F${currentRow+3}`).alignment = {vertical:'top', horizontal:'left'};
-
-        ws1.mergeCells(`A${currentRow+6}:C${currentRow+6}`); ws1.getCell(`A${currentRow+6}`).value = `FECHA: ${activeProfile.FECHA}`; applyStyle(ws1.getCell(`A${currentRow+6}`)); ws1.getCell('A' + (currentRow+6)).alignment = {horizontal:'left'};
-        ws1.mergeCells(`D${currentRow+6}:E${currentRow+6}`); ws1.getCell(`D${currentRow+6}`).value = `FECHA: `; applyStyle(ws1.getCell(`D${currentRow+6}`)); ws1.getCell('D' + (currentRow+6)).alignment = {horizontal:'left'};
-        ws1.mergeCells(`F${currentRow+6}:H${currentRow+6}`); ws1.getCell(`F${currentRow+6}`).value = `FECHA: `; applyStyle(ws1.getCell(`F${currentRow+6}`)); ws1.getCell('F' + (currentRow+6)).alignment = {horizontal:'left'};
 
         const embedSig = (b64: string, col: number, colMaxOffset: number, row: number) => {
           if (!b64) return;
@@ -581,8 +637,6 @@ export const VistaGenerar: React.FC = () => {
               base64: b64.split(',')[1], 
               extension: extension as any
             });
-            // Se ajusta el tamaño y la posición para que no se salga de las celdas
-            // Usamos coordenadas precisas respetando el texto "FIRMA:" que está arriba.
             ws1.addImage(imageId, { 
               tl: { col: col + 0.3, row: row - 1 + 0.8 } as any, 
               br: { col: col + colMaxOffset - 0.3, row: row - 1 + 2.8 } as any,
@@ -592,9 +646,16 @@ export const VistaGenerar: React.FC = () => {
             console.error("Error embedding signature", e);
           }
         };
-        embedSig(activeProfile.ELABORO_FIRMA, 0, 3, currentRow+3);
-        embedSig(activeProfile.REVISO_FIRMA, 3, 2, currentRow+3);
-        embedSig(activeProfile.APROBO_FIRMA, 5, 3, currentRow+3);
+
+        if (isPotencia) {
+          embedSig(activeProfile.POT_FIRMA_1, 0, 3, currentRow+3);
+          embedSig(activeProfile.POT_FIRMA_2, 3, 2, currentRow+3);
+          embedSig(activeProfile.POT_FIRMA_3, 5, 3, currentRow+3);
+        } else {
+          embedSig(activeProfile.ELABORO_FIRMA, 0, 3, currentRow+3);
+          embedSig(activeProfile.REVISO_FIRMA, 3, 2, currentRow+3);
+          embedSig(activeProfile.APROBO_FIRMA, 5, 3, currentRow+3);
+        }
       }
 
       const buffer = await wb.xlsx.writeBuffer();
@@ -627,14 +688,14 @@ export const VistaGenerar: React.FC = () => {
       await logExportAction('PDF');
       
       const buildHtmlForTag = (tag: string) => {
-        const activeInstrument = instrumentos.find(i => i.TAGNAME === tag);
+        const activeItem = currentItems.find(i => (i as any)[tagKey] === tag);
         const fotosDelTag = (modoExportacion === 'DRIVE' 
           ? driveFotosDownloaded.filter(f => f.TAGNAME === tag)
           : fotos.filter(f => f.TAGNAME === tag)).slice(0, 4);
 
-        if (!activeInstrument) return '';
+        if (!activeItem) return '';
 
-        const currentLogo = activeProfile.TIPO === 'POTENCIA' ? logoPotencia : logoInstrumentacion;
+        const currentLogo = (activeProfile.TIPO === 'POTENCIA' || activeProfile.TIPO === 'POTENCIA_COM') ? logoPotencia : logoInstrumentacion;
 
         if (activeProfile.TIPO === 'POTENCIA') {
           return `
@@ -770,6 +831,173 @@ export const VistaGenerar: React.FC = () => {
           `;
         }
 
+        if (activeProfile.TIPO === 'POTENCIA_COM') {
+          let comData: any = {};
+          try { comData = JSON.parse(activeProfile.POT_COM_DATA || '{}'); } catch(e){}
+
+          return `
+          <div class="protocol-page">
+            <!-- CABECERA -->
+            <table class="grid-table">
+              <tr>
+                <td colspan="2" rowspan="3" class="center no-padding" style="width: 25%;">
+                  ${currentLogo ? `<img src="${currentLogo}" style="max-height: 50px; max-width: 90%; object-fit: contain; margin: 5px;" />` : 'LOGO'}
+                </td>
+                <td colspan="4" class="center">Ingeniería y Proyectos</td>
+                <td class="bg-blue" style="width: 12.5%;">Código:</td>
+                <td class="center" style="width: 12.5%;">${activeProfile.POT_CODIGO || ''}</td>
+              </tr>
+              <tr>
+                <td colspan="4" rowspan="2" class="center" style="font-size: 14px; font-weight: bold;">
+                  Formato Comisionamiento<br/>Motor de baja tensión<br/>SKC-P-F-005
+                </td>
+                <td class="bg-blue">Fecha:</td>
+                <td class="center">${activeProfile.FECHA_REVISION || ''}</td>
+              </tr>
+              <tr>
+                <td class="bg-blue">Versión:</td>
+                <td class="center">${activeProfile.REVISION || ''}</td>
+              </tr>
+              <tr>
+                <td colspan="2" class="bg-blue">CLIENTE:</td>
+                <td colspan="6">${activeProfile.CLIENTE}</td>
+              </tr>
+              <tr>
+                <td colspan="2" class="bg-blue">PROYECTO:</td>
+                <td colspan="6">${activeProfile.PROYECTO}</td>
+              </tr>
+            </table>
+
+            <!-- INFO MOTOR -->
+            <table class="grid-table mt-4" style="font-size: 9px;">
+              <tr><td colspan="4" class="bg-blue font-bold">INFORMACIÓN DEL MOTOR</td></tr>
+              <tr>
+                <td class="bg-blue" style="width: 25%">Tag No.</td>
+                <td style="width: 25%">${activeProfile.TAGNAME}</td>
+                <td class="bg-blue" style="width: 25%">Clasificación de Área</td>
+                <td style="width: 25%">${activeProfile.AREA}</td>
+              </tr>
+              <tr>
+                <td class="bg-blue">Fabricante</td>
+                <td>${activeProfile.FABRICANTE_MODELO || ''}</td>
+                <td class="bg-blue">Modelo No.</td>
+                <td>${comData.POT_COM_MODELO || ''}</td>
+              </tr>
+              <tr>
+                <td class="bg-blue">Nema</td>
+                <td>${comData.POT_COM_NEMA || ''}</td>
+                <td class="bg-blue">Serie No.</td>
+                <td>${comData.POT_COM_SERIE || ''}</td>
+              </tr>
+              <tr>
+                <td class="bg-blue">Clasificación</td>
+                <td>${comData.POT_COM_CLASIFICACION || ''}</td>
+                <td class="bg-blue">Potencia HP</td>
+                <td>${comData.POT_COM_POTENCIA_HP || ''}</td>
+              </tr>
+              <tr>
+                <td class="bg-blue">Velocidad RPM</td>
+                <td>${comData.POT_COM_VELOCIDAD_RPM || ''}</td>
+                <td class="bg-blue">Clase de Aisl.</td>
+                <td>${comData.POT_COM_CLASE_AISL || ''}</td>
+              </tr>
+              <tr>
+                <td class="bg-blue">Servicio</td>
+                <td>${activeProfile.SERVICIO}</td>
+                <td class="bg-blue">Voltaje V</td>
+                <td>${comData.POT_COM_VOLTAJE_V || ''}</td>
+              </tr>
+              <tr>
+                <td class="bg-blue">F.L.A. AMP</td>
+                <td>${comData.POT_COM_FLA_AMP || ''}</td>
+                <td class="bg-blue">Frecuencia Hz</td>
+                <td>${comData.POT_COM_FRECUENCIA_HZ || ''}</td>
+              </tr>
+            </table>
+
+            <!-- PRUEBAS -->
+            <table class="grid-table mt-4" style="font-size: 8px;">
+               <thead>
+                  <tr class="bg-blue">
+                    <th class="p-1 w-16 text-center">Check</th>
+                    <th class="p-1">1.1 REQUERIMIENTOS PRUEBAS FUNCIONALES</th>
+                    <th class="p-1 w-24">Resultados</th>
+                    <th class="p-1 w-32">Iniciales / Fecha</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${[
+                    'Realice la prueba de inyección sobre los relés de protección y medición. Chequee los ratings y setting de protección de los fusibles. Anexe los data sheet.',
+                    'Mida la resistencia de Aislamiento del cableado de control Mínimo 10 MΩ con Megger de 500 V. Registre el serial del equipo.',
+                    'Prueba funcional del arrancador Interruptor/Contactor incluyendo la interfase de control.',
+                    'Prueba funcional Mecánica y Eléctrica de los Interlocks incluido las señales de disparo. Liste las pruebas funcionales en una hoja y anéxela.',
+                    'Verifique el aterrizaje del motor de acuerdo con las especificaciones del proyecto.',
+                    'Mida la resistencia de Aislamiento del Heater. Mínimo 10 MΩ con Megger de 500 V.',
+                    'Mida la resistencia de Aislamiento del cable y devanados del motor. Mínimo 100 MΩ con Megger de 1000 V.'
+                  ].map((lbl, i) => `
+                    <tr>
+                      <td class="center">${i+1}</td>
+                      <td class="text-left">${lbl}</td>
+                      <td class="center">${comData[`RES_${i}`] || ''}</td>
+                      <td class="center">${comData[`INI_${i}`] || ''}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+            </table>
+
+            <!-- FIRMAS -->
+            <table class="grid-table mt-4" style="page-break-inside: avoid;">
+              <tr>
+                <td colspan="3" class="bg-blue">CONTRATISTA Y/O VENDOR</td>
+                <td colspan="3" class="bg-blue">GESTOR DEL CONTRATO</td>
+                <td colspan="2" class="bg-blue">COMISIONAMIENTO</td>
+              </tr>
+              <tr>
+                <td class="text-left font-bold" style="width: 15%">COMPAÑÍA</td>
+                <td colspan="2" class="text-left">${activeProfile.POT_COMPANIA_1 || ''}</td>
+                <td colspan="3" class="text-left">${activeProfile.POT_COMPANIA_2 || ''}</td>
+                <td colspan="2" class="text-left">${activeProfile.POT_COMPANIA_3 || ''}</td>
+              </tr>
+              <tr>
+                <td class="text-left font-bold">FIRMA</td>
+                <td colspan="2" class="signature-box" style="height: 60px;">
+                  ${activeProfile.POT_FIRMA_1 ? `<img src="${activeProfile.POT_FIRMA_1}" class="sign-img" style="max-height: 50px;" />` : ''}
+                </td>
+                <td colspan="3" class="signature-box" style="height: 60px;">
+                  ${activeProfile.POT_FIRMA_2 ? `<img src="${activeProfile.POT_FIRMA_2}" class="sign-img" style="max-height: 50px;" />` : ''}
+                </td>
+                <td colspan="2" class="signature-box" style="height: 60px;">
+                  ${activeProfile.POT_FIRMA_3 ? `<img src="${activeProfile.POT_FIRMA_3}" class="sign-img" style="max-height: 50px;" />` : ''}
+                </td>
+              </tr>
+              <tr>
+                <td class="text-left font-bold">NOMBRE</td>
+                <td colspan="2" class="text-left">${activeProfile.POT_NOMBRE_1 || ''}</td>
+                <td colspan="4" class="text-left">${activeProfile.POT_NOMBRE_2 || ''}</td>
+                <td colspan="2" class="text-left">${activeProfile.POT_NOMBRE_3 || ''}</td>
+              </tr>
+            </table>
+
+            ${fotosDelTag.length > 0 ? `
+              <div style="page-break-before: always; margin-top: 20px;"></div>
+              <table class="grid-table mt-4 overflow-hidden">
+                <tr><td colspan="8" class="bg-blue text-left">REGISTRO FOTOGRÁFICO</td></tr>
+              </table>
+              <div class="photo-container">
+                ${fotosDelTag.map((f, i) => `
+                  <div class="photo-item">
+                    <div class="photo-box">
+                      <img src="${f.blobData}" />
+                    </div>
+                    <div class="photo-caption">${f.observacion || `Foto ${i+1}`}</div>
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
+          </div>
+          `;
+        }
+
         return `
         <div class="protocol-page">
           <!-- CABECERA -->
@@ -779,7 +1007,7 @@ export const VistaGenerar: React.FC = () => {
                 ${currentLogo ? `<img src="${currentLogo}" style="max-height: 50px; max-width: 90%; object-fit: contain; margin: 5px;" />` : 'LOGO'}
               </td>
               <td colspan="4" rowspan="2" class="bg-blue center" style="font-size: 14px; width: 50%;">
-                PROTOCOLO DE PRUEBAS DE ${activeProfile.TIPO === 'POTENCIA' ? 'POTENCIA' : 'INSTRUMENTACIÓN'}
+                PROTOCOLO DE PRUEBAS DE INSTRUMENTACIÓN
               </td>
               <td class="bg-blue" style="width: 12.5%;">REVISIÓN:</td>
               <td class="center" style="width: 12.5%;">${activeProfile.REVISION}</td>
@@ -807,13 +1035,13 @@ export const VistaGenerar: React.FC = () => {
             <tr><td colspan="8" class="bg-blue text-left">1. INFORMACIÓN GENERAL DEL INSTRUMENTO</td></tr>
             <tr>
               <td colspan="2" class="bg-blue text-left">TAG NO:</td>
-              <td colspan="2" class="font-bold uppercase">${activeInstrument.TAGNAME}</td>
+              <td colspan="2" class="font-bold uppercase">${(activeItem as any)[tagKey]}</td>
               <td colspan="2" class="bg-blue text-left">FABRICANTE/MODELO:</td>
               <td colspan="2">${activeProfile.FABRICANTE_MODELO || 'N/A'}</td>
             </tr>
             <tr>
               <td colspan="2" class="bg-blue text-left">TIPO CABLE / DESC:</td>
-              <td colspan="6" class="uppercase">${activeInstrument.TIPO_CABLE} / ${activeInstrument.DESCRIPCIÓN}</td>
+              <td colspan="6" class="uppercase">${(activeItem as any).TIPO_CABLE || ''} / ${(activeItem as any).DESCRIPCIÓN || ''}</td>
             </tr>
             <tr>
               <td colspan="2" class="bg-blue text-left">RANGO OPERACIÓN:</td>
@@ -823,9 +1051,9 @@ export const VistaGenerar: React.FC = () => {
             </tr>
             <tr>
               <td colspan="2" class="bg-blue text-left">UBICACIÓN:</td>
-              <td colspan="2" class="uppercase">${activeInstrument.UBICACIÓN}</td>
+              <td colspan="2" class="uppercase">${(activeItem as any).UBICACIÓN || ''}</td>
               <td colspan="2" class="bg-blue text-left">TAG CABLE SWC:</td>
-              <td colspan="2" class="uppercase">${activeInstrument.TAG_CABLE_SWC || 'N/A'}</td>
+              <td colspan="2" class="uppercase">${(activeItem as any).TAG_CABLE_SWC || 'N/A'}</td>
             </tr>
           </table>
 
@@ -1127,6 +1355,43 @@ export const VistaGenerar: React.FC = () => {
               </button>
             </div>
 
+            {/* Selector de Categoría (Instrumentación / Potencia) */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <button
+                onClick={() => { setActiveCategory('INSTRUMENTACION'); setSelectedTags([]); setSelectedProfile(''); }}
+                className={`py-2 px-3 rounded-xl text-[9px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
+                  activeCategory === 'INSTRUMENTACION' 
+                  ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-200 ring-2 ring-blue-50' 
+                  : 'bg-white border-blue-50 text-blue-400 hover:border-blue-200 hover:text-blue-600'
+                }`}
+              >
+                <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'INSTRUMENTACION' ? 'bg-white animate-pulse' : 'bg-blue-100'}`} />
+                Instrumentación
+              </button>
+              <button
+                onClick={() => { setActiveCategory('POTENCIA'); setSelectedTags([]); setSelectedProfile(''); }}
+                className={`py-2 px-3 rounded-xl text-[9px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
+                  activeCategory === 'POTENCIA' 
+                  ? 'bg-orange-600 border-orange-600 text-white shadow-lg shadow-orange-200 ring-2 ring-orange-50' 
+                  : 'bg-white border-orange-50 text-orange-400 hover:border-orange-200 hover:text-orange-600'
+                }`}
+              >
+                <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'POTENCIA' ? 'bg-white animate-pulse' : 'bg-orange-100'}`} />
+                Potencia (Precom)
+              </button>
+              <button
+                onClick={() => { setActiveCategory('POTENCIA_COM'); setSelectedTags([]); setSelectedProfile(''); }}
+                className={`py-2 px-3 rounded-xl text-[9px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
+                  activeCategory === 'POTENCIA_COM' 
+                  ? 'bg-red-600 border-red-600 text-white shadow-lg shadow-red-200 ring-2 ring-red-50' 
+                  : 'bg-white border-red-50 text-red-400 hover:border-red-200 hover:text-red-600'
+                }`}
+              >
+                <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'POTENCIA_COM' ? 'bg-white animate-pulse' : 'bg-red-100'}`} />
+                Potencia (Com)
+              </button>
+            </div>
+
             <div className="flex flex-col md:flex-row gap-3">
               <div className="relative flex-1">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -1203,12 +1468,12 @@ export const VistaGenerar: React.FC = () => {
 
             <div className="flex justify-between items-center py-2 border-b border-gray-100">
               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                {modoExportacion === 'DRIVE' ? 'Instrumentos En Drive' : 'Instrumentos Con Fotos'} ({filteredInstrumentos.length})
+                {modoExportacion === 'DRIVE' ? `${activeCategory} En Drive` : `${activeCategory} Con Fotos`} ({filteredItems.length})
               </label>
-              {filteredInstrumentos.length > 0 && (
+              {filteredItems.length > 0 && (
                 <div className="flex gap-4">
                    <button onClick={handleSelectAll} className="text-[10px] text-blue-600 font-black hover:text-blue-800 transition-colors uppercase tracking-widest">
-                    {selectedTags.length === filteredInstrumentos.length ? 'Deseleccionar Todo' : 'Seleccionar Todo'}
+                    {selectedTags.length === filteredItems.length ? 'Deseleccionar Todo' : 'Seleccionar Todo'}
                   </button>
                 </div>
               )}
@@ -1220,7 +1485,7 @@ export const VistaGenerar: React.FC = () => {
                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mb-4"></div>
                    <p className="text-xs text-blue-600 font-bold uppercase tracking-widest">Consultando Google Drive...</p>
                  </div>
-              ) : filteredInstrumentos.length === 0 ? (
+              ) : filteredItems.length === 0 ? (
                 <div className="text-center py-24 flex flex-col items-center">
                   <div className="bg-gray-50 p-4 rounded-full mb-4">
                     <Camera className="text-gray-200" size={40} />
@@ -1230,39 +1495,62 @@ export const VistaGenerar: React.FC = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 pt-2">
-                  {filteredInstrumentos.map((inst, index) => (
-                    <label 
-                      key={`${inst.TAGNAME}-${index}`} 
-                      className={`flex flex-col p-3 rounded-xl cursor-pointer border-2 transition-all group relative ${
-                        selectedTags.includes(inst.TAGNAME) 
-                        ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-500/10' 
-                        : 'bg-gray-50 border-gray-100 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="flex justify-between items-start mb-2">
-                        <div className={`w-4 h-4 rounded border transition-colors flex items-center justify-center ${selectedTags.includes(inst.TAGNAME) ? 'bg-blue-600 border-blue-600' : 'bg-white border-gray-300'}`}>
-                          {selectedTags.includes(inst.TAGNAME) && <Check size={10} className="text-white" />}
+                  {filteredItems.map((item, index) => {
+                    const tag = (item as any)[tagKey];
+                    return (
+                      <label 
+                        key={`${tag}-${index}`} 
+                        className={`flex flex-col p-3 rounded-xl cursor-pointer border-2 transition-all group relative ${
+                          selectedTags.includes(tag) 
+                          ? activeCategory === 'POTENCIA' 
+                            ? 'bg-orange-50 border-orange-500 ring-2 ring-orange-500/10' 
+                            : activeCategory === 'POTENCIA_COM'
+                              ? 'bg-red-50 border-red-500 ring-2 ring-red-500/10'
+                              : 'bg-blue-50 border-blue-500 ring-2 ring-blue-500/10'
+                          : 'bg-gray-50 border-gray-100 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <div className={`w-4 h-4 rounded border transition-colors flex items-center justify-center ${
+                            selectedTags.includes(tag) 
+                              ? activeCategory === 'POTENCIA' 
+                                ? 'bg-orange-600 border-orange-600' 
+                                : activeCategory === 'POTENCIA_COM'
+                                  ? 'bg-red-600 border-red-600'
+                                  : 'bg-blue-600 border-blue-600' 
+                              : 'bg-white border-gray-300'
+                          }`}>
+                            {selectedTags.includes(tag) && <Check size={10} className="text-white" />}
+                          </div>
+                          <input 
+                            type="checkbox" 
+                            checked={selectedTags.includes(tag)}
+                            onChange={() => handleToggleTag(tag)}
+                            className="hidden" 
+                          />
                         </div>
-                        <input 
-                          type="checkbox" 
-                          checked={selectedTags.includes(inst.TAGNAME)}
-                          onChange={() => handleToggleTag(inst.TAGNAME)}
-                          className="hidden" 
-                        />
-                      </div>
-                      <p className={`text-xs font-black uppercase truncate ${selectedTags.includes(inst.TAGNAME) ? 'text-blue-700' : 'text-[#1F3864]'}`}>
-                        {inst.TAGNAME}
-                      </p>
-                      <p className="text-[8px] text-gray-400 truncate uppercase mt-0.5 font-bold tracking-tighter">
-                        {inst.DESCRIPCIÓN || 'SIN DESCRIPCIÓN'}
-                      </p>
-                      {inst.UBICACIÓN && (
-                        <span className="mt-2 text-[7px] font-black uppercase text-gray-400 bg-gray-200/50 w-fit px-1.5 py-0.5 rounded">
-                          {inst.UBICACIÓN}
-                        </span>
-                      )}
-                    </label>
-                  ))}
+                        <p className={`text-xs font-black uppercase truncate ${
+                          selectedTags.includes(tag) 
+                            ? activeCategory === 'POTENCIA' 
+                              ? 'text-orange-700' 
+                              : activeCategory === 'POTENCIA_COM'
+                                ? 'text-red-700'
+                                : 'text-blue-700' 
+                            : 'text-[#1F3864]'
+                        }`}>
+                          {tag}
+                        </p>
+                        <p className="text-[8px] text-gray-400 truncate uppercase mt-0.5 font-bold tracking-tighter">
+                          {item.DESCRIPCIÓN || 'SIN DESCRIPCIÓN'}
+                        </p>
+                        {(item as any).UBICACIÓN && (
+                          <span className="mt-2 text-[7px] font-black uppercase text-gray-400 bg-gray-200/50 w-fit px-1.5 py-0.5 rounded">
+                            {(item as any).UBICACIÓN}
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1285,7 +1573,7 @@ export const VistaGenerar: React.FC = () => {
                   style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23a1a1aa\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundPosition: 'right 1rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1rem' }}
                 >
                   <option value="">-- Seleccionar Perfil --</option>
-                  {perfiles.map(p => <option key={p.ID_PERFIL} value={p.ID_PERFIL}>{p.NOMBRE_PERFIL.toUpperCase()}</option>)}
+                  {perfiles.filter(p => p.TIPO === activeCategory).map(p => <option key={p.ID_PERFIL} value={p.ID_PERFIL}>{p.NOMBRE_PERFIL.toUpperCase()}</option>)}
                 </select>
               </div>
 

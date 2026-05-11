@@ -5,7 +5,15 @@ import { Button } from './ui/Button';
 import { InputGroup } from './ui/InputGroup';
 
 export const NuevoRegistro: React.FC = () => {
-  const { addInstrumento, instrumentos, deleteInstrumentos } = useAppStore();
+  const { 
+    addInstrumento, 
+    instrumentos, 
+    deleteInstrumentos,
+    addPotenciaEquipo,
+    potenciaEquipos,
+    deletePotenciaEquipos
+  } = useAppStore();
+  const [activeTab, setActiveTab] = useState<'INSTRUMENTACION' | 'POTENCIA'>('INSTRUMENTACION');
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -27,30 +35,41 @@ export const NuevoRegistro: React.FC = () => {
   });
 
   const ubicacionesUnicas = useMemo(() => {
-    const u = new Set(instrumentos.map(i => i.UBICACIÓN).filter(Boolean));
+    const list = activeTab === 'INSTRUMENTACION' ? instrumentos : [];
+    const u = new Set(list.map(i => (i as any).UBICACIÓN).filter(Boolean));
     return Array.from(u).sort();
-  }, [instrumentos]);
+  }, [instrumentos, activeTab]);
 
   const tiposCableUnicos = useMemo(() => {
-    const t = new Set(instrumentos.map(i => i.TIPO_CABLE).filter(Boolean));
+    const list = activeTab === 'INSTRUMENTACION' ? instrumentos : [];
+    const t = new Set(list.map(i => (i as any).TIPO_CABLE).filter(Boolean));
     return Array.from(t).sort();
-  }, [instrumentos]);
+  }, [instrumentos, activeTab]);
 
-  const filteredInstrumentos = useMemo(() => {
-    const filtered = instrumentos.filter(inst => {
-      const matchesSearch = inst.TAGNAME.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            (inst.DESCRIPCIÓN || '').toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesUbicacion = filtroUbicacion ? inst.UBICACIÓN === filtroUbicacion : true;
-      const matchesTipo = filtroTipoCable ? inst.TIPO_CABLE === filtroTipoCable : true;
+  const filteredItems = useMemo(() => {
+    const list = activeTab === 'INSTRUMENTACION' ? instrumentos : potenciaEquipos;
+    const filtered = list.filter(item => {
+      const tag = activeTab === 'INSTRUMENTACION' ? (item as any).TAGNAME : (item as any).TAG;
+      const desc = item.DESCRIPCIÓN || '';
+      const matchesSearch = tag.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            desc.toLowerCase().includes(searchQuery.toLowerCase());
       
-      return matchesSearch && matchesUbicacion && matchesTipo;
+      if (activeTab === 'INSTRUMENTACION') {
+        const matchesUbicacion = filtroUbicacion ? (item as any).UBICACIÓN === filtroUbicacion : true;
+        const matchesTipo = filtroTipoCable ? (item as any).TIPO_CABLE === filtroTipoCable : true;
+        return matchesSearch && matchesUbicacion && matchesTipo;
+      }
+      
+      return matchesSearch;
     });
 
     return filtered.sort((a, b) => {
-      const cmp = a.TAGNAME.localeCompare(b.TAGNAME);
+      const tagA = activeTab === 'INSTRUMENTACION' ? (a as any).TAGNAME : (a as any).TAG;
+      const tagB = activeTab === 'INSTRUMENTACION' ? (b as any).TAGNAME : (b as any).TAG;
+      const cmp = tagA.localeCompare(tagB);
       return sortOrder === 'asc' ? cmp : -cmp;
     });
-  }, [instrumentos, searchQuery, filtroUbicacion, filtroTipoCable, sortOrder]);
+  }, [instrumentos, potenciaEquipos, activeTab, searchQuery, filtroUbicacion, filtroTipoCable, sortOrder]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -60,30 +79,35 @@ export const NuevoRegistro: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.TAGNAME.trim()) {
-      setStatusMsg({ type: 'error', text: "El TAGNAME es obligatorio para registrar el instrumento." });
+      setStatusMsg({ type: 'error', text: "El TAG es obligatorio." });
       return;
     }
 
     setIsSaving(true);
     setStatusMsg(null);
 
-    const nuevoInst = { ...formData, TAGNAME: formData.TAGNAME.trim().toUpperCase() };
-    const result = await addInstrumento(nuevoInst as any);
+    const tag = formData.TAGNAME.trim().toUpperCase();
     
-    setIsSaving(false);
-
-    if (result.success) {
-      setStatusMsg({ type: 'success', text: `Instrumento ${nuevoInst.TAGNAME} agregado y sincronizado con éxito.` });
-      setFormData({ 
-        TAG_CABLE_SWC: '', 
-        TAGNAME: '', 
-        DESCRIPCIÓN: '', 
-        TIPO_CABLE: '', 
-        UBICACIÓN: '', 
-        OBSERVACIÓN: '' 
-      });
+    if (activeTab === 'INSTRUMENTACION') {
+      const nuevoInst = { ...formData, TAGNAME: tag };
+      const result = await addInstrumento(nuevoInst as any);
+      setIsSaving(false);
+      if (result.success) {
+        setStatusMsg({ type: 'success', text: `Instrumento ${tag} agregado con éxito.` });
+        setFormData({ TAG_CABLE_SWC: '', TAGNAME: '', DESCRIPCIÓN: '', TIPO_CABLE: '', UBICACIÓN: '', OBSERVACIÓN: '' });
+      } else {
+        setStatusMsg({ type: 'error', text: result.error || "Error al guardar el instrumento." });
+      }
     } else {
-      setStatusMsg({ type: 'error', text: result.error || "Error al guardar el instrumento." });
+      const nuevoEquipo = { TAG: tag, DESCRIPCIÓN: formData.DESCRIPCIÓN };
+      const result = await addPotenciaEquipo(nuevoEquipo);
+      setIsSaving(false);
+      if (result.success) {
+        setStatusMsg({ type: 'success', text: `Equipo de potencia ${tag} agregado con éxito.` });
+        setFormData({ TAG_CABLE_SWC: '', TAGNAME: '', DESCRIPCIÓN: '', TIPO_CABLE: '', UBICACIÓN: '', OBSERVACIÓN: '' });
+      } else {
+        setStatusMsg({ type: 'error', text: result.error || "Error al guardar el equipo." });
+      }
     }
   };
 
@@ -98,7 +122,9 @@ export const NuevoRegistro: React.FC = () => {
   const confirmDeleteAction = async () => {
     setShowConfirmDelete(false);
     setIsDeleting(true);
-    const result = await deleteInstrumentos(selectedTags);
+    const result = activeTab === 'INSTRUMENTACION' 
+      ? await deleteInstrumentos(selectedTags)
+      : await deletePotenciaEquipos(selectedTags);
     setIsDeleting(false);
 
     if (result.success) {
@@ -116,9 +142,25 @@ export const NuevoRegistro: React.FC = () => {
 
   return (
     <div className="p-4 space-y-6 max-w-5xl mx-auto pb-24">
-      <h2 className="text-2xl font-bold text-[#1F3864] flex items-center gap-2 border-b pb-4">
-        <Database size={24} className="text-blue-600" /> Base de Datos de Instrumentos
-      </h2>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
+        <h2 className="text-2xl font-bold text-[#1F3864] flex items-center gap-2">
+          <Database size={24} className="text-blue-600" /> Gestionar Bases de Datos
+        </h2>
+        <div className="flex bg-gray-100 p-1 rounded-lg">
+          <button
+            onClick={() => { setActiveTab('INSTRUMENTACION'); setSelectedTags([]); }}
+            className={`px-4 py-2 rounded-md text-xs font-bold transition-all ${activeTab === 'INSTRUMENTACION' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            INSTRUMENTOS
+          </button>
+          <button
+            onClick={() => { setActiveTab('POTENCIA'); setSelectedTags([]); }}
+            className={`px-4 py-2 rounded-md text-xs font-bold transition-all ${activeTab === 'POTENCIA' ? 'bg-white text-orange-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            POTENCIA
+          </button>
+        </div>
+      </div>
       
       {statusMsg && (
         <div className={`p-4 rounded-xl text-sm font-medium border flex items-center justify-between ${
@@ -142,12 +184,12 @@ export const NuevoRegistro: React.FC = () => {
         <div className="space-y-4">
           <div>
             <h3 className="font-bold text-[#1F3864] text-lg">Nuevo Registro</h3>
-            <p className="text-xs text-gray-500 mb-2">Añadir instrumento manualmente a la BD.</p>
+            <p className="text-xs text-gray-500 mb-2">Añadir manualmente a la BD de {activeTab.toLowerCase()}.</p>
           </div>
           <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
             <form onSubmit={handleSubmit} className="space-y-3">
               <InputGroup 
-                label="TAGNAME (Obligatorio)" 
+                label={`TAG ${activeTab === 'POTENCIA' ? '' : 'NAME'} (Obligatorio)`} 
                 name="TAGNAME" 
                 value={formData.TAGNAME} 
                 onChange={handleChange} 
@@ -155,14 +197,34 @@ export const NuevoRegistro: React.FC = () => {
                 placeholder="Ej: PT-101" 
                 disabled={isSaving || isDeleting}
               />
-              <InputGroup 
-                label="TAG CABLE SWC" 
-                name="TAG_CABLE_SWC" 
-                value={formData.TAG_CABLE_SWC} 
-                onChange={handleChange} 
-                placeholder="Ej: VBCON5-0001"
-                disabled={isSaving || isDeleting}
-              />
+              {activeTab === 'INSTRUMENTACION' && (
+                <>
+                  <InputGroup 
+                    label="TAG CABLE SWC" 
+                    name="TAG_CABLE_SWC" 
+                    value={formData.TAG_CABLE_SWC} 
+                    onChange={handleChange} 
+                    placeholder="Ej: VBCON5-0001"
+                    disabled={isSaving || isDeleting}
+                  />
+                  <InputGroup 
+                    label="Tipo Cable" 
+                    name="TIPO_CABLE" 
+                    value={formData.TIPO_CABLE} 
+                    onChange={handleChange} 
+                    placeholder="Ej: 2X18AWG" 
+                    disabled={isSaving || isDeleting}
+                  />
+                  <InputGroup 
+                    label="Ubicación" 
+                    name="UBICACIÓN" 
+                    value={formData.UBICACIÓN} 
+                    onChange={handleChange} 
+                    placeholder="Ej: AIR BELT Y SILO PTM" 
+                    disabled={isSaving || isDeleting}
+                  />
+                </>
+              )}
               <InputGroup 
                 label="Descripción" 
                 name="DESCRIPCIÓN" 
@@ -171,45 +233,31 @@ export const NuevoRegistro: React.FC = () => {
                 placeholder="Ej: SENSOR DE PRESIÓN" 
                 disabled={isSaving || isDeleting}
               />
-              <InputGroup 
-                label="Tipo Cable" 
-                name="TIPO_CABLE" 
-                value={formData.TIPO_CABLE} 
-                onChange={handleChange} 
-                placeholder="Ej: 2X18AWG" 
-                disabled={isSaving || isDeleting}
-              />
-              <InputGroup 
-                label="Ubicación" 
-                name="UBICACIÓN" 
-                value={formData.UBICACIÓN} 
-                onChange={handleChange} 
-                placeholder="Ej: AIR BELT Y SILO PTM" 
-                disabled={isSaving || isDeleting}
-              />
-              <InputGroup 
-                label="Observación" 
-                name="OBSERVACIÓN" 
-                value={formData.OBSERVACIÓN} 
-                onChange={handleChange} 
-                textarea
-                placeholder="..." 
-                disabled={isSaving || isDeleting}
-              />
+              {activeTab === 'INSTRUMENTACION' && (
+                <InputGroup 
+                  label="Observación" 
+                  name="OBSERVACIÓN" 
+                  value={formData.OBSERVACIÓN} 
+                  onChange={handleChange} 
+                  textarea
+                  placeholder="..." 
+                  disabled={isSaving || isDeleting}
+                />
+              )}
               <div className="pt-2">
-                <Button type="submit" variant="primary" icon={Save} disabled={isSaving || isDeleting} className="w-full">
-                  {isSaving ? "Guardando..." : "Guardar Instrumento"}
+                <Button type="submit" variant="primary" icon={Save} disabled={isSaving || isDeleting} className={`w-full ${activeTab === 'POTENCIA' ? '!bg-orange-600' : ''}`}>
+                  {isSaving ? "Guardando..." : `Guardar en ${activeTab === 'POTENCIA' ? 'Potencia' : 'Instrumentación'}`}
                 </Button>
               </div>
             </form>
           </div>
         </div>
 
-        {/* LADO DERECHO: LISTA DE INSTRUMENTOS */}
+        {/* LADO DERECHO: LISTA DE REGISTROS */}
         <div className="space-y-4 flex flex-col h-[calc(100vh-180px)] min-h-[500px]">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-bold text-[#1F3864] text-lg">Registros Actuales ({instrumentos.length})</h3>
+              <h3 className="font-bold text-[#1F3864] text-lg">Registros Actuales ({activeTab === 'INSTRUMENTACION' ? instrumentos.length : potenciaEquipos.length})</h3>
               <p className="text-xs text-gray-500">Selecciona para eliminar de la base de datos.</p>
             </div>
             {selectedTags.length > 0 && (
@@ -289,10 +337,10 @@ export const NuevoRegistro: React.FC = () => {
               <div className="flex items-center justify-center w-6 px-1">
                 <input 
                   type="checkbox" 
-                  checked={selectedTags.length === filteredInstrumentos.length && filteredInstrumentos.length > 0}
+                  checked={selectedTags.length === filteredItems.length && filteredItems.length > 0}
                   onChange={(e) => {
                     if (e.target.checked) {
-                      setSelectedTags(filteredInstrumentos.map(i => i.TAGNAME));
+                      setSelectedTags(filteredItems.map(i => activeTab === 'INSTRUMENTACION' ? (i as any).TAGNAME : (i as any).TAG));
                     } else {
                       setSelectedTags([]);
                     }
@@ -300,40 +348,43 @@ export const NuevoRegistro: React.FC = () => {
                   className="rounded border-gray-300 w-4 h-4"
                 />
               </div>
-              <div>TAGNAME</div>
+              <div>{activeTab === 'POTENCIA' ? 'TAG' : 'TAGNAME'}</div>
               <div className="hidden md:block">Descripción</div>
             </div>
 
             {/* Listado virtual simple */}
             <div className="overflow-y-auto flex-1 p-1 space-y-1 custom-scrollbar bg-gray-50/30">
-              {filteredInstrumentos.length === 0 ? (
+              {filteredItems.length === 0 ? (
                 <div className="p-8 text-center text-gray-400 text-sm">
-                  No se encontraron instrumentos.
+                  No se encontraron resultados.
                 </div>
               ) : (
-                filteredInstrumentos.map(inst => (
-                  <label 
-                    key={inst.TAGNAME} 
-                    className={`grid grid-cols-[auto_1fr] md:grid-cols-[auto_1.5fr_2fr] gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors items-center ${
-                      selectedTags.includes(inst.TAGNAME) 
-                        ? 'bg-blue-50 border-blue-200' 
-                        : 'bg-white border-transparent hover:border-gray-200'
-                    }`}
-                  >
-                    <div className="flex items-center justify-center w-6 px-1" onClick={(e) => e.stopPropagation()}>
-                      <input 
-                        type="checkbox" 
-                        checked={selectedTags.includes(inst.TAGNAME)}
-                        onChange={() => handleToggleTag(inst.TAGNAME)}
-                        className="rounded border-gray-300 w-4 h-4 text-blue-600 focus:ring-blue-600"
-                      />
-                    </div>
-                    <div className="font-bold text-[#1F3864] text-sm break-all">{inst.TAGNAME}</div>
-                    <div className="hidden md:block text-xs text-gray-500 uppercase truncate" title={inst.DESCRIPCIÓN}>
-                      {inst.DESCRIPCIÓN || '—'}
-                    </div>
-                  </label>
-                ))
+                filteredItems.map(item => {
+                  const tag = activeTab === 'INSTRUMENTACION' ? (item as any).TAGNAME : (item as any).TAG;
+                  return (
+                    <label 
+                      key={tag} 
+                      className={`grid grid-cols-[auto_1fr] md:grid-cols-[auto_1.5fr_2fr] gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors items-center ${
+                        selectedTags.includes(tag) 
+                          ? 'bg-blue-50 border-blue-200' 
+                          : 'bg-white border-transparent hover:border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-center w-6 px-1" onClick={(e) => e.stopPropagation()}>
+                        <input 
+                          type="checkbox" 
+                          checked={selectedTags.includes(tag)}
+                          onChange={() => handleToggleTag(tag)}
+                          className="rounded border-gray-300 w-4 h-4 text-blue-600 focus:ring-blue-600"
+                        />
+                      </div>
+                      <div className={`font-bold text-sm break-all ${activeTab === 'POTENCIA' ? 'text-orange-700' : 'text-[#1F3864]'}`}>{tag}</div>
+                      <div className="hidden md:block text-xs text-gray-500 uppercase truncate" title={item.DESCRIPCIÓN}>
+                        {item.DESCRIPCIÓN || '—'}
+                      </div>
+                    </label>
+                  );
+                })
               )}
             </div>
           </div>

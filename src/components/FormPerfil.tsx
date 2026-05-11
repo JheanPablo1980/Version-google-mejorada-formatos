@@ -3,7 +3,7 @@ import { ArrowLeft, Trash2, FileUp, Save } from 'lucide-react';
 import { useAppStore, Perfil } from '../store/useAppStore';
 import { Button } from './ui/Button';
 import { InputGroup } from './ui/InputGroup';
-import { PERFIL_INICIAL, PERFIL_POTENCIA_INICIAL } from '../constants';
+import { PERFIL_INICIAL, PERFIL_POTENCIA_INICIAL, PERFIL_POTENCIA_COM_INICIAL } from '../constants';
 import { Zap, Activity } from 'lucide-react';
 
 interface FormPerfilProps {
@@ -12,9 +12,11 @@ interface FormPerfilProps {
 }
 
 export const FormPerfil: React.FC<FormPerfilProps> = ({ perfilToEdit, onBack }) => {
-  const savePerfil = useAppStore(state => state.savePerfil);
+  const { savePerfil, instrumentos, potenciaEquipos } = useAppStore();
   const [formData, setFormData] = useState<Perfil>(perfilToEdit || { ...PERFIL_INICIAL, ID_PERFIL: crypto.randomUUID() } as Perfil);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -22,7 +24,39 @@ export const FormPerfil: React.FC<FormPerfilProps> = ({ perfilToEdit, onBack }) 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
+    
+    if (name === 'TAGNAME' && value.trim().length > 1) {
+      const db = formData.TIPO === 'INSTRUMENTACION' ? instrumentos : potenciaEquipos;
+      const tagKey = formData.TIPO === 'INSTRUMENTACION' ? 'TAGNAME' : 'TAG';
+      const filtered = db.filter(item => (item as any)[tagKey].toLowerCase().includes(value.toLowerCase())).slice(0, 5);
+      setSuggestions(filtered);
+      setShowSuggestions(filtered.length > 0);
+    } else if (name === 'TAGNAME') {
+      setShowSuggestions(false);
+    }
+
     setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+  };
+
+  const selectSuggestion = (item: any) => {
+    if (formData.TIPO === 'INSTRUMENTACION') {
+      setFormData(prev => ({
+        ...prev,
+        TAGNAME: item.TAGNAME,
+        TAG_CABLE_SWC: item.TAG_CABLE_SWC || prev.TAG_CABLE_SWC,
+        DESCRIPCION: item.DESCRIPCIÓN || prev.DESCRIPCION,
+        TIPO_CABLE: item.TIPO_CABLE || prev.TIPO_CABLE,
+        UBICACION: item.UBICACIÓN || prev.UBICACION,
+        OBSERVACION: item.OBSERVACIÓN || prev.OBSERVACION
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        TAGNAME: item.TAG,
+        DESCRIPCION: item.DESCRIPCIÓN || prev.DESCRIPCION
+      }));
+    }
+    setShowSuggestions(false);
   };
 
   const handleSignatureChange = (fieldName: string, base64: string) => {
@@ -216,9 +250,29 @@ export const FormPerfil: React.FC<FormPerfilProps> = ({ perfilToEdit, onBack }) 
           <>
              <section className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 space-y-4">
               <h3 className="font-bold text-sm mb-4 text-[#1F3864] uppercase tracking-widest border-b pb-2">Información del Motor</h3>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <InputGroup label="Tag No." name="TAGNAME" value={formData.TAGNAME} onChange={handleChange} />
-                <InputGroup label="Clasificación de Área" name="AREA" value={formData.AREA} onChange={handleChange} />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 relative">
+              <div className="relative">
+                <InputGroup label="Tag No." name="TAGNAME" value={formData.TAGNAME} onChange={handleChange} autoComplete="off" />
+                {showSuggestions && (
+                  <div className="absolute z-50 w-full bg-white border rounded-lg shadow-xl mt-1 max-h-40 overflow-y-auto">
+                    {suggestions.map((s, i) => {
+                      const tag = formData.TIPO === 'INSTRUMENTACION' ? s.TAGNAME : s.TAG;
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          className="w-full text-left px-3 py-2 text-xs hover:bg-orange-50 border-b last:border-0"
+                          onClick={() => selectSuggestion(s)}
+                        >
+                          <p className="font-bold text-orange-700">{tag}</p>
+                          <p className="text-[10px] text-gray-500 truncate">{s.DESCRIPCIÓN}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <InputGroup label="Clasificación de Área" name="AREA" value={formData.AREA} onChange={handleChange} />
                 <InputGroup label="Fabricante" name="FABRICANTE_MODELO" value={formData.FABRICANTE_MODELO} onChange={handleChange} />
                 <InputGroup label="Modelo No." name="POT_COM_MODELO" value={comData.POT_COM_MODELO || ''} onChange={(e) => handleComDataChange('POT_COM_MODELO', e.target.value)} />
                 <InputGroup label="Nema" name="POT_COM_NEMA" value={comData.POT_COM_NEMA || ''} onChange={(e) => handleComDataChange('POT_COM_NEMA', e.target.value)} />
@@ -354,7 +408,27 @@ export const FormPerfil: React.FC<FormPerfilProps> = ({ perfilToEdit, onBack }) 
             <section className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
               <h3 className="font-bold text-sm mb-4 text-[#1F3864] uppercase tracking-widest border-b pb-2">1. Información del Instrumento</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <InputGroup label="Tagname" name="TAGNAME" value={formData.TAGNAME} onChange={handleChange} />
+            <div className="relative">
+              <InputGroup label="Tagname" name="TAGNAME" value={formData.TAGNAME} onChange={handleChange} autoComplete="off" />
+              {showSuggestions && (
+                <div className="absolute z-50 w-full bg-white border rounded-lg shadow-xl mt-1 max-h-40 overflow-y-auto">
+                  {suggestions.map((s, i) => {
+                    const tag = formData.TIPO === 'INSTRUMENTACION' ? s.TAGNAME : s.TAG;
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 border-b last:border-0"
+                        onClick={() => selectSuggestion(s)}
+                      >
+                        <p className="font-bold text-blue-700">{tag}</p>
+                        <p className="text-[10px] text-gray-500 truncate">{s.DESCRIPCIÓN}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
             <InputGroup label="Tag Cable / SWC" name="TAG_CABLE_SWC" value={formData.TAG_CABLE_SWC} onChange={handleChange} />
             <InputGroup label="Descripción" name="DESCRIPCION" value={formData.DESCRIPCION} onChange={handleChange} />
             <InputGroup label="Tipo de Cable" name="TIPO_CABLE" value={formData.TIPO_CABLE} onChange={handleChange} />

@@ -6,7 +6,8 @@ import { compressImage } from '../lib/imageUtils';
 import { motion, AnimatePresence } from 'motion/react';
 
 export const RegistroFotos: React.FC = () => {
-  const { instrumentos, fotos, saveFoto, deleteFoto, driveFolderLink } = useAppStore();
+  const { instrumentos, potenciaEquipos, fotos, saveFoto, deleteFoto, driveFolderLink } = useAppStore();
+  const [activeCategory, setActiveCategory] = useState<'INSTRUMENTACION' | 'POTENCIA'>('INSTRUMENTACION');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [lastCapturedTags, setLastCapturedTags] = useState<string[]>([]); 
   const [searchTerm, setSearchTerm] = useState('');
@@ -26,31 +27,43 @@ export const RegistroFotos: React.FC = () => {
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const MAX_RESULTS = 100;
+
+  const currentList = activeCategory === 'INSTRUMENTACION' ? instrumentos : potenciaEquipos;
+  const tagKey = activeCategory === 'INSTRUMENTACION' ? 'TAGNAME' : 'TAG';
   
   const ubicacionesUnicas = useMemo(() => {
+    if (activeCategory === 'POTENCIA') return [];
     const u = new Set(instrumentos.map(i => i.UBICACIÓN).filter(Boolean));
     return Array.from(u).sort();
-  }, [instrumentos]);
+  }, [instrumentos, activeCategory]);
 
   const tiposCableUnicos = useMemo(() => {
+    if (activeCategory === 'POTENCIA') return [];
     const t = new Set(instrumentos.map(i => i.TIPO_CABLE).filter(Boolean));
     return Array.from(t).sort();
-  }, [instrumentos]);
+  }, [instrumentos, activeCategory]);
 
   const filteredInstruments = useMemo(() => {
-    const filtered = instrumentos.filter(i => {
-      const matchesSearch = i.TAGNAME.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    const filtered = currentList.filter(i => {
+      const tag = (i as any)[tagKey] || '';
+      const matchesSearch = tag.toLowerCase().includes(searchTerm.toLowerCase()) || 
         (i.DESCRIPCIÓN && i.DESCRIPCIÓN.toLowerCase().includes(searchTerm.toLowerCase()));
-      const matchesUbicacion = filtroUbicacion ? i.UBICACIÓN === filtroUbicacion : true;
-      const matchesTipo = filtroTipoCable ? i.TIPO_CABLE === filtroTipoCable : true;
-      return matchesSearch && matchesUbicacion && matchesTipo;
+      
+      if (activeCategory === 'INSTRUMENTACION') {
+        const matchesUbicacion = filtroUbicacion ? (i as any).UBICACIÓN === filtroUbicacion : true;
+        const matchesTipo = filtroTipoCable ? (i as any).TIPO_CABLE === filtroTipoCable : true;
+        return matchesSearch && matchesUbicacion && matchesTipo;
+      }
+      return matchesSearch;
     });
 
-    return filtered.sort((a, b) => {
-      const cmp = a.TAGNAME.localeCompare(b.TAGNAME);
+    return (filtered as any[]).sort((a, b) => {
+      const tagA = (a as any)[tagKey] || '';
+      const tagB = (b as any)[tagKey] || '';
+      const cmp = tagA.localeCompare(tagB);
       return sortOrder === 'asc' ? cmp : -cmp;
     }).slice(0, MAX_RESULTS);
-  }, [instrumentos, searchTerm, filtroUbicacion, filtroTipoCable, sortOrder]);
+  }, [currentList, activeCategory, tagKey, searchTerm, filtroUbicacion, filtroTipoCable, sortOrder]);
 
   const tagsParaPrevisualizar = selectedTags.length > 0 ? selectedTags : lastCapturedTags;
   const fotosAPrevisualizar = fotos.filter(f => tagsParaPrevisualizar.includes(f.TAGNAME));
@@ -298,14 +311,40 @@ export const RegistroFotos: React.FC = () => {
       <h2 className="text-2xl font-bold text-[#1F3864] flex items-center gap-2"><Camera size={24} /> Registro Fotográfico</h2>
       
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col max-h-[500px]">
-        <label className="block text-sm font-semibold text-gray-700 mb-2">1. Seleccionar Instrumento</label>
+        {/* Selector de Categoría (Instrumentación / Potencia) */}
+        <div className="grid grid-cols-2 gap-3 mb-4 shrink-0">
+          <button
+            onClick={() => { setActiveCategory('INSTRUMENTACION'); setSelectedTags([]); }}
+            className={`py-3 px-4 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
+              activeCategory === 'INSTRUMENTACION' 
+              ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-100 ring-2 ring-blue-50' 
+              : 'bg-white border-blue-50 text-blue-400 hover:border-blue-200 hover:text-blue-600'
+            }`}
+          >
+            <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'INSTRUMENTACION' ? 'bg-white animate-pulse' : 'bg-blue-100'}`} />
+            Instrumentación
+          </button>
+          <button
+            onClick={() => { setActiveCategory('POTENCIA'); setSelectedTags([]); }}
+            className={`py-3 px-4 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
+              activeCategory === 'POTENCIA' 
+              ? 'bg-orange-600 border-orange-600 text-white shadow-lg shadow-orange-100 ring-2 ring-orange-50' 
+              : 'bg-white border-orange-50 text-orange-400 hover:border-orange-200 hover:text-orange-600'
+            }`}
+          >
+            <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'POTENCIA' ? 'bg-white animate-pulse' : 'bg-orange-100'}`} />
+            Potencia
+          </button>
+        </div>
+
+        <label className="block text-sm font-semibold text-gray-700 mb-2">1. Seleccionar {activeCategory === 'POTENCIA' ? 'Equipo' : 'Instrumento'}</label>
         
         {selectedTags.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-3 max-h-24 overflow-y-auto p-1">
             {selectedTags.map(tag => (
-              <span key={tag} className="bg-[#D9E1F2] text-[#1F3864] px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 border border-blue-200 shadow-sm uppercase">
+              <span key={tag} className={`px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 border shadow-sm uppercase ${activeCategory === 'POTENCIA' ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-[#D9E1F2] text-[#1F3864] border-blue-200'}`}>
                 {tag}
-                <button onClick={() => handleToggleTag(tag)} className="hover:bg-blue-300 p-0.5 rounded-full text-blue-800 ml-1">
+                <button onClick={() => handleToggleTag(tag)} className={`p-0.5 rounded-full ml-1 ${activeCategory === 'POTENCIA' ? 'hover:bg-orange-200 text-orange-800' : 'hover:bg-blue-300 text-blue-800'}`}>
                   <X size={12} />
                 </button>
               </span>
@@ -318,8 +357,8 @@ export const RegistroFotos: React.FC = () => {
             <Search className="absolute left-3 top-3 text-gray-400" size={18} />
             <input 
               type="text" 
-              placeholder="Buscar por TAG o desc..." 
-              className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1F3864] text-sm" 
+              placeholder={`Buscar por ${activeCategory === 'POTENCIA' ? 'TAG' : 'TAGNAME'} o desc...`} 
+              className={`w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 ${activeCategory === 'POTENCIA' ? 'focus:ring-orange-600' : 'focus:ring-[#1F3864]'}`} 
               value={searchTerm} 
               onChange={(e) => setSearchTerm(e.target.value)} 
             />
@@ -331,16 +370,19 @@ export const RegistroFotos: React.FC = () => {
           >
             {sortOrder === 'asc' ? <ArrowDownAZ size={18} /> : <ArrowUpZA size={18} />}
           </button>
-          <button 
-            onClick={() => setShowFilters(!showFilters)}
-            className={`p-2 border rounded-lg transition-colors flex items-center justify-center ${showFilters || filtroUbicacion || filtroTipoCable ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'}`}
-            title="Filtros avanzados"
-          >
-            <Filter size={18} />
-          </button>
+          
+          {activeCategory === 'INSTRUMENTACION' && (
+            <button 
+              onClick={() => setShowFilters(!showFilters)}
+              className={`p-2 border rounded-lg transition-colors flex items-center justify-center ${showFilters || filtroUbicacion || filtroTipoCable ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'}`}
+              title="Filtros avanzados"
+            >
+              <Filter size={18} />
+            </button>
+          )}
         </div>
 
-        {showFilters && (
+        {showFilters && activeCategory === 'INSTRUMENTACION' && (
           <div className="bg-white p-3 rounded-lg border border-gray-200 grid grid-cols-1 md:grid-cols-2 gap-3 shrink-0 mb-3 animate-in fade-in slide-in-from-top-2 duration-200">
             <div>
               <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Ubicación</label>
@@ -373,28 +415,29 @@ export const RegistroFotos: React.FC = () => {
 
         <div className="flex-1 overflow-y-auto border border-gray-200 rounded-lg bg-gray-50/30 p-1 space-y-0.5 custom-scrollbar">
           {filteredInstruments.length > 0 ? (
-            filteredInstruments.map((inst, index) => {
-              const isSelected = selectedTags.includes(inst.TAGNAME);
-              const fotosDelInst = fotos.filter(f => f.TAGNAME === inst.TAGNAME).length;
+            filteredInstruments.map((inst: any, index) => {
+              const tag = inst[tagKey];
+              const isSelected = selectedTags.includes(tag);
+              const fotosDelInst = fotos.filter(f => f.TAGNAME === tag).length;
 
               return (
                 <label 
-                  key={`${inst.TAGNAME}-${index}`} 
+                  key={`${tag}-${index}`} 
                   className={`flex items-center gap-3 w-full text-left p-2.5 rounded-lg border transition-all ${
                     isSelected 
-                    ? 'bg-blue-50 border-blue-300 shadow-sm' 
+                    ? activeCategory === 'POTENCIA' ? 'bg-orange-50 border-orange-300 shadow-sm' : 'bg-blue-50 border-blue-300 shadow-sm' 
                     : 'hover:bg-white hover:border-gray-300 border-transparent cursor-pointer'
                   }`}
                 >
                   <input 
                     type="checkbox" 
                     checked={isSelected}
-                    onChange={() => handleToggleTag(inst.TAGNAME)}
-                    className="w-5 h-5 rounded border-gray-300 text-[#1F3864] focus:ring-[#1F3864]" 
+                    onChange={() => handleToggleTag(tag)}
+                    className={`w-5 h-5 rounded border-gray-300 ${activeCategory === 'POTENCIA' ? 'text-orange-600 focus:ring-orange-600' : 'text-[#1F3864] focus:ring-[#1F3864]'}`} 
                   />
-                  <div className="flex-1 min-w-0" onClick={() => handleToggleTag(inst.TAGNAME)}>
-                    <div className={`font-bold text-sm cursor-pointer ${isSelected ? 'text-[#1F3864]' : 'text-gray-800'}`}>
-                      {inst.TAGNAME}
+                  <div className="flex-1 min-w-0" onClick={() => handleToggleTag(tag)}>
+                    <div className={`font-bold text-sm cursor-pointer ${isSelected ? activeCategory === 'POTENCIA' ? 'text-orange-700' : 'text-[#1F3864]' : 'text-gray-800'}`}>
+                      {tag}
                     </div>
                     <div className="text-[10px] text-gray-500 truncate uppercase cursor-pointer">{inst.DESCRIPCIÓN || 'Sin descripción'}</div>
                   </div>
@@ -409,7 +452,7 @@ export const RegistroFotos: React.FC = () => {
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            handleClearTagPhotos(inst.TAGNAME);
+                            handleClearTagPhotos(tag);
                           }}
                           className="p-1.5 text-red-500 hover:bg-red-100 hover:text-red-700 rounded-full transition-colors"
                           title="Eliminar todas las fotos"
@@ -423,7 +466,7 @@ export const RegistroFotos: React.FC = () => {
               )
             })
           ) : (
-            <div className="p-8 text-sm text-gray-500 text-center uppercase tracking-tight">No se encontraron instrumentos.</div>
+            <div className="p-8 text-sm text-gray-500 text-center uppercase tracking-tight">No se encontraron resultados.</div>
           )}
         </div>
       </div>

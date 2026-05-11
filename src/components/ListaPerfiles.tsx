@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileText, Plus, Pencil, Trash2, AlertTriangle, Clock, CheckCircle, Zap, Activity } from 'lucide-react';
+import { FileText, Plus, Pencil, Trash2, AlertTriangle, Clock, CheckCircle, Zap, Activity, ArrowLeft } from 'lucide-react';
 import { useAppStore, Perfil } from '../store/useAppStore';
 import { Button } from './ui/Button';
 import { FormPerfil } from './FormPerfil';
@@ -9,6 +9,7 @@ import { PERFIL_INICIAL, PERFIL_POTENCIA_INICIAL, PERFIL_POTENCIA_COM_INICIAL } 
 export const ListaPerfiles: React.FC = () => {
   const { perfiles, deletePerfil } = useAppStore();
   const [view, setView] = useState<'list' | 'form'>('list');
+  const [selectedCategory, setSelectedCategory] = useState<'INSTRUMENTACION' | 'POTENCIA' | 'POTENCIA_COM' | null>(null);
   const [editingPerfil, setEditingPerfil] = useState<Perfil | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
 
@@ -43,10 +44,11 @@ export const ListaPerfiles: React.FC = () => {
     });
   };
 
-  const handleCreateNew = (tipo: 'INSTRUMENTACION' | 'POTENCIA' | 'POTENCIA_COM') => {
+  const handleCreateNew = () => {
+    if (!selectedCategory) return;
     let baseData;
-    if (tipo === 'INSTRUMENTACION') baseData = PERFIL_INICIAL;
-    else if (tipo === 'POTENCIA') baseData = PERFIL_POTENCIA_INICIAL;
+    if (selectedCategory === 'INSTRUMENTACION') baseData = PERFIL_INICIAL;
+    else if (selectedCategory === 'POTENCIA') baseData = PERFIL_POTENCIA_INICIAL;
     else baseData = PERFIL_POTENCIA_COM_INICIAL;
     setEditingPerfil({ ...baseData, ID_PERFIL: crypto.randomUUID() } as Perfil);
     setView('form');
@@ -63,6 +65,11 @@ export const ListaPerfiles: React.FC = () => {
       />
     );
   }
+
+  const filteredPerfiles = perfiles.filter(p => p.TIPO === selectedCategory);
+  const categoryTitle = selectedCategory === 'INSTRUMENTACION' ? 'Instrumentación' : 
+                        selectedCategory === 'POTENCIA' ? 'Potencia (Precom)' : 
+                        selectedCategory === 'POTENCIA_COM' ? 'Potencia (Com)' : '';
 
   return (
     <div className="p-4 space-y-6 max-w-lg mx-auto pb-24 relative">
@@ -82,124 +89,148 @@ export const ListaPerfiles: React.FC = () => {
         )}
       </AnimatePresence>
 
-      <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 flex flex-col items-center shadow-sm">
-        <h3 className="text-lg font-bold text-[#1F3864] mb-4">Selecciona el Tipo de Perfil</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
-          <button
-            onClick={() => handleCreateNew('INSTRUMENTACION')}
-            className="group p-4 bg-white border-2 border-transparent hover:border-blue-500 rounded-2xl shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center gap-3"
-          >
-            <div className="p-3 bg-blue-50 rounded-full group-hover:bg-blue-100 transition-colors">
-              <Activity size={32} className="text-blue-600" />
-            </div>
-            <div>
-              <span className="block font-bold text-[#1F3864] text-sm leading-tight">Instrumentación</span>
-              <span className="block text-[10px] text-gray-500 mt-1">Calibración, lazos e inspección</span>
-            </div>
-          </button>
-          <button
-            onClick={() => handleCreateNew('POTENCIA')}
-            className="group p-4 bg-white border-2 border-transparent hover:border-orange-500 rounded-2xl shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center gap-3"
-          >
-            <div className="p-3 bg-orange-50 rounded-full group-hover:bg-orange-100 transition-colors">
-              <Zap size={32} className="text-orange-600" />
-            </div>
-            <div>
-              <span className="block font-bold text-[#1F3864] text-sm leading-tight">Potencia (Precomisionamiento)</span>
-              <span className="block text-[10px] text-gray-500 mt-1">Transformadores, motores y tableros</span>
-            </div>
-          </button>
-          <button
-            onClick={() => handleCreateNew('POTENCIA_COM')}
-            className="group p-4 bg-white border-2 border-transparent hover:border-red-500 rounded-2xl shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center gap-3"
-          >
-            <div className="p-3 bg-red-50 rounded-full group-hover:bg-red-100 transition-colors">
-              <CheckCircle size={32} className="text-red-600" />
-            </div>
-            <div>
-              <span className="block font-bold text-[#1F3864] text-sm leading-tight">Potencia (Comisionamiento)</span>
-              <span className="block text-[10px] text-gray-500 mt-1">Motor Eléctrico Bajo Voltaje</span>
-            </div>
-          </button>
-        </div>
-      </div>
-
-      <div className="flex justify-between items-center bg-transparent pt-4">
-        <h2 className="text-2xl font-bold text-[#1F3864] flex items-center gap-2">
-          <FileText size={24} /> Perfiles
-        </h2>
-        <Button 
-          onClick={() => {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }} 
-          className="!w-auto !py-2 !px-4 text-sm shadow-sm" 
-          icon={Plus}
-        >
-          Crear Nuevo
-        </Button>
-      </div>
-
-      {perfiles.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-2xl border-2 border-dashed border-gray-100 flex flex-col items-center">
-          <div className="bg-gray-50 p-4 rounded-full mb-4">
-            <FileText className="text-gray-300" size={48} />
+      {!selectedCategory ? (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="text-center space-y-2">
+            <h2 className="text-3xl font-black text-[#1F3864] uppercase tracking-tighter italic">Gestión de Perfiles</h2>
+            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Selecciona una categoría para gestionar protocolos</p>
           </div>
-          <p className="text-gray-500 font-bold text-sm uppercase tracking-widest">No hay perfiles creados</p>
-          <p className="text-gray-400 text-xs mt-1">Crea un perfil para empezar a generar protocolos.</p>
+          
+          <div className="grid grid-cols-1 gap-4">
+            <button
+              onClick={() => setSelectedCategory('INSTRUMENTACION')}
+              className="group p-6 bg-white border-2 border-blue-100 hover:border-blue-600 rounded-3xl shadow-xl shadow-blue-900/5 hover:shadow-blue-900/10 transition-all flex items-center gap-6 text-left active:scale-[0.98]"
+            >
+              <div className="p-4 bg-blue-50 rounded-2xl group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
+                <Activity size={40} />
+              </div>
+              <div className="flex-1">
+                <span className="block font-black text-[#1F3864] text-xl uppercase tracking-tighter group-hover:text-blue-700 transition-colors">Instrumentación</span>
+                <span className="block text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1 opacity-70">Calibración, lazos e inspección</span>
+              </div>
+              <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-blue-300 group-hover:bg-blue-50 group-hover:text-blue-600 transition-all">
+                <CheckCircle size={20} />
+              </div>
+            </button>
+
+            <button
+              onClick={() => setSelectedCategory('POTENCIA')}
+              className="group p-6 bg-white border-2 border-orange-100 hover:border-orange-600 rounded-3xl shadow-xl shadow-orange-900/5 hover:shadow-orange-900/10 transition-all flex items-center gap-6 text-left active:scale-[0.98]"
+            >
+              <div className="p-4 bg-orange-50 rounded-2xl group-hover:bg-orange-600 group-hover:text-white transition-all duration-300">
+                <Zap size={40} />
+              </div>
+              <div className="flex-1">
+                <span className="block font-black text-[#1F3864] text-xl uppercase tracking-tighter group-hover:text-orange-700 transition-colors">Potencia (Precom)</span>
+                <span className="block text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1 opacity-70">Transformadores, motores y tableros</span>
+              </div>
+              <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-orange-300 group-hover:bg-orange-50 group-hover:text-orange-600 transition-all">
+                <CheckCircle size={20} />
+              </div>
+            </button>
+
+            <button
+              onClick={() => setSelectedCategory('POTENCIA_COM')}
+              className="group p-6 bg-white border-2 border-red-100 hover:border-red-600 rounded-3xl shadow-xl shadow-red-900/5 hover:shadow-red-900/10 transition-all flex items-center gap-6 text-left active:scale-[0.98]"
+            >
+              <div className="p-4 bg-red-50 rounded-2xl group-hover:bg-red-600 group-hover:text-white transition-all duration-300">
+                <CheckCircle size={40} />
+              </div>
+              <div className="flex-1">
+                <span className="block font-black text-[#1F3864] text-sm uppercase tracking-tighter group-hover:text-red-700 transition-colors whitespace-nowrap">Potencia (Comisionamiento)</span>
+                <span className="block text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1 opacity-70">Motor Eléctrico Bajo Voltaje</span>
+              </div>
+              <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-red-300 group-hover:bg-red-50 group-hover:text-red-600 transition-all">
+                <CheckCircle size={20} />
+              </div>
+            </button>
+          </div>
         </div>
       ) : (
-        <div className="space-y-4">
-          {[...perfiles].sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()).map(perfil => (
-            <div 
-              key={perfil.ID_PERFIL} 
-              className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-4 hover:shadow-md transition-shadow relative overflow-hidden group"
+        <div className="space-y-6 animate-in fade-in side-in-from-right-4 duration-300">
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setSelectedCategory(null)}
+              className="p-2 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-700 transition-all active:scale-90"
+              title="Volver"
             >
-              <div className="absolute top-0 right-0 w-1 h-full bg-[#1F3864] opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              
-              <div>
-                <div className="flex items-center gap-2">
-                  {perfil.TIPO === 'POTENCIA' || perfil.TIPO === 'POTENCIA_COM' ? (
-                    <div className="bg-orange-100 text-orange-600 p-1 rounded-sm"><Zap size={14} /></div>
-                  ) : (
-                    <div className="bg-blue-100 text-blue-600 p-1 rounded-sm"><FileText size={14} /></div>
-                  )}
-                  <h3 className="font-bold text-[#1F3864] text-lg leading-tight uppercase tracking-tight">{perfil.NOMBRE_PERFIL}</h3>
-                </div>
-                <p className="text-[10px] text-gray-500 line-clamp-1 mt-1 font-medium italic">
-                  {perfil.NORMA_PROCEDIMIENTO || 'Sin Norma Definida'}
-                </p>
-                <div className="flex items-center gap-2 mt-3 text-gray-400">
-                  <Clock size={12} />
-                  <span className="text-[10px] font-bold uppercase">{formatDate(perfil.timestamp)}</span>
-                </div>
-              </div>
-
-              <div className="flex gap-2 border-t pt-4 border-gray-50">
-                <Button 
-                  onClick={() => { 
-                    setEditingPerfil(perfil); 
-                    setView('form'); 
-                  }} 
-                  variant="secondary" 
-                  className="!py-2 text-xs flex-1" 
-                  icon={Pencil}
-                >
-                  Editar
-                </Button>
-                <button 
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    confirmDelete(perfil.ID_PERFIL, perfil.NOMBRE_PERFIL);
-                  }}
-                  className="p-3 rounded-xl transition-all active:scale-95 shadow-sm cursor-pointer z-10 text-red-500 bg-red-50 hover:bg-red-600 hover:text-white"
-                  title="Eliminar Perfil"
-                >
-                  <Trash2 size={20}/>
-                </button>
-              </div>
+              <ArrowLeft size={24} />
+            </button>
+            <div>
+              <h2 className="text-xl font-black text-[#1F3864] uppercase tracking-tighter">{categoryTitle}</h2>
+              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Gestión de formatos y firmas</p>
             </div>
-          ))}
+          </div>
+
+          <div className="flex gap-2">
+             <Button 
+              onClick={handleCreateNew} 
+              className={`flex-[2] shadow-md font-black uppercase tracking-widest ${selectedCategory === 'INSTRUMENTACION' ? 'bg-blue-600 hover:bg-blue-700' : selectedCategory === 'POTENCIA' ? 'bg-orange-600 hover:bg-orange-700' : 'bg-red-600 hover:bg-red-700'}`} 
+              icon={Plus}
+            >
+              Nuevo Perfil
+            </Button>
+            <Button
+              onClick={() => setSelectedCategory(null)}
+              variant="secondary"
+              className="flex-1 text-[10px] uppercase font-black tracking-widest py-2"
+              icon={ArrowLeft}
+            >
+              Regresar
+            </Button>
+          </div>
+
+          {filteredPerfiles.length === 0 ? (
+            <div className="text-center py-16 bg-white rounded-3xl border-2 border-dashed border-gray-100 flex flex-col items-center">
+              <div className="bg-gray-50 p-4 rounded-full mb-4">
+                <FileText className="text-gray-200" size={48} />
+              </div>
+              <p className="text-gray-400 font-black text-xs uppercase tracking-widest">No hay perfiles en esta categoría</p>
+              <button 
+                onClick={handleCreateNew}
+                className="mt-4 text-blue-600 text-[10px] font-black uppercase tracking-widest hover:underline"
+              >
+                Crear el primero ahora
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {[...filteredPerfiles].sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()).map(perfil => (
+                <div 
+                  key={perfil.ID_PERFIL} 
+                  className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between hover:shadow-md transition-all group"
+                >
+                  <div className="flex-1 min-w-0 pr-4">
+                    <h3 className="font-black text-[#1F3864] text-sm uppercase tracking-tight truncate">{perfil.NOMBRE_PERFIL}</h3>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Clock size={10} className="text-gray-300" />
+                      <span className="text-[9px] font-bold text-gray-400 uppercase">{formatDate(perfil.timestamp)}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-1">
+                    <button 
+                      onClick={() => { 
+                        setEditingPerfil(perfil); 
+                        setView('form'); 
+                      }} 
+                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="Editar"
+                    >
+                      <Pencil size={16} />
+                    </button>
+                    <button 
+                      onClick={() => confirmDelete(perfil.ID_PERFIL, perfil.NOMBRE_PERFIL)}
+                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Eliminar"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
