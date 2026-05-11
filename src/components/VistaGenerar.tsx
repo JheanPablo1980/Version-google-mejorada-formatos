@@ -278,6 +278,7 @@ export const VistaGenerar: React.FC = () => {
     for (const tag of selectedTags) {
        await saveExportLog({
          tagname: tag,
+         tipo_perfil: activeProfile.TIPO,
          tipo_formato: tipo,
          id_perfil: activeProfile.ID_PERFIL
        });

@@ -25,8 +25,9 @@ export function Dashboard() {
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [selectedTag, setSelectedTag] = useState<string>('all');
   const [selectedRole, setSelectedRole] = useState<string>('all');
+  const [selectedType, setSelectedType] = useState<string>('all');
 
-  // Filtrar logs según fecha, tag y rol
+  // Filtrar logs según fecha, tag, rol y tipo
   const filteredLogs = useMemo(() => {
     return exportLogs.filter(log => {
       const logDate = parseISO(log.timestamp);
@@ -38,10 +39,13 @@ export function Dashboard() {
       
       // Filtro de rol (considerando logs antiguos que podrían no tener rol)
       const matchesRole = selectedRole === 'all' || log.user_role === selectedRole;
+
+      // Filtro de tipo de perfil
+      const matchesType = selectedType === 'all' || log.tipo_perfil === selectedType;
       
-      return isWithinDates && matchesTag && matchesRole;
+      return isWithinDates && matchesTag && matchesRole && matchesType;
     });
-  }, [exportLogs, startDate, endDate, selectedTag, selectedRole]);
+  }, [exportLogs, startDate, endDate, selectedTag, selectedRole, selectedType]);
 
   // Lista de tags únicos que han sido exportados
   const uniqueTags = useMemo(() => {
@@ -131,6 +135,18 @@ export function Dashboard() {
             {roles.map(role => (
               <option key={role} value={role}>{role}</option>
             ))}
+          </select>
+          <div className="h-4 w-px bg-gray-200 mx-1"></div>
+          <select 
+            value={selectedType} 
+            onChange={e => setSelectedType(e.target.value)}
+            className="text-xs border rounded p-1 font-bold text-blue-900 appearance-none bg-white pr-6 min-w-[120px]"
+            style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23a1a1aa\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundPosition: 'right 0.4rem center', backgroundRepeat: 'no-repeat', backgroundSize: '0.8rem' }}
+          >
+            <option value="all">TODOS LOS TIPOS</option>
+            <option value="INSTRUMENTACION">INSTRUMENTACIÓN</option>
+            <option value="POTENCIA">POTENCIA (PRECOM)</option>
+            <option value="POTENCIA_COM">POTENCIA (COM)</option>
           </select>
           <div className="h-4 w-px bg-gray-200 mx-1"></div>
           <select 

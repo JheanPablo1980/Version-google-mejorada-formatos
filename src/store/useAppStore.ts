@@ -162,6 +162,7 @@ export interface ExportLog {
   user_email: string;
   user_role?: UserRole;
   tagname: string;
+  tipo_perfil?: 'INSTRUMENTACION' | 'POTENCIA' | 'POTENCIA_COM';
   tipo_formato: 'EXCEL' | 'PDF' | 'DELETED';
   timestamp: string;
   id_perfil: string;
@@ -1136,6 +1137,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         user_email: newLog.user_email,
         user_role: newLog.user_role,
         tagname: newLog.tagname,
+        tipo_perfil: newLog.tipo_perfil,
         tipo_formato: newLog.tipo_formato,
         id_perfil: newLog.id_perfil,
         timestamp: newLog.timestamp
