@@ -503,7 +503,17 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
         if (permsItem) {
           await db.put('config', { id: 'rolePermissions', value: permsItem.value });
-          set({ rolePermissions: permsItem.value });
+          
+          // Merge with default permissions to ensure all roles and keys exist
+          const mergedPermissions = { ...defaultPermissions };
+          Object.keys(permsItem.value).forEach((role) => {
+            const r = role as UserRole;
+            if (mergedPermissions[r]) {
+              mergedPermissions[r] = { ...mergedPermissions[r], ...permsItem.value[r] };
+            }
+          });
+          
+          set({ rolePermissions: mergedPermissions });
         }
         if (passItem) {
           await db.put('config', { id: 'adminPassword', value: passItem.value });

@@ -35,8 +35,8 @@ export default function App() {
 
   // Permisos basados en la sesión activa o por defecto Invitado
   const permissions = session 
-    ? (rolePermissions[session.role as UserRole] || rolePermissions.INVITADO) 
-    : rolePermissions.INVITADO;
+    ? (rolePermissions?.[session.role as UserRole] || rolePermissions?.INVITADO) 
+    : rolePermissions?.INVITADO;
 
   const navigation: { id: Tab; icon: any; label: string; roles: string[] }[] = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Panel', roles: ['ADMIN'] },
@@ -51,6 +51,7 @@ export default function App() {
 
   const filteredNav = navigation.filter(n => {
     // 1. Verificar si el rol tiene permiso para esta pestaña según la tabla de permisos
+    if (!permissions) return false;
     const hasPermission = permissions[n.id as keyof typeof permissions];
     if (!hasPermission) return false;
 

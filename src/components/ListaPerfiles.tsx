@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileText, Plus, Pencil, Trash2, AlertTriangle, Clock, CheckCircle, Zap, Activity, ArrowLeft } from 'lucide-react';
+import { FileText, Plus, Pencil, Trash2, AlertTriangle, Clock, CheckCircle, Zap, Activity, ArrowLeft, Copy } from 'lucide-react';
 import { useAppStore, Perfil } from '../store/useAppStore';
 import { Button } from './ui/Button';
 import { FormPerfil } from './FormPerfil';
@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { PERFIL_INICIAL, PERFIL_POTENCIA_INICIAL, PERFIL_POTENCIA_COM_INICIAL } from '../constants';
 
 export const ListaPerfiles: React.FC = () => {
-  const { perfiles, deletePerfil } = useAppStore();
+  const { perfiles, deletePerfil, savePerfil } = useAppStore();
   const [view, setView] = useState<'list' | 'form'>('list');
   const [selectedCategory, setSelectedCategory] = useState<'INSTRUMENTACION' | 'POTENCIA' | 'POTENCIA_COM' | null>(null);
   const [editingPerfil, setEditingPerfil] = useState<Perfil | null>(null);
@@ -22,6 +22,27 @@ export const ListaPerfiles: React.FC = () => {
 
   const confirmDelete = (id: string, nombre: string) => {
     setDeleteConfirm({ id, nombre });
+  };
+
+  const handleDuplicate = async (perfil: Perfil) => {
+    try {
+      const duplicated: Perfil = {
+        ...perfil,
+        ID_PERFIL: crypto.randomUUID(),
+        NOMBRE_PERFIL: `Copia de ${perfil.NOMBRE_PERFIL}`,
+        timestamp: new Date().toISOString()
+      };
+      
+      const res = await savePerfil(duplicated);
+      if (res.success) {
+        showNotification(`Perfil "${perfil.NOMBRE_PERFIL}" duplicado con éxito.`);
+      } else {
+        showNotification(`Error: ${res.error}`);
+      }
+    } catch (error) {
+      console.error("Error duplicating profile:", error);
+      showNotification("Error al duplicar perfil");
+    }
   };
 
   const handleConfirmDelete = async () => {
@@ -209,6 +230,13 @@ export const ListaPerfiles: React.FC = () => {
                   </div>
 
                   <div className="flex gap-1">
+                    <button 
+                      onClick={() => handleDuplicate(perfil)}
+                      className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                      title="Duplicar"
+                    >
+                      <Copy size={16} />
+                    </button>
                     <button 
                       onClick={() => { 
                         setEditingPerfil(perfil); 
