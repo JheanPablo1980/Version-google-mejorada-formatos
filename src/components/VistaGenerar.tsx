@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Download, Camera, Printer, FileSpreadsheet, Check, AlertCircle, Search, Filter, ArrowDownAZ, ArrowUpZA } from 'lucide-react';
+import { Download, Camera, Printer, FileSpreadsheet, Check, AlertCircle, Search, Filter, ArrowDownAZ, ArrowUpZA, FileText } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { Button } from './ui/Button';
 import ExcelJS from 'exceljs';
+import { format } from 'date-fns';
 
 function extractTagFromName(name: string, tagsDb: string[]) {
   let baseName = name.replace(/\.[^/.]+$/, "").trim();
@@ -53,6 +54,7 @@ export const VistaGenerar: React.FC = () => {
   const [driveFiles, setDriveFiles] = useState<{name: string, id: string, mimeType: string}[]>([]);
   const [isFetchingDrive, setIsFetchingDrive] = useState(false);
   const [driveFetchError, setDriveFetchError] = useState<string | null>(null);
+  const [showDriveTags, setShowDriveTags] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -64,7 +66,7 @@ export const VistaGenerar: React.FC = () => {
   const tagsInstrumentos = instrumentos.map(i => i.TAGNAME);
   const tagsPotencia = potenciaEquipos.map(e => e.TAG);
   const todosLosTags = [...tagsInstrumentos, ...tagsPotencia];
-  const tagsDrive = [...new Set(driveFiles.map(f => extractTagFromName(f.name, todosLosTags)))];
+  const tagsDrive: string[] = [...new Set(driveFiles.map(f => extractTagFromName(f.name, todosLosTags)))] as string[];
   
   const currentItems = activeCategory === 'INSTRUMENTACION' ? instrumentos : potenciaEquipos;
   const tagKey = activeCategory === 'INSTRUMENTACION' ? 'TAGNAME' : 'TAG';
@@ -263,6 +265,18 @@ export const VistaGenerar: React.FC = () => {
 
   const handleToggleTag = (tag: string) => {
     setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+  };
+
+  const handleDownloadTagsTxt = () => {
+    if (tagsDrive.length === 0) return;
+    const content = tagsDrive.sort().join('\n');
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `lista_tags_drive_${format(new Date(), 'yyyyMMdd_HHmm')}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleSelectAll = () => {
@@ -1421,8 +1435,65 @@ export const VistaGenerar: React.FC = () => {
                   <Filter size={18} className="mr-2 md:mr-0" />
                   <span className="md:hidden text-xs font-bold uppercase">Filtros</span>
                 </button>
+                {modoExportacion === 'DRIVE' && (
+                  <button 
+                    onClick={() => setShowDriveTags(!showDriveTags)}
+                    className={`px-3 py-2 border rounded-lg transition-colors flex items-center justify-center flex-1 md:flex-none ${showDriveTags ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-gray-100'}`}
+                    title="Ver Tags en Drive"
+                  >
+                    <Check size={18} className="mr-2 md:mr-0" />
+                    <span className="md:hidden text-xs font-bold uppercase">Tags Drive</span>
+                  </button>
+                )}
               </div>
             </div>
+
+            {showDriveTags && modoExportacion === 'DRIVE' && !isFetchingDrive && (
+              <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="flex justify-between items-center mb-3">
+                  <h4 className="text-[10px] font-black text-indigo-700 uppercase tracking-widest flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full"></div>
+                    Tags Detectados en Google Drive ({tagsDrive.length})
+                  </h4>
+                  <div className="flex items-center gap-3">
+                    <button 
+                      onClick={handleDownloadTagsTxt}
+                      className="flex items-center gap-1.5 px-2 py-1 bg-white border border-indigo-200 rounded text-[9px] font-black text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
+                      title="Exportar lista a TXT"
+                    >
+                      <FileText size={12} />
+                      EXPORTAR LISTA
+                    </button>
+                    <button onClick={() => setShowDriveTags(false)} className="text-[10px] text-indigo-400 font-bold hover:text-indigo-600">Ocultar</button>
+                  </div>
+                </div>
+                {tagsDrive.length === 0 ? (
+                  <div className="text-center py-4 bg-white/50 rounded-lg border border-indigo-50">
+                    <p className="text-[9px] text-indigo-400 font-bold uppercase">No se detectaron tags válidos en el Drive.</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-2 custom-scrollbar p-1">
+                    {tagsDrive.sort().map(tag => (
+                      <div 
+                        key={tag} 
+                        onClick={() => handleToggleTag(tag)}
+                        className={`px-2 py-1 rounded-md text-[9px] font-bold cursor-pointer transition-all border ${
+                          selectedTags.includes(tag) 
+                            ? 'bg-indigo-600 border-indigo-600 text-white' 
+                            : 'bg-white border-indigo-100 text-indigo-700 hover:border-indigo-300'
+                        }`}
+                      >
+                        {tag}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="text-[8px] text-indigo-400 mt-2 italic font-medium leading-tight">
+                  * Estos tags corresponden a nombres de archivos o carpetas en Google Drive que coinciden con la base de datos. 
+                  Haz clic sobre ellos para seleccionarlos rápidamente.
+                </p>
+              </div>
+            )}
 
             {showFilters && (
               <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
