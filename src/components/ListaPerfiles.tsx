@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { FileText, Plus, Pencil, Trash2, AlertTriangle, Clock, CheckCircle, Zap, Activity, ArrowLeft, Copy } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { FileText, Plus, Pencil, Trash2, AlertTriangle, Clock, CheckCircle, Zap, Activity, ArrowLeft, Copy, Search, X } from 'lucide-react';
 import { useAppStore, Perfil } from '../store/useAppStore';
 import { Button } from './ui/Button';
 import { FormPerfil } from './FormPerfil';
@@ -12,6 +12,11 @@ export const ListaPerfiles: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<'INSTRUMENTACION' | 'POTENCIA' | 'POTENCIA_COM' | null>(null);
   const [editingPerfil, setEditingPerfil] = useState<Perfil | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    setSearchQuery('');
+  }, [selectedCategory]);
 
   const showNotification = (msg: string) => {
     setNotification(msg);
@@ -87,7 +92,12 @@ export const ListaPerfiles: React.FC = () => {
     );
   }
 
-  const filteredPerfiles = perfiles.filter(p => p.TIPO === selectedCategory);
+  const totalCategoryPerfiles = perfiles.filter(p => p.TIPO === selectedCategory);
+  
+  const filteredPerfiles = totalCategoryPerfiles.filter(p => 
+    p.NOMBRE_PERFIL.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  
   const categoryTitle = selectedCategory === 'INSTRUMENTACION' ? 'Instrumentación' : 
                         selectedCategory === 'POTENCIA' ? 'Potencia (Precom)' : 
                         selectedCategory === 'POTENCIA_COM' ? 'Potencia (Com)' : '';
@@ -201,7 +211,31 @@ export const ListaPerfiles: React.FC = () => {
             </Button>
           </div>
 
-          {filteredPerfiles.length === 0 ? (
+          {/* Campo de búsqueda */}
+          <div className="relative animate-in fade-in slide-in-from-top-1 duration-200">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-gray-400">
+              <Search size={16} />
+            </span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar por nombre de perfil..."
+              className="text-xs w-full pl-10 pr-10 py-3 border border-gray-200 rounded-2xl focus:border-[#1F3864] bg-white font-bold outline-none placeholder:text-gray-400 placeholder:font-normal uppercase focus:ring-1 focus:ring-[#1F3864] transition-all"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-gray-400 hover:text-gray-600 transition-colors"
+                title="Limpiar búsqueda"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+
+          {totalCategoryPerfiles.length === 0 ? (
             <div className="text-center py-16 bg-white rounded-3xl border-2 border-dashed border-gray-100 flex flex-col items-center">
               <div className="bg-gray-50 p-4 rounded-full mb-4">
                 <FileText className="text-gray-200" size={48} />
@@ -214,15 +248,61 @@ export const ListaPerfiles: React.FC = () => {
                 Crear el primero ahora
               </button>
             </div>
+          ) : filteredPerfiles.length === 0 ? (
+            <div className="text-center py-16 bg-white rounded-3xl border-2 border-dashed border-gray-100 flex flex-col items-center animate-in fade-in duration-300">
+              <div className="bg-gray-50 p-4 rounded-full mb-4">
+                <Search className="text-gray-400" size={48} />
+              </div>
+              <p className="text-gray-400 font-black text-xs uppercase tracking-widest">No se encontraron perfiles coincidentes</p>
+              <button 
+                onClick={() => setSearchQuery('')}
+                className="mt-4 text-blue-600 text-[10px] font-black uppercase tracking-widest hover:underline hover:text-blue-800 transition-colors"
+              >
+                Limpiar Búsqueda
+              </button>
+            </div>
           ) : (
             <div className="space-y-3">
+              <div className="flex items-center justify-between px-2 bg-gray-50/50 p-2 rounded-xl border border-gray-100">
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="checkbox" 
+                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                    checked={filteredPerfiles.every(p => p.ENABLED !== false)}
+                    onChange={(e) => {
+                      const newStatus = e.target.checked;
+                      filteredPerfiles.forEach(p => {
+                        savePerfil({ ...p, ENABLED: newStatus });
+                      });
+                    }}
+                  />
+                  <span className="text-[10px] font-black text-[#1F3864] uppercase tracking-widest">Habilitar Todos</span>
+                </div>
+                <span className="text-[9px] font-bold text-gray-400 uppercase">{filteredPerfiles.length} Perfiles</span>
+              </div>
+
               {[...filteredPerfiles].sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()).map(perfil => (
                 <div 
                   key={perfil.ID_PERFIL} 
-                  className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between hover:shadow-md transition-all group"
+                  className={`bg-white p-4 rounded-2xl shadow-sm border transition-all group flex items-center gap-3 ${perfil.ENABLED === false ? 'opacity-50 grayscale border-dashed' : 'border-gray-100 hover:shadow-md'}`}
                 >
-                  <div className="flex-1 min-w-0 pr-4">
-                    <h3 className="font-black text-[#1F3864] text-sm uppercase tracking-tight truncate">{perfil.NOMBRE_PERFIL}</h3>
+                  <input 
+                    type="checkbox" 
+                    className="w-5 h-5 rounded-lg border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer transition-transform active:scale-90"
+                    checked={perfil.ENABLED !== false}
+                    onChange={(e) => {
+                      savePerfil({ ...perfil, ENABLED: e.target.checked });
+                    }}
+                    title={perfil.ENABLED === false ? "Habilitar para exportación" : "Inhabilitar para exportación"}
+                  />
+
+                  <div className="flex-1 min-w-0 flex flex-col">
+                    <div className="flex items-center gap-2">
+                      <h3 className={`font-black text-sm uppercase tracking-tight truncate ${perfil.ENABLED === false ? 'text-gray-400' : 'text-[#1F3864]'}`}>{perfil.NOMBRE_PERFIL}</h3>
+                      {perfil.ENABLED === false && (
+                        <span className="bg-gray-100 text-[8px] font-black px-1.5 py-0.5 rounded text-gray-400 border border-gray-200">INACTIVO</span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2 mt-1">
                       <Clock size={10} className="text-gray-300" />
                       <span className="text-[9px] font-bold text-gray-400 uppercase">{formatDate(perfil.timestamp)}</span>

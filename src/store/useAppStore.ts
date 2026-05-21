@@ -108,6 +108,7 @@ export interface Perfil {
   APROBO_FIRMA: string;
   timestamp?: string;
   USER_EMAIL?: string;
+  ENABLED?: boolean;
   POT_CODIGO?: string;
   AC1_NO?: string;
   HC1_NO?: string;
@@ -635,7 +636,8 @@ export const useAppStore = create<AppState>((set, get) => ({
           REVISO_NOMBRE: p.reviso_nombre || '', REVISO_CARGO: p.reviso_cargo || '', REVISO_FIRMA: p.reviso_firma || '',
           APROBO_NOMBRE: p.aprobo_nombre || '', APROBO_CARGO: p.aprobo_cargo || '', APROBO_FIRMA: p.aprobo_firma || '',
           timestamp: p.timestamp || p.created_at,
-          USER_EMAIL: p.user_email || ''
+          USER_EMAIL: p.user_email || '',
+          ENABLED: p.enabled ?? true
         }));
         const txP = db.transaction('perfiles', 'readwrite');
         await txP.store.clear();
@@ -713,6 +715,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         reviso_nombre: p.REVISO_NOMBRE, reviso_cargo: p.REVISO_CARGO, reviso_firma: p.REVISO_FIRMA,
         aprobo_nombre: p.APROBO_NOMBRE, aprobo_cargo: p.APROBO_CARGO, aprobo_firma: p.APROBO_FIRMA,
         user_email: p.USER_EMAIL || '',
+        enabled: p.ENABLED ?? true,
         pot_codigo: p.POT_CODIGO,
         ac1_no: p.AC1_NO,
         hc1_no: p.HC1_NO,
@@ -897,6 +900,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         aprobo_nombre: perfil.APROBO_NOMBRE || '', aprobo_cargo: perfil.APROBO_CARGO || '', aprobo_firma: perfil.APROBO_FIRMA || '',
         timestamp: perfil.timestamp || new Date().toISOString(),
         user_email: perfil.USER_EMAIL || userEmail,
+        enabled: perfil.ENABLED ?? true,
         pot_codigo: perfil.POT_CODIGO,
         ac1_no: perfil.AC1_NO,
         hc1_no: perfil.HC1_NO,
