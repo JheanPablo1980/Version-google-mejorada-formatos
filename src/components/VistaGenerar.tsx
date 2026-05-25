@@ -261,7 +261,74 @@ export const VistaGenerar: React.FC = () => {
     throw new Error("Error desconocido en descarga.");
   };
 
-  const activeProfile = perfiles.find(p => p.ID_PERFIL === selectedProfile);
+  const [overrideRevisoId, setOverrideRevisoId] = useState<string>('');
+
+  const getEffectiveProfile = (profileId: string) => {
+    const rawProfile = perfiles.find(p => p.ID_PERFIL === profileId);
+    if (!rawProfile) return undefined;
+    
+    const activeProf = { ...rawProfile };
+    
+    if (overrideRevisoId) {
+      const parts = overrideRevisoId.split('|');
+      const oId = parts[0];
+      const oRole = parts[1];
+      
+      const overrideProf = perfiles.find(p => p.ID_PERFIL === oId);
+      if (overrideProf) {
+        const isTargetPot = activeProf.TIPO.startsWith('POTENCIA');
+        
+        let sourceName = '';
+        let sourceCargo = '';
+        let sourceFirma = '';
+        let sourceCompania = '';
+        let sourceFecha = '';
+
+        if (oRole === 'ELABORO') {
+          sourceName = overrideProf.ELABORO_NOMBRE || '';
+          sourceCargo = overrideProf.ELABORO_CARGO || '';
+          sourceFirma = overrideProf.ELABORO_FIRMA || '';
+        } else if (oRole === 'REVISO') {
+          sourceName = overrideProf.REVISO_NOMBRE || '';
+          sourceCargo = overrideProf.REVISO_CARGO || '';
+          sourceFirma = overrideProf.REVISO_FIRMA || '';
+        } else if (oRole === 'APROBO') {
+          sourceName = overrideProf.APROBO_NOMBRE || '';
+          sourceCargo = overrideProf.APROBO_CARGO || '';
+          sourceFirma = overrideProf.APROBO_FIRMA || '';
+        } else if (oRole === 'POT1') {
+          sourceName = overrideProf.POT_NOMBRE_1 || '';
+          sourceFirma = overrideProf.POT_FIRMA_1 || '';
+          sourceCompania = overrideProf.POT_COMPANIA_1 || '';
+          sourceFecha = overrideProf.POT_FECHA_1 || '';
+        } else if (oRole === 'POT2') {
+          sourceName = overrideProf.POT_NOMBRE_2 || '';
+          sourceFirma = overrideProf.POT_FIRMA_2 || '';
+          sourceCompania = overrideProf.POT_COMPANIA_2 || '';
+          sourceFecha = overrideProf.POT_FECHA_2 || '';
+        } else if (oRole === 'POT3') {
+          sourceName = overrideProf.POT_NOMBRE_3 || '';
+          sourceFirma = overrideProf.POT_FIRMA_3 || '';
+          sourceCompania = overrideProf.POT_COMPANIA_3 || '';
+          sourceFecha = overrideProf.POT_FECHA_3 || '';
+        }
+
+        if (!isTargetPot) {
+          activeProf.ELABORO_NOMBRE = sourceName;
+          activeProf.ELABORO_CARGO = sourceCargo;
+          activeProf.ELABORO_FIRMA = sourceFirma;
+        } else {
+          activeProf.POT_NOMBRE_1 = sourceName;
+          activeProf.POT_FIRMA_1 = sourceFirma;
+          activeProf.POT_COMPANIA_1 = sourceCompania;
+          activeProf.POT_FECHA_1 = sourceFecha;
+        }
+      }
+    }
+    return activeProf;
+  };
+
+  const activeProfile = getEffectiveProfile(selectedProfile);
 
   const handleToggleTag = (tag: string) => {
     setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
@@ -1653,6 +1720,38 @@ export const VistaGenerar: React.FC = () => {
                       </option>
                     ))
                   }
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest">Firma de Elaboró (Opcional)</label>
+                <select 
+                  value={overrideRevisoId} 
+                  onChange={e => setOverrideRevisoId(e.target.value)} 
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#1F3864] focus:outline-none text-xs font-bold text-blue-900 appearance-none"
+                  style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23a1a1aa\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundPosition: 'right 1rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1rem' }}
+                >
+                  <option value="">-- Usar firma original del perfil --</option>
+                  {Array.from(
+                    new Map(
+                      perfiles
+                        .flatMap(p => {
+                          const sigs = [];
+                          if (!p.TIPO.startsWith('POTENCIA')) {
+                            if (p.ELABORO_NOMBRE) sigs.push({ id: p.ID_PERFIL + '|ELABORO', name: p.ELABORO_NOMBRE, roleName: 'Elaboró' });
+                          } else {
+                            if (p.POT_NOMBRE_1) sigs.push({ id: p.ID_PERFIL + '|POT1', name: p.POT_NOMBRE_1, roleName: 'Firma 1' });
+                          }
+                          return sigs;
+                        })
+                        .filter(x => x.name && x.name.trim() !== '')
+                        .map(x => [x.name.trim().toLowerCase(), x]) // Key by name to keep unique names across profiles
+                    ).values()
+                  ).map(info => (
+                    <option key={info.id} value={info.id}>
+                      {info.name.toUpperCase()} (Firma Original: {info.roleName})
+                    </option>
+                  ))}
                 </select>
               </div>
 
