@@ -163,7 +163,20 @@ export const PERFIL_POTENCIA_INICIAL: Omit<Perfil, 'ID_PERFIL'> = {
   POT_COMPANIA_3: '',
   POT_FIRMA_3: '',
   POT_NOMBRE_3: '',
-  POT_FECHA_3: ''
+  POT_FECHA_3: '',
+  POT_SUBTIPO: 'CABLE_MOTOR'
+};
+
+export const PERFIL_POTENCIA_CABLE_MOTOR_INICIAL: Omit<Perfil, 'ID_PERFIL'> = {
+  ...PERFIL_POTENCIA_INICIAL,
+  NOMBRE_PERFIL: 'Precom Potencia - Cable-Motor',
+  POT_SUBTIPO: 'CABLE_MOTOR'
+};
+
+export const PERFIL_POTENCIA_MOTOR_INICIAL: Omit<Perfil, 'ID_PERFIL'> = {
+  ...PERFIL_POTENCIA_INICIAL,
+  NOMBRE_PERFIL: 'Precom Potencia - Motor',
+  POT_SUBTIPO: 'MOTOR'
 };
 
 export const PERFIL_POTENCIA_COM_INICIAL: Omit<Perfil, 'ID_PERFIL'> = {

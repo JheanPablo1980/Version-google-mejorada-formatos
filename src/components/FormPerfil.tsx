@@ -133,6 +133,47 @@ export const FormPerfil: React.FC<FormPerfilProps> = ({ perfilToEdit, onBack }) 
         <section className="bg-white p-5 rounded-xl shadow-sm border-t-4 border-t-[#1F3864]">
             <h3 className="font-bold text-sm mb-4 text-[#1F3864] uppercase tracking-widest border-b pb-2">Identificación</h3>
             <InputGroup label="Nombre del Perfil" name="NOMBRE_PERFIL" value={formData.NOMBRE_PERFIL} onChange={handleChange} required className="mb-4" />
+            {formData.TIPO === 'POTENCIA' && (
+              <div className="mb-4 bg-orange-50/70 p-4 rounded-xl border border-orange-100">
+                <label className="block text-[10px] font-black text-[#1F3864] uppercase tracking-widest mb-2">Subtipo de Formato (Precomisionamiento)</label>
+                <div className="flex gap-6">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-700">
+                    <input 
+                      type="radio" 
+                      name="POT_SUBTIPO" 
+                      value="CABLE_MOTOR"
+                      checked={(formData.POT_SUBTIPO || 'CABLE_MOTOR') === 'CABLE_MOTOR'}
+                      onChange={() => {
+                        setFormData(prev => ({
+                          ...prev,
+                          POT_SUBTIPO: 'CABLE_MOTOR',
+                          NOMBRE_PERFIL: prev.NOMBRE_PERFIL === 'Precom Potencia - Motor' || !prev.NOMBRE_PERFIL ? 'Precom Potencia - Cable-Motor' : prev.NOMBRE_PERFIL
+                        }));
+                      }}
+                      className="text-orange-600 focus:ring-orange-500 w-4 h-4" 
+                    />
+                    Cable-Motor (Completo)
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-700">
+                    <input 
+                      type="radio" 
+                      name="POT_SUBTIPO" 
+                      value="MOTOR"
+                      checked={formData.POT_SUBTIPO === 'MOTOR'}
+                      onChange={() => {
+                        setFormData(prev => ({
+                          ...prev,
+                          POT_SUBTIPO: 'MOTOR',
+                          NOMBRE_PERFIL: prev.NOMBRE_PERFIL === 'Precom Potencia - Cable-Motor' || !prev.NOMBRE_PERFIL ? 'Precom Potencia - Motor' : prev.NOMBRE_PERFIL
+                        }));
+                      }}
+                      className="text-orange-600 focus:ring-orange-500 w-4 h-4" 
+                    />
+                    Motor (Solo)
+                  </label>
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <InputGroup label="Revisión Format." name="REVISION" value={formData.REVISION} onChange={handleChange} />
               <InputGroup label="Fecha de Revisión" name="FECHA_REVISION" value={formData.FECHA_REVISION} onChange={handleChange} />

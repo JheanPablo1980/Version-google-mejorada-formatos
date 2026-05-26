@@ -281,8 +281,18 @@ export const NuevoRegistro: React.FC = () => {
                 placeholder="Buscar por TAG o descripción..." 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#1F3864] focus:outline-none"
+                className="w-full pl-9 pr-10 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#1F3864] focus:outline-none"
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-gray-400 hover:text-gray-600 transition-colors"
+                  title="Limpiar búsqueda"
+                >
+                  <X size={16} />
+                </button>
+              )}
             </div>
             <button 
               onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}

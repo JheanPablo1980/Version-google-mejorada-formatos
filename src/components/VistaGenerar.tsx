@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Download, Camera, Printer, FileSpreadsheet, Check, AlertCircle, Search, Filter, ArrowDownAZ, ArrowUpZA, FileText } from 'lucide-react';
+import { Download, Camera, Printer, FileSpreadsheet, Check, AlertCircle, Search, Filter, ArrowDownAZ, ArrowUpZA, FileText, X } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { Button } from './ui/Button';
 import ExcelJS from 'exceljs';
@@ -509,9 +509,12 @@ export const VistaGenerar: React.FC = () => {
         }
 
         ws1.mergeCells('C1:F2'); 
-        ws1.getCell('C1').value = activeProfile.TIPO === 'POTENCIA' 
-          ? 'PROTOCOLO DE PRUEBAS DE POTENCIA' 
-          : 'PROTOCOLO DE PRUEBAS DE INSTRUMENTACIÓN'; 
+        if (activeProfile.TIPO === 'POTENCIA') {
+          const subTitle = activeProfile.POT_SUBTIPO === 'MOTOR' ? 'MOTOR BAJA TENSIÓN (CHKL-ELE-08)' : 'CABLE-MOTOR BAJA TENSIÓN';
+          ws1.getCell('C1').value = `LISTA DE CHEQUEO ${subTitle}`;
+        } else {
+          ws1.getCell('C1').value = 'PROTOCOLO DE PRUEBAS DE INSTRUMENTACIÓN';
+        }
         applyStyle(ws1.getCell('C1'), true); 
         ws1.getCell('G1').value = 'REVISIÓN:'; applyStyle(ws1.getCell('G1'), true);
         ws1.getCell('H1').value = activeProfile.REVISION; applyStyle(ws1.getCell('H1'));
@@ -794,7 +797,8 @@ export const VistaGenerar: React.FC = () => {
               </tr>
               <tr>
                 <td colspan="4" rowspan="2" class="center" style="font-size: 14px; font-weight: bold;">
-                  Formato Precomisionamiento<br/>Lista de chequeo Motor baja tensión<br/>CHKL-ELE-08
+                  Formato Precomisionamiento<br/>
+                  ${activeProfile.POT_SUBTIPO === 'MOTOR' ? 'Lista de chequeo Motor baja tensión<br/>CHKL-ELE-08' : 'Lista de chequeo Cable-Motor baja tensión'}
                 </td>
                 <td class="bg-blue">Fecha:</td>
                 <td class="center">${activeProfile.FECHA_REVISION || ''}</td>
@@ -1484,8 +1488,18 @@ export const VistaGenerar: React.FC = () => {
                   placeholder="Buscar por TAG o descripción..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1F3864] focus:outline-none text-sm font-medium transition-all"
+                  className="w-full pl-9 pr-10 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#1F3864] focus:outline-none text-sm font-medium transition-all"
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 transition-colors"
+                    title="Limpiar búsqueda"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
               </div>
               <div className="flex gap-2">
                 <button 

@@ -4,7 +4,7 @@ import { useAppStore, Perfil } from '../store/useAppStore';
 import { Button } from './ui/Button';
 import { FormPerfil } from './FormPerfil';
 import { motion, AnimatePresence } from 'motion/react';
-import { PERFIL_INICIAL, PERFIL_POTENCIA_INICIAL, PERFIL_POTENCIA_COM_INICIAL } from '../constants';
+import { PERFIL_INICIAL, PERFIL_POTENCIA_INICIAL, PERFIL_POTENCIA_COM_INICIAL, PERFIL_POTENCIA_CABLE_MOTOR_INICIAL, PERFIL_POTENCIA_MOTOR_INICIAL } from '../constants';
 
 export const ListaPerfiles: React.FC = () => {
   const { perfiles, deletePerfil, savePerfil } = useAppStore();
@@ -193,14 +193,39 @@ export const ListaPerfiles: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex gap-2">
-             <Button 
-              onClick={handleCreateNew} 
-              className={`flex-[2] shadow-md font-black uppercase tracking-widest ${selectedCategory === 'INSTRUMENTACION' ? 'bg-blue-600 hover:bg-blue-700' : selectedCategory === 'POTENCIA' ? 'bg-orange-600 hover:bg-orange-700' : 'bg-red-600 hover:bg-red-700'}`} 
-              icon={Plus}
-            >
-              Nuevo Perfil
-            </Button>
+          <div className="flex flex-col sm:flex-row gap-2 w-full">
+            {selectedCategory === 'POTENCIA' ? (
+              <div className="flex gap-2 flex-[2]">
+                <Button 
+                  onClick={() => {
+                    setEditingPerfil({ ...PERFIL_POTENCIA_CABLE_MOTOR_INICIAL, ID_PERFIL: crypto.randomUUID() } as Perfil);
+                    setView('form');
+                  }} 
+                  className="flex-1 bg-orange-600 hover:bg-orange-700 shadow-md font-black uppercase tracking-widest text-[9px] py-2" 
+                  icon={Plus}
+                >
+                  Cable-Motor
+                </Button>
+                <Button 
+                  onClick={() => {
+                    setEditingPerfil({ ...PERFIL_POTENCIA_MOTOR_INICIAL, ID_PERFIL: crypto.randomUUID() } as Perfil);
+                    setView('form');
+                  }} 
+                  className="flex-1 bg-amber-600 hover:bg-amber-700 shadow-md font-black uppercase tracking-widest text-[9px] py-2" 
+                  icon={Plus}
+                >
+                  Motor
+                </Button>
+              </div>
+            ) : (
+              <Button 
+                onClick={handleCreateNew} 
+                className={`flex-[2] shadow-md font-black uppercase tracking-widest ${selectedCategory === 'INSTRUMENTACION' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'}`} 
+                icon={Plus}
+              >
+                Nuevo Perfil
+              </Button>
+            )}
             <Button
               onClick={() => setSelectedCategory(null)}
               variant="secondary"
@@ -297,8 +322,17 @@ export const ListaPerfiles: React.FC = () => {
                   />
 
                   <div className="flex-1 min-w-0 flex flex-col">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h3 className={`font-black text-sm uppercase tracking-tight truncate ${perfil.ENABLED === false ? 'text-gray-400' : 'text-[#1F3864]'}`}>{perfil.NOMBRE_PERFIL}</h3>
+                      {perfil.TIPO === 'POTENCIA' && (
+                        <span className={`text-[8px] font-black px-1.5 py-0.5 rounded border ${
+                          perfil.POT_SUBTIPO === 'MOTOR' 
+                            ? 'bg-amber-50 text-amber-700 border-amber-200' 
+                            : 'bg-orange-50 text-orange-700 border-orange-200'
+                        }`}>
+                          {perfil.POT_SUBTIPO === 'MOTOR' ? 'MOTOR' : 'CABLE-MOTOR'}
+                        </span>
+                      )}
                       {perfil.ENABLED === false && (
                         <span className="bg-gray-100 text-[8px] font-black px-1.5 py-0.5 rounded text-gray-400 border border-gray-200">INACTIVO</span>
                       )}
