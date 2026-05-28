@@ -40,7 +40,8 @@ export const VistaGenerar: React.FC = () => {
     logoPotencia, 
     saveExportLog, 
     saveConteoExportacion, 
-    driveFolderLink 
+    driveFolderLink,
+    deleteFoto
   } = useAppStore();
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedProfile, setSelectedProfile] = useState('');
@@ -431,6 +432,21 @@ export const VistaGenerar: React.FC = () => {
     });
 
     return driveFotos;
+  };
+
+  const limpiarDespuesDeExportar = async (tagsExportados: string[]) => {
+    try {
+      if (modoExportacion === 'LOCAL') {
+        const dbFotosAEliminar = fotos.filter(f => tagsExportados.includes(f.TAGNAME));
+        for (const foto of dbFotosAEliminar) {
+          await deleteFoto(foto.id);
+        }
+      }
+    } catch (err) {
+      console.error("Error al limpiar las fotos después de la exportación:", err);
+    } finally {
+      setSelectedTags([]);
+    }
   };
 
   const exportarExcel = async () => {
@@ -1247,6 +1263,7 @@ export const VistaGenerar: React.FC = () => {
       a.href = URL.createObjectURL(new Blob([buffer]));
       a.download = selectedTags.length === 1 ? `Protocolo_${selectedTags[0]}.xlsx` : `Protocolos_Masivos_${selectedTags.length}TAGs.xlsx`;
       a.click();
+      await limpiarDespuesDeExportar(selectedTags);
     } catch (e) { 
       setExportError("Error generando Excel."); 
       console.error(e);
@@ -1989,6 +2006,7 @@ export const VistaGenerar: React.FC = () => {
           }
         }
       }
+      await limpiarDespuesDeExportar(selectedTags);
     } catch (e: any) {
       setExportError(e.message || "Error generando PDF con Drive");
       console.error(e);
