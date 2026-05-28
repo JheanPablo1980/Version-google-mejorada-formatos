@@ -489,231 +489,6 @@ export const VistaGenerar: React.FC = () => {
         const safeSheetName = tag.replace(/[\\*?:\/\[\]]/g, '').substring(0, 26);
         const ws1 = wb.addWorksheet(`${safeSheetName}`);
         
-        ws1.columns = [
-          { width: 12 }, { width: 12 }, { width: 12 }, { width: 18 }, 
-          { width: 18 }, { width: 12 }, { width: 12 }, { width: 12 }
-        ];
-        
-        // Logo
-        ws1.mergeCells('A1:B2'); applyStyle(ws1.getCell('A1'));
-        if (currentLogo) {
-          try {
-            const logoId = wb.addImage({ 
-              base64: currentLogo.split(',')[1], 
-              extension: 'png' 
-            });
-            ws1.addImage(logoId, { tl: { col: 0.1, row: 0.1 }, ext: { width: 120, height: 35 } });
-          } catch (e) {
-            console.error("Error embedding logo", e);
-          }
-        }
-
-        ws1.mergeCells('C1:F2'); 
-        if (activeProfile.TIPO === 'POTENCIA') {
-          const subTitle = activeProfile.POT_SUBTIPO === 'MOTOR' ? 'MOTOR BAJA TENSIÓN (CHKL-ELE-08)' : 'CABLE-MOTOR BAJA TENSIÓN';
-          ws1.getCell('C1').value = `LISTA DE CHEQUEO ${subTitle}`;
-        } else {
-          ws1.getCell('C1').value = 'PROTOCOLO DE PRUEBAS DE INSTRUMENTACIÓN';
-        }
-        applyStyle(ws1.getCell('C1'), true); 
-        ws1.getCell('G1').value = 'REVISIÓN:'; applyStyle(ws1.getCell('G1'), true);
-        ws1.getCell('H1').value = activeProfile.REVISION; applyStyle(ws1.getCell('H1'));
-        ws1.getCell('G2').value = 'FECHA DE REVISIÓN:'; applyStyle(ws1.getCell('G2'), true);
-        ws1.getCell('H2').value = activeProfile.FECHA_REVISION; applyStyle(ws1.getCell('H2'));
-
-        ws1.getCell('A3').value = 'CLIENTE:'; applyStyle(ws1.getCell('A3'), true);
-        ws1.mergeCells('B3:E3'); ws1.getCell('B3').value = activeProfile.CLIENTE; applyStyle(ws1.getCell('B3')); ws1.getCell('B3').alignment = {horizontal:'left'};
-        ws1.mergeCells('F3:G3'); ws1.getCell('F3').value = 'FECHA:'; applyStyle(ws1.getCell('F3'), true); ws1.getCell('F3').alignment = {horizontal:'left'};
-        ws1.getCell('H3').value = activeProfile.FECHA; applyStyle(ws1.getCell('H3')); ws1.getCell('H3').alignment = {horizontal:'left'};
-
-        ws1.getCell('A4').value = 'PROYECTO:'; applyStyle(ws1.getCell('A4'), true);
-        ws1.mergeCells('B4:E4'); ws1.getCell('B4').value = activeProfile.PROYECTO; applyStyle(ws1.getCell('B4')); ws1.getCell('B4').alignment = {horizontal:'left'};
-        ws1.mergeCells('F4:G4'); ws1.getCell('F4').value = 'CONTRATO:'; applyStyle(ws1.getCell('F4'), true); ws1.getCell('F4').alignment = {horizontal:'left'};
-        ws1.getCell('H4').value = activeProfile.CONTRATO; applyStyle(ws1.getCell('H4')); ws1.getCell('H4').alignment = {horizontal:'left'};
-
-        // 1. INFORMACIÓN GENERAL
-        ws1.mergeCells('A6:H6'); ws1.getCell('A6').value = activeProfile.TIPO.startsWith('POTENCIA') ? '1. INFORMACIÓN DEL EQUIPO' : '1. INFORMACIÓN GENERAL DEL INSTRUMENTO'; applyStyle(ws1.getCell('A6'), true); ws1.getCell('A6').alignment = {horizontal:'left'};
-            ws1.mergeCells('A7:B7'); ws1.getCell('A7').value = 'Tag No:'; applyStyle(ws1.getCell('A7'), true); ws1.getCell('A7').alignment = {horizontal:'left'};
-        ws1.mergeCells('C7:D7'); ws1.getCell('C7').value = (activeItem as any)[tagKey]; applyStyle(ws1.getCell('C7')); ws1.getCell('C7').alignment = {horizontal:'left'};
-        ws1.mergeCells('E7:F7'); ws1.getCell('E7').value = 'Fabricante/Modelo:'; applyStyle(ws1.getCell('E7'), true); ws1.getCell('E7').alignment = {horizontal:'left'};
-        ws1.mergeCells('G7:H7'); ws1.getCell('G7').value = activeProfile.FABRICANTE_MODELO || 'N/A'; applyStyle(ws1.getCell('G7')); ws1.getCell('G7').alignment = {horizontal:'left'};
-        
-        ws1.mergeCells('A8:B8'); ws1.getCell('A8').value = activeProfile.TIPO.startsWith('POTENCIA') ? 'Descripción:' : 'Tipo Cable / Desc:'; applyStyle(ws1.getCell('A8'), true); ws1.getCell('A8').alignment = {horizontal:'left'};
-        ws1.mergeCells('C8:H8'); 
-        ws1.getCell('C8').value = activeProfile.TIPO.startsWith('POTENCIA') 
-          ? (activeItem as any).DESCRIPCIÓN || ''
-          : `${(activeItem as any).TIPO_CABLE || ''} / ${(activeItem as any).DESCRIPCIÓN || ''}`;
-        applyStyle(ws1.getCell('C8')); ws1.getCell('C8').alignment = {horizontal:'left'};
-        
-        if (!activeProfile.TIPO.startsWith('POTENCIA')) {
-          ws1.mergeCells('A9:B9'); ws1.getCell('A9').value = 'Rango de Operación:'; applyStyle(ws1.getCell('A9'), true); ws1.getCell('A9').alignment = {horizontal:'left'};
-          ws1.mergeCells('C9:D9'); ws1.getCell('C9').value = activeProfile.RANGO_OPERACION || 'N/A'; applyStyle(ws1.getCell('C9')); ws1.getCell('C9').alignment = {horizontal:'left'};
-          ws1.mergeCells('E9:F9'); ws1.getCell('E9').value = 'Clase de Exactitud:'; applyStyle(ws1.getCell('E9'), true); ws1.getCell('E9').alignment = {horizontal:'left'};
-          ws1.mergeCells('G9:H9'); ws1.getCell('G9').value = activeProfile.CLASE_EXACTITUD || 'N/A'; applyStyle(ws1.getCell('G9')); ws1.getCell('G9').alignment = {horizontal:'left'};
-    
-          ws1.mergeCells('A10:B10'); ws1.getCell('A10').value = 'Ubicación:'; applyStyle(ws1.getCell('A10'), true); ws1.getCell('A10').alignment = {horizontal:'left'};
-          ws1.mergeCells('C10:D10'); ws1.getCell('C10').value = (activeItem as any).UBICACIÓN || ''; applyStyle(ws1.getCell('C10')); ws1.getCell('C10').alignment = {horizontal:'left'};
-          ws1.mergeCells('E10:F10'); ws1.getCell('E10').value = 'Tag Cable SWC:'; applyStyle(ws1.getCell('E10'), true); ws1.getCell('E10').alignment = {horizontal:'left'};
-          ws1.mergeCells('G10:H10'); ws1.getCell('G10').value = (activeItem as any).TAG_CABLE_SWC || 'N/A'; applyStyle(ws1.getCell('G10')); ws1.getCell('G10').alignment = {horizontal:'left'};
-        }
-
-        // 2. CONDICIONES DE LA PRUEBA
-        ws1.mergeCells('A12:H12'); ws1.getCell('A12').value = '2. CONDICIONES DE LA PRUEBA'; applyStyle(ws1.getCell('A12'), true); ws1.getCell('A12').alignment = {horizontal:'left'};
-        ws1.mergeCells('A13:B13'); ws1.getCell('A13').value = 'Norma/Procedimiento:'; applyStyle(ws1.getCell('A13'), true); ws1.getCell('A13').alignment = {horizontal:'left'};
-        ws1.mergeCells('C13:H13'); ws1.getCell('C13').value = activeProfile.NORMA_PROCEDIMIENTO; applyStyle(ws1.getCell('C13')); ws1.getCell('C13').alignment = {horizontal:'left'};
-        
-        ws1.mergeCells('A14:B15'); ws1.getCell('A14').value = 'Tipo de Prueba:'; applyStyle(ws1.getCell('A14'), true); ws1.getCell('A14').alignment = {horizontal:'left', vertical:'middle'};
-        ws1.mergeCells('C14:E14'); ws1.getCell('C14').value = activeProfile.TIPO_PRUEBA_PLANO ? '☑ Equipo instalado en ubicación/PLANO' : '☐ Equipo instalado en ubicación/PLANO'; applyStyle(ws1.getCell('C14')); ws1.getCell('C14').alignment = {horizontal:'left'};
-        ws1.mergeCells('F14:H14'); ws1.getCell('F14').value = activeProfile.TIPO_PRUEBA_FUNC_SIM ? '☑ Prueba funcional simulada' : '☐ Prueba funcional simulada'; applyStyle(ws1.getCell('F14')); ws1.getCell('F14').alignment = {horizontal:'left'};
-        ws1.mergeCells('C15:E15'); ws1.getCell('C15').value = activeProfile.TIPO_PRUEBA_LOOP ? '☑ Pruebas de lazo (loop check)' : '☐ Pruebas de lazo (loop check)'; applyStyle(ws1.getCell('C15')); ws1.getCell('C15').alignment = {horizontal:'left'};
-        ws1.mergeCells('F15:H15'); ws1.getCell('F15').value = activeProfile.TIPO_PRUEBA_FUNC_LINEA ? '☑ Prueba funcional acoplada a línea' : '☐ Prueba funcional acoplada a línea'; applyStyle(ws1.getCell('F15')); ws1.getCell('F15').alignment = {horizontal:'left'};
-
-        ws1.mergeCells('A16:B16'); ws1.getCell('A16').value = 'Equipo de prueba 1:'; applyStyle(ws1.getCell('A16'), true); ws1.getCell('A16').alignment = {horizontal:'left'};
-        ws1.mergeCells('C16:E16'); ws1.getCell('C16').value = activeProfile.EQUIPO_PRUEBA_1; applyStyle(ws1.getCell('C16')); ws1.getCell('C16').alignment = {horizontal:'left'};
-        ws1.mergeCells('F16:G16'); ws1.getCell('F16').value = 'Certificado/Fecha de Vigencia:'; applyStyle(ws1.getCell('F16'), true); ws1.getCell('F16').alignment = {horizontal:'left'};
-        ws1.getCell('H16').value = activeProfile.CERT_FECHA_1; applyStyle(ws1.getCell('H16')); ws1.getCell('H16').alignment = {horizontal:'left'};
-
-        ws1.mergeCells('A17:B17'); ws1.getCell('A17').value = 'Equipo de prueba 2:'; applyStyle(ws1.getCell('A17'), true); ws1.getCell('A17').alignment = {horizontal:'left'};
-        ws1.mergeCells('C17:E17'); ws1.getCell('C17').value = activeProfile.EQUIPO_PRUEBA_2; applyStyle(ws1.getCell('C17')); ws1.getCell('C17').alignment = {horizontal:'left'};
-        ws1.mergeCells('F17:G17'); ws1.getCell('F17').value = 'Certificado/Fecha de Vigencia:'; applyStyle(ws1.getCell('F17'), true); ws1.getCell('F17').alignment = {horizontal:'left'};
-        ws1.getCell('H17').value = activeProfile.CERT_FECHA_2; applyStyle(ws1.getCell('H17')); ws1.getCell('H17').alignment = {horizontal:'left'};
-
-        // 3. Pruebas de Lazo (Loop Check)
-        ws1.mergeCells('A19:H19'); ws1.getCell('A19').value = '3. PRUEBAS DE LAZO (LOOP CHECK)'; applyStyle(ws1.getCell('A19'), true); ws1.getCell('A19').alignment = {horizontal:'left'};
-        ws1.mergeCells('A20:C20'); ws1.getCell('A20').value = activeProfile.LOOP_C1 || ''; applyStyle(ws1.getCell('A20'), true);
-        ws1.mergeCells('D20:E20'); ws1.getCell('D20').value = activeProfile.LOOP_C2 || ''; applyStyle(ws1.getCell('D20'), true);
-        ws1.mergeCells('F20:H20'); ws1.getCell('F20').value = activeProfile.LOOP_C3 || ''; applyStyle(ws1.getCell('F20'), true);
-
-        const addLoopRow = (r: number, v1: string, v2: string, v3: string) => {
-          ws1.mergeCells(`A${r}:C${r}`); ws1.getCell(`A${r}`).value = v1; applyStyle(ws1.getCell(`A${r}`));
-          ws1.mergeCells(`D${r}:E${r}`); ws1.getCell(`D${r}`).value = v2; applyStyle(ws1.getCell(`D${r}`));
-          ws1.mergeCells(`F${r}:H${r}`); ws1.getCell(`F${r}`).value = v3; applyStyle(ws1.getCell(`F${r}`));
-        };
-        addLoopRow(21, activeProfile.L1_C1, activeProfile.L1_C2, activeProfile.L1_C3);
-        addLoopRow(22, activeProfile.L2_C1, activeProfile.L2_C2, activeProfile.L2_C3);
-        addLoopRow(23, activeProfile.L3_C1, activeProfile.L3_C2, activeProfile.L3_C3);
-
-        // 4. Inspección
-        ws1.mergeCells('A25:H25'); ws1.getCell('A25').value = '4. INSPECCIÓN'; applyStyle(ws1.getCell('A25'), true); ws1.getCell('A25').alignment = {horizontal:'left'};
-        ws1.mergeCells('A26:D26'); ws1.getCell('A26').value = 'Ítem Revisado'; applyStyle(ws1.getCell('A26'), true);
-        ws1.getCell('E26').value = 'Estado'; applyStyle(ws1.getCell('E26'), true);
-        ws1.mergeCells('F26:H26'); ws1.getCell('F26').value = 'Observaciones'; applyStyle(ws1.getCell('F26'), true);
-
-        const addInspRow = (r: number, label: string, val: string, obs: string) => {
-          ws1.mergeCells(`A${r}:D${r}`); ws1.getCell(`A${r}`).value = label; applyStyle(ws1.getCell(`A${r}`)); ws1.getCell(`A${r}`).alignment = {horizontal:'left', wrapText:true};
-          ws1.getCell(`E${r}`).value = val; applyStyle(ws1.getCell(`E${r}`));
-          ws1.mergeCells(`F${r}:H${r}`); ws1.getCell(`F${r}`).value = obs; applyStyle(ws1.getCell(`F${r}`)); ws1.getCell(`F${r}`).alignment = {horizontal:'left', wrapText:true};
-        };
-        addInspRow(27, activeProfile.LABEL_4_1, activeProfile.INSP_4_1, activeProfile.OBS_4_1);
-        addInspRow(28, activeProfile.LABEL_4_2, activeProfile.INSP_4_2, activeProfile.OBS_4_2);
-        addInspRow(29, activeProfile.LABEL_4_3, activeProfile.INSP_4_3, activeProfile.OBS_4_3);
-        addInspRow(30, activeProfile.LABEL_4_4, activeProfile.INSP_4_4, activeProfile.OBS_4_4);
-
-        // 5. Comentarios
-        ws1.mergeCells('A32:H32'); ws1.getCell('A32').value = '5. COMENTARIOS'; applyStyle(ws1.getCell('A32'), true); ws1.getCell('A32').alignment = {horizontal:'left'};
-        ws1.mergeCells('A33:H34'); ws1.getCell('A33').value = activeProfile.COMENTARIOS; applyStyle(ws1.getCell('A33')); ws1.getCell('A33').alignment = {vertical: 'top', horizontal:'left', wrapText:true};
-
-        let currentRow = 36;
-
-        // FOTOS
-        if (fotosDelTag.length > 0) {
-          ws1.mergeCells(`A${currentRow}:H${currentRow}`); 
-          ws1.getCell(`A${currentRow}`).value = `6. REGISTRO FOTOGRÁFICO`; 
-          applyStyle(ws1.getCell(`A${currentRow}`), true); 
-          ws1.getCell(`A${currentRow}`).alignment = {horizontal:'left'};
-          currentRow++;
-
-          fotosDelTag.forEach((foto, idx) => {
-            const isLeft = idx % 2 === 0;
-            const rowOffset = Math.floor(idx / 2) * 16;
-            const r = currentRow + rowOffset;
-            const colStart = isLeft ? 'A' : 'E';
-            const colEnd = isLeft ? 'D' : 'H';
-            const colIdx = isLeft ? 0 : 4;
-
-            // Asegurar alturas de filas para que las fotos no se vean "incompletas"
-            for (let h = 0; h < 15; h++) {
-              ws1.getRow(r + h).height = 18;
-            }
-            ws1.getRow(r + 15).height = 15; // Altura para observación
-
-            ws1.mergeCells(`${colStart}${r}:${colEnd}${r+14}`);
-            applyStyle(ws1.getCell(`${colStart}${r}`));
-            
-            try {
-              const mimeType = foto.blobData.match(/data:([^;]+);/)?.[1] || 'image/jpeg';
-              const ext = (mimeType.split('/')[1] || 'jpeg').replace('jpg', 'jpeg');
-              
-              const imageId = wb.addImage({ 
-                base64: foto.blobData.split(',')[1], 
-                extension: ext as any
-              });
-              
-              // Ajuste de posicionamiento y tamaño
-              // Usaremos coordenadas 'tl' (top-left) y 'br' (bottom-right) para que exceljs lo ancle al recuadro.
-              ws1.addImage(imageId, { 
-                tl: { col: colIdx + 0.2, row: r - 1 + 0.3 } as any, 
-                br: { col: colIdx + 3.8, row: r - 1 + 14.7 } as any,
-                editAs: 'oneCell'
-              });
-            } catch (e) {
-              console.error("Error adding photo to spreadsheet", e);
-            }
-
-            ws1.mergeCells(`${colStart}${r+15}:${colEnd}${r+15}`);
-            ws1.getCell(`${colStart}${r+15}`).value = foto.observacion || `Foto ${idx+1}`; 
-            applyStyle(ws1.getCell(`${colStart}${r+15}`));
-          });
-
-          currentRow += Math.ceil(fotosDelTag.length / 2) * 16 + 1;
-        }
-
-        // Firmas
-        const isPotencia = activeProfile.TIPO.startsWith('POTENCIA');
-        
-        ws1.mergeCells(`A${currentRow}:C${currentRow}`); 
-        ws1.getCell(`A${currentRow}`).value = isPotencia ? 'CONTRATISTA Y/O VENDOR' : 'ELABORÓ'; 
-        applyStyle(ws1.getCell(`A${currentRow}`), true);
-
-        ws1.mergeCells(`D${currentRow}:E${currentRow}`); 
-        ws1.getCell(`D${currentRow}`).value = isPotencia ? (activeProfile.TIPO === 'POTENCIA_COM' ? 'GESTOR DEL CONTRATO' : 'PRECOMISIONAMIENTO') : 'REVISÓ'; 
-        applyStyle(ws1.getCell(`D${currentRow}`), true);
-
-        ws1.mergeCells(`F${currentRow}:H${currentRow}`); 
-        ws1.getCell(`F${currentRow}`).value = isPotencia ? 'COMISIONAMIENTO' : 'APROBÓ (CLIENTE / INTERVENTOR)'; 
-        applyStyle(ws1.getCell(`F${currentRow}`), true);
-        
-        // Fila de NOMBRES / COMPAÑÍAS
-        if (isPotencia) {
-          ws1.mergeCells(`A${currentRow+1}:C${currentRow+1}`); ws1.getCell(`A${currentRow+1}`).value = `COMPAÑÍA: ${activeProfile.POT_COMPANIA_1 || ''}`; applyStyle(ws1.getCell(`A${currentRow+1}`)); ws1.getCell(`A${currentRow+1}`).alignment = {horizontal:'left'};
-          ws1.mergeCells(`D${currentRow+1}:E${currentRow+1}`); ws1.getCell(`D${currentRow+1}`).value = `COMPAÑÍA: ${activeProfile.POT_COMPANIA_2 || ''}`; applyStyle(ws1.getCell(`D${currentRow+1}`)); ws1.getCell('D' + (currentRow+1)).alignment = {horizontal:'left'};
-          ws1.mergeCells(`F${currentRow+1}:H${currentRow+1}`); ws1.getCell(`F${currentRow+1}`).value = `COMPAÑÍA: ${activeProfile.POT_COMPANIA_3 || ''}`; applyStyle(ws1.getCell(`F${currentRow+1}`)); ws1.getCell('F' + (currentRow+1)).alignment = {horizontal:'left'};
-
-          ws1.mergeCells(`A${currentRow+2}:C${currentRow+2}`); ws1.getCell(`A${currentRow+2}`).value = `NOMBRE: ${activeProfile.POT_NOMBRE_1 || ''}`; applyStyle(ws1.getCell(`A${currentRow+2}`)); ws1.getCell('A' + (currentRow+2)).alignment = {horizontal:'left'};
-          ws1.mergeCells(`D${currentRow+2}:E${currentRow+2}`); ws1.getCell(`D${currentRow+2}`).value = `NOMBRE: ${activeProfile.POT_NOMBRE_2 || ''}`; applyStyle(ws1.getCell(`D${currentRow+2}`)); ws1.getCell('D' + (currentRow+2)).alignment = {horizontal:'left'};
-          ws1.mergeCells(`F${currentRow+2}:H${currentRow+2}`); ws1.getCell(`F${currentRow+2}`).value = `NOMBRE: ${activeProfile.POT_NOMBRE_3 || ''}`; applyStyle(ws1.getCell(`F${currentRow+2}`)); ws1.getCell('F' + (currentRow+2)).alignment = {horizontal:'left'};
-          
-          ws1.mergeCells(`A${currentRow+6}:C${currentRow+6}`); ws1.getCell(`A${currentRow+6}`).value = `FECHA: ${activeProfile.POT_FECHA_1 || ''}`; applyStyle(ws1.getCell(`A${currentRow+6}`)); ws1.getCell('A' + (currentRow+6)).alignment = {horizontal:'left'};
-          ws1.mergeCells(`D${currentRow+6}:E${currentRow+6}`); ws1.getCell(`D${currentRow+6}`).value = `FECHA: ${activeProfile.POT_FECHA_2 || ''}`; applyStyle(ws1.getCell(`D${currentRow+6}`)); ws1.getCell('D' + (currentRow+6)).alignment = {horizontal:'left'};
-          ws1.mergeCells(`F${currentRow+6}:H${currentRow+6}`); ws1.getCell(`F${currentRow+6}`).value = `FECHA: ${activeProfile.POT_FECHA_3 || ''}`; applyStyle(ws1.getCell(`F${currentRow+6}`)); ws1.getCell('F' + (currentRow+6)).alignment = {horizontal:'left'};
-        } else {
-          ws1.mergeCells(`A${currentRow+1}:C${currentRow+1}`); ws1.getCell(`A${currentRow+1}`).value = `NOMBRE: ${activeProfile.ELABORO_NOMBRE}`; applyStyle(ws1.getCell(`A${currentRow+1}`)); ws1.getCell(`A${currentRow+1}`).alignment = {horizontal:'left'};
-          ws1.mergeCells(`D${currentRow+1}:E${currentRow+1}`); ws1.getCell(`D${currentRow+1}`).value = `NOMBRE: ${activeProfile.REVISO_NOMBRE}`; applyStyle(ws1.getCell(`D${currentRow+1}`)); ws1.getCell('D' + (currentRow+1)).alignment = {horizontal:'left'};
-          ws1.mergeCells(`F${currentRow+1}:H${currentRow+1}`); ws1.getCell(`F${currentRow+1}`).value = `NOMBRE: ${activeProfile.APROBO_NOMBRE}`; applyStyle(ws1.getCell(`F${currentRow+1}`)); ws1.getCell('F' + (currentRow+1)).alignment = {horizontal:'left'};
-
-          ws1.mergeCells(`A${currentRow+2}:C${currentRow+2}`); ws1.getCell(`A${currentRow+2}`).value = `CARGO: ${activeProfile.ELABORO_CARGO}`; applyStyle(ws1.getCell(`A${currentRow+2}`)); ws1.getCell('A' + (currentRow+2)).alignment = {horizontal:'left'};
-          ws1.mergeCells(`D${currentRow+2}:E${currentRow+2}`); ws1.getCell(`D${currentRow+2}`).value = `CARGO: ${activeProfile.REVISO_CARGO}`; applyStyle(ws1.getCell(`D${currentRow+2}`)); ws1.getCell('D' + (currentRow+2)).alignment = {horizontal:'left'};
-          ws1.mergeCells(`F${currentRow+2}:H${currentRow+2}`); ws1.getCell(`F${currentRow+2}`).value = `CARGO: ${activeProfile.APROBO_CARGO}`; applyStyle(ws1.getCell(`F${currentRow+2}`)); ws1.getCell('F' + (currentRow+2)).alignment = {horizontal:'left'};
-          
-          ws1.mergeCells(`A${currentRow+6}:C${currentRow+6}`); ws1.getCell(`A${currentRow+6}`).value = `FECHA: ${activeProfile.FECHA}`; applyStyle(ws1.getCell(`A${currentRow+6}`)); ws1.getCell('A' + (currentRow+6)).alignment = {horizontal:'left'};
-          ws1.mergeCells(`D${currentRow+6}:E${currentRow+6}`); ws1.getCell(`D${currentRow+6}`).value = `FECHA: `; applyStyle(ws1.getCell(`D${currentRow+6}`)); ws1.getCell('D' + (currentRow+6)).alignment = {horizontal:'left'};
-          ws1.mergeCells(`F${currentRow+6}:H${currentRow+6}`); ws1.getCell(`F${currentRow+6}`).value = `FECHA: `; applyStyle(ws1.getCell(`F${currentRow+6}`)); ws1.getCell('F' + (currentRow+6)).alignment = {horizontal:'left'};
-        }
-
-        ws1.mergeCells(`A${currentRow+3}:C${currentRow+5}`); ws1.getCell(`A${currentRow+3}`).value = 'FIRMA:'; applyStyle(ws1.getCell(`A${currentRow+3}`)); ws1.getCell(`A${currentRow+3}`).font = { bold: true }; ws1.getCell(`A${currentRow+3}`).alignment = {vertical:'top', horizontal:'left'};
-        ws1.mergeCells(`D${currentRow+3}:E${currentRow+5}`); ws1.getCell(`D${currentRow+3}`).value = 'FIRMA:'; applyStyle(ws1.getCell(`D${currentRow+3}`)); ws1.getCell(`D${currentRow+3}`).font = { bold: true }; ws1.getCell(`D${currentRow+3}`).alignment = {vertical:'top', horizontal:'left'};
-        ws1.mergeCells(`F${currentRow+3}:H${currentRow+5}`); ws1.getCell(`F${currentRow+3}`).value = 'FIRMA:'; applyStyle(ws1.getCell(`F${currentRow+3}`)); ws1.getCell(`F${currentRow+3}`).font = { bold: true }; ws1.getCell(`F${currentRow+3}`).alignment = {vertical:'top', horizontal:'left'};
-
         const embedSig = (b64: string, col: number, colMaxOffset: number, row: number) => {
           if (!b64) return;
           try {
@@ -732,14 +507,738 @@ export const VistaGenerar: React.FC = () => {
           }
         };
 
-        if (isPotencia) {
-          embedSig(activeProfile.POT_FIRMA_1, 0, 3, currentRow+3);
-          embedSig(activeProfile.POT_FIRMA_2, 3, 2, currentRow+3);
-          embedSig(activeProfile.POT_FIRMA_3, 5, 3, currentRow+3);
+        if (activeProfile.TIPO === 'POTENCIA') {
+          // --- FORMATO POTENCIA PRECOMISIONAMIENTO (11 ÍTEMS) ---
+          ws1.columns = [
+            { width: 8 },   // A - ITEM
+            { width: 14 },  // B - Desc 1
+            { width: 14 },  // C - Desc 2
+            { width: 18 },  // D - Desc 3
+            { width: 18 },  // E - Desc 4
+            { width: 12 },  // F - CUMPLE
+            { width: 12 },  // G - NO CUMPLE
+            { width: 12 }   // H - N/A
+          ];
+
+          // 1. CABECERA (Filas 1 a 3)
+          ws1.mergeCells('A1:B3'); applyStyle(ws1.getCell('A1'));
+          if (currentLogo) {
+            try {
+              const logoId = wb.addImage({ 
+                base64: currentLogo.split(',')[1], 
+                extension: 'png' 
+              });
+              ws1.addImage(logoId, { tl: { col: 0.1, row: 0.1 }, ext: { width: 120, height: 50 } });
+            } catch (e) {
+              console.error("Error embedding logo in Excel", e);
+            }
+          }
+
+          ws1.mergeCells('C1:F1');
+          ws1.getCell('C1').value = 'Ingeniería y Proyectos';
+          applyStyle(ws1.getCell('C1'), true);
+
+          ws1.mergeCells('C2:F3');
+          ws1.getCell('C2').value = `Formato Precomisionamiento\nLista de chequeo ${activeProfile.SUBTIPO === 'MOTOR' ? 'Motor' : 'Cable y Motor'} baja tensión\nCHKL-ELE-08`;
+          applyStyle(ws1.getCell('C2'), true);
+          ws1.getCell('C2').font = { name: 'Calibri', bold: true, size: 10 };
+
+          ws1.getCell('G1').value = 'Código:'; applyStyle(ws1.getCell('G1'), true);
+          ws1.getCell('H1').value = activeProfile.POT_CODIGO || 'SKC-PC-F-009'; applyStyle(ws1.getCell('H1'));
+
+          ws1.getCell('G2').value = 'Fecha:'; applyStyle(ws1.getCell('G2'), true);
+          ws1.getCell('H2').value = activeProfile.FECHA_REVISION || '15.03.2022'; applyStyle(ws1.getCell('H2'));
+
+          ws1.getCell('G3').value = 'Versión:'; applyStyle(ws1.getCell('G3'), true);
+          ws1.getCell('H3').value = activeProfile.REVISION || '1'; applyStyle(ws1.getCell('H3'));
+
+          // 2. METADATOS (Filas 4 a 7)
+          ws1.mergeCells('A4:C4'); ws1.getCell('A4').value = `PROYECTO: ${activeProfile.PROYECTO || ''}`; applyStyle(ws1.getCell('A4')); ws1.getCell('A4').alignment = {horizontal:'left'}; ws1.getCell('A4').font = { bold: true, name: 'Calibri', size: 9 };
+          ws1.mergeCells('D4:F4'); ws1.getCell('D4').value = `AC-1 No: ${activeProfile.AC1_NO || ''}`; applyStyle(ws1.getCell('D4')); ws1.getCell('D4').alignment = {horizontal:'left'}; ws1.getCell('D4').font = { bold: true, name: 'Calibri', size: 9 };
+          ws1.mergeCells('G4:H4'); ws1.getCell('G4').value = `HC-1 No: ${activeProfile.HC1_NO || ''}`; applyStyle(ws1.getCell('G4')); ws1.getCell('G4').alignment = {horizontal:'left'}; ws1.getCell('G4').font = { bold: true, name: 'Calibri', size: 9 };
+
+          ws1.mergeCells('A5:C5'); ws1.getCell('A5').value = `CONTRATISTA: ${activeProfile.CONTRATISTA || ''}`; applyStyle(ws1.getCell('A5')); ws1.getCell('A5').alignment = {horizontal:'left'}; ws1.getCell('A5').font = { bold: true, name: 'Calibri', size: 9 };
+          ws1.mergeCells('D5:F5'); ws1.getCell('D5').value = `AREA: ${activeProfile.AREA || ''}`; applyStyle(ws1.getCell('D5')); ws1.getCell('D5').alignment = {horizontal:'left'}; ws1.getCell('D5').font = { bold: true, name: 'Calibri', size: 9 };
+          ws1.mergeCells('G5:H5'); ws1.getCell('G5').value = `LOCACION: ${activeProfile.LOCACION || ''}`; applyStyle(ws1.getCell('G5')); ws1.getCell('G5').alignment = {horizontal:'left'}; ws1.getCell('G5').font = { bold: true, name: 'Calibri', size: 9 };
+
+          ws1.mergeCells('A6:C6'); ws1.getCell('A6').value = `SERVICIO: ${activeProfile.SERVICIO || ''}`; applyStyle(ws1.getCell('A6')); ws1.getCell('A6').alignment = {horizontal:'left'}; ws1.getCell('A6').font = { bold: true, name: 'Calibri', size: 9 };
+          ws1.mergeCells('D6:F6'); ws1.getCell('D6').value = `P & ID No: ${activeProfile.P_ID_NO || ''}`; applyStyle(ws1.getCell('D6')); ws1.getCell('D6').alignment = {horizontal:'left'}; ws1.getCell('D6').font = { bold: true, name: 'Calibri', size: 9 };
+          ws1.mergeCells('G6:H6'); ws1.getCell('G6').value = `REV: ${activeProfile.REV_P_ID || ''}`; applyStyle(ws1.getCell('G6')); ws1.getCell('G6').alignment = {horizontal:'left'}; ws1.getCell('G6').font = { bold: true, name: 'Calibri', size: 9 };
+
+          ws1.mergeCells('A7:C7'); ws1.getCell('A7').value = `PAQUETE No: ${activeProfile.PAQUETE_NO || ''}`; applyStyle(ws1.getCell('A7')); ws1.getCell('A7').alignment = {horizontal:'left'}; ws1.getCell('A7').font = { bold: true, name: 'Calibri', size: 9 };
+          ws1.mergeCells('D7:F7'); ws1.getCell('D7').value = `PLANO No: ${activeProfile.PLANO_NO || ''}`; applyStyle(ws1.getCell('D7')); ws1.getCell('D7').alignment = {horizontal:'left'}; ws1.getCell('D7').font = { bold: true, name: 'Calibri', size: 9 };
+          ws1.mergeCells('G7:H7'); ws1.getCell('G7').value = `REV: ${activeProfile.REV_PLANO || ''}`; applyStyle(ws1.getCell('G7')); ws1.getCell('G7').alignment = {horizontal:'left'}; ws1.getCell('G7').font = { bold: true, name: 'Calibri', size: 9 };
+
+          // 3. TABLA LISTA DE CHEQUEO
+          ws1.mergeCells('A9:A10'); ws1.getCell('A9').value = 'ITEM'; applyStyle(ws1.getCell('A9'), true);
+          ws1.mergeCells('B9:E10'); ws1.getCell('B9').value = 'DESCRIPCION'; applyStyle(ws1.getCell('B9'), true);
+          ws1.mergeCells('F9:H9'); ws1.getCell('F9').value = 'ESTADO'; applyStyle(ws1.getCell('F9'), true);
+          ws1.getCell('F10').value = 'CUMPLE'; applyStyle(ws1.getCell('F10'), true);
+          ws1.getCell('G10').value = 'NO CUMPLE'; applyStyle(ws1.getCell('G10'), true);
+          ws1.getCell('H10').value = 'N/A'; applyStyle(ws1.getCell('H10'), true);
+
+          let rIdx = 11;
+          for (let num = 1; num <= 11; num++) {
+            ws1.getRow(rIdx).height = 24;
+            ws1.getCell(`A${rIdx}`).value = num;
+            applyStyle(ws1.getCell(`A${rIdx}`));
+            ws1.getCell(`A${rIdx}`).font = { bold: true, name: 'Calibri', size: 9 };
+
+            ws1.mergeCells(`B${rIdx}:E${rIdx}`);
+            ws1.getCell(`B${rIdx}`).value = (activeProfile as any)[`CHKL_${num}_DESC`] || '';
+            applyStyle(ws1.getCell(`B${rIdx}`));
+            ws1.getCell(`B${rIdx}`).alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+            ws1.getCell(`B${rIdx}`).font = { name: 'Calibri', size: 9 };
+
+            const estado = (activeProfile as any)[`CHKL_${num}_ESTADO`];
+            ws1.getCell(`F${rIdx}`).value = estado === 'CUMPLE' ? 'X' : ''; applyStyle(ws1.getCell(`F${rIdx}`));
+            ws1.getCell(`G${rIdx}`).value = estado === 'NO_CUMPLE' ? 'X' : ''; applyStyle(ws1.getCell(`G${rIdx}`));
+            ws1.getCell(`H${rIdx}`).value = estado === 'N/A' ? 'X' : ''; applyStyle(ws1.getCell(`H${rIdx}`));
+
+            ws1.getCell(`F${rIdx}`).font = { bold: true, name: 'Calibri', size: 9 };
+            ws1.getCell(`G${rIdx}`).font = { bold: true, name: 'Calibri', size: 9 };
+            ws1.getCell(`H${rIdx}`).font = { bold: true, name: 'Calibri', size: 9 };
+
+            rIdx++;
+          }
+
+          // 4. COMENTARIOS
+          ws1.mergeCells(`A${rIdx}:H${rIdx}`);
+          ws1.getCell(`A${rIdx}`).value = 'Comentarios:';
+          applyStyle(ws1.getCell(`A${rIdx}`), true);
+          ws1.getCell(`A${rIdx}`).alignment = { horizontal: 'left' };
+          rIdx++;
+
+          ws1.mergeCells(`A${rIdx}:H${rIdx+2}`);
+          ws1.getCell(`A${rIdx}`).value = activeProfile.COMENTARIOS || '';
+          applyStyle(ws1.getCell(`A${rIdx}`));
+          ws1.getCell(`A${rIdx}`).alignment = { vertical: 'top', horizontal: 'left', wrapText: true };
+          ws1.getCell(`A${rIdx}`).font = { name: 'Consolas', size: 9 };
+          ws1.getRow(rIdx).height = 18;
+          ws1.getRow(rIdx+1).height = 18;
+          ws1.getRow(rIdx+2).height = 18;
+
+          rIdx += 4;
+
+          // 5. REGISTRO FOTOGRÁFICO
+          if (fotosDelTag.length > 0) {
+            ws1.mergeCells(`A${rIdx}:H${rIdx}`);
+            ws1.getCell(`A${rIdx}`).value = '6. REGISTRO FOTOGRÁFICO';
+            applyStyle(ws1.getCell(`A${rIdx}`), true);
+            ws1.getCell(`A${rIdx}`).alignment = { horizontal: 'left' };
+            rIdx++;
+
+            fotosDelTag.forEach((foto, idx) => {
+              const isLeft = idx % 2 === 0;
+              const rowOffset = Math.floor(idx / 2) * 16;
+              const r = rIdx + rowOffset;
+              const colStart = isLeft ? 'A' : 'E';
+              const colEnd = isLeft ? 'D' : 'H';
+              const colIdx = isLeft ? 0 : 4;
+
+              for (let h = 0; h < 15; h++) {
+                ws1.getRow(r + h).height = 18;
+              }
+              ws1.getRow(r + 15).height = 15;
+
+              ws1.mergeCells(`${colStart}${r}:${colEnd}${r+14}`);
+              applyStyle(ws1.getCell(`${colStart}${r}`));
+
+              try {
+                const mimeType = foto.blobData.match(/data:([^;]+);/)?.[1] || 'image/jpeg';
+                const ext = (mimeType.split('/')[1] || 'jpeg').replace('jpg', 'jpeg');
+                const imageId = wb.addImage({ 
+                  base64: foto.blobData.split(',')[1], 
+                  extension: ext as any
+                });
+                ws1.addImage(imageId, { 
+                  tl: { col: colIdx + 0.2, row: r - 1 + 0.3 } as any, 
+                  br: { col: colIdx + 3.8, row: r - 1 + 14.7 } as any,
+                  editAs: 'oneCell'
+                });
+              } catch (e) {
+                console.error("Error adding photo to spreadsheet", e);
+              }
+
+              ws1.mergeCells(`${colStart}${r+15}:${colEnd}${r+15}`);
+              ws1.getCell(`${colStart}${r+15}`).value = foto.observacion || `Foto ${idx+1}`;
+              applyStyle(ws1.getCell(`${colStart}${r+15}`));
+            });
+
+            rIdx += Math.ceil(fotosDelTag.length / 2) * 16 + 1;
+          }
+
+          // 6. FIRMAS
+          ws1.mergeCells(`A${rIdx}:C${rIdx}`); 
+          ws1.getCell(`A${rIdx}`).value = 'CONTRATISTA Y/O VENDOR'; 
+          applyStyle(ws1.getCell(`A${rIdx}`), true);
+
+          ws1.mergeCells(`D${rIdx}:F${rIdx}`); 
+          ws1.getCell(`D${rIdx}`).value = 'PRECOMISIONAMIENTO'; 
+          applyStyle(ws1.getCell(`D${rIdx}`), true);
+
+          ws1.mergeCells(`G${rIdx}:H${rIdx}`); 
+          ws1.getCell(`G${rIdx}`).value = 'COMISIONAMIENTO'; 
+          applyStyle(ws1.getCell(`G${rIdx}`), true);
+
+          ws1.mergeCells(`A${rIdx+1}:C${rIdx+1}`); ws1.getCell(`A${rIdx+1}`).value = `COMPAÑÍA: ${activeProfile.POT_COMPANIA_1 || ''}`; applyStyle(ws1.getCell(`A${rIdx+1}`)); ws1.getCell(`A${rIdx+1}`).alignment = {horizontal:'left'};
+          ws1.mergeCells(`D${rIdx+1}:F${rIdx+1}`); ws1.getCell(`D${rIdx+1}`).value = `COMPAÑÍA: ${activeProfile.POT_COMPANIA_2 || ''}`; applyStyle(ws1.getCell(`D${rIdx+1}`)); ws1.getCell(`D${rIdx+1}`).alignment = {horizontal:'left'};
+          ws1.mergeCells(`G${rIdx+1}:H${rIdx+1}`); ws1.getCell(`G${rIdx+1}`).value = `COMPAÑÍA: ${activeProfile.POT_COMPANIA_3 || ''}`; applyStyle(ws1.getCell(`G${rIdx+1}`)); ws1.getCell(`G${rIdx+1}`).alignment = {horizontal:'left'};
+
+          ws1.mergeCells(`A${rIdx+2}:C${rIdx+2}`); ws1.getCell(`A${rIdx+2}`).value = `NOMBRE: ${activeProfile.POT_NOMBRE_1 || ''}`; applyStyle(ws1.getCell(`A${rIdx+2}`)); ws1.getCell(`A${rIdx+2}`).alignment = {horizontal:'left'};
+          ws1.mergeCells(`D${rIdx+2}:F${rIdx+2}`); ws1.getCell(`D${rIdx+2}`).value = `NOMBRE: ${activeProfile.POT_NOMBRE_2 || ''}`; applyStyle(ws1.getCell(`D${rIdx+2}`)); ws1.getCell(`D${rIdx+2}`).alignment = {horizontal:'left'};
+          ws1.mergeCells(`G${rIdx+2}:H${rIdx+2}`); ws1.getCell(`G${rIdx+2}`).value = `NOMBRE: ${activeProfile.POT_NOMBRE_3 || ''}`; applyStyle(ws1.getCell(`G${rIdx+2}`)); ws1.getCell(`G${rIdx+2}`).alignment = {horizontal:'left'};
+
+          ws1.mergeCells(`A${rIdx+3}:C${rIdx+3}`); ws1.getCell(`A${rIdx+3}`).value = `FECHA: ${activeProfile.POT_FECHA_1 || ''}`; applyStyle(ws1.getCell(`A${rIdx+3}`)); ws1.getCell(`A${rIdx+3}`).alignment = {horizontal:'left'};
+          ws1.mergeCells(`D${rIdx+3}:F${rIdx+3}`); ws1.getCell(`D${rIdx+3}`).value = `FECHA: ${activeProfile.POT_FECHA_2 || ''}`; applyStyle(ws1.getCell(`D${rIdx+3}`)); ws1.getCell(`D${rIdx+3}`).alignment = {horizontal:'left'};
+          ws1.mergeCells(`G${rIdx+3}:H${rIdx+3}`); ws1.getCell(`G${rIdx+3}`).value = `FECHA: ${activeProfile.POT_FECHA_3 || ''}`; applyStyle(ws1.getCell(`G${rIdx+3}`)); ws1.getCell(`G${rIdx+3}`).alignment = {horizontal:'left'};
+
+          ws1.mergeCells(`A${rIdx+4}:C${rIdx+6}`); ws1.getCell(`A${rIdx+4}`).value = 'FIRMA:'; applyStyle(ws1.getCell(`A${rIdx+4}`)); ws1.getCell(`A${rIdx+4}`).alignment = {vertical:'top', horizontal:'left'}; ws1.getCell(`A${rIdx+4}`).font = { bold: true };
+          ws1.mergeCells(`D${rIdx+4}:F${rIdx+6}`); ws1.getCell(`D${rIdx+4}`).value = 'FIRMA:'; applyStyle(ws1.getCell(`D${rIdx+4}`)); ws1.getCell(`D${rIdx+4}`).alignment = {vertical:'top', horizontal:'left'}; ws1.getCell(`D${rIdx+4}`).font = { bold: true };
+          ws1.mergeCells(`G${rIdx+4}:H${rIdx+6}`); ws1.getCell(`G${rIdx+4}`).value = 'FIRMA:'; applyStyle(ws1.getCell(`G${rIdx+4}`)); ws1.getCell(`G${rIdx+4}`).alignment = {vertical:'top', horizontal:'left'}; ws1.getCell(`G${rIdx+4}`).font = { bold: true };
+
+          ws1.getRow(rIdx+4).height = 18;
+          ws1.getRow(rIdx+5).height = 18;
+          ws1.getRow(rIdx+6).height = 18;
+
+          embedSig(activeProfile.POT_FIRMA_1, 0, 3, rIdx+4);
+          embedSig(activeProfile.POT_FIRMA_2, 3, 3, rIdx+4);
+          embedSig(activeProfile.POT_FIRMA_3, 6, 2, rIdx+4);
+
+        } else if (activeProfile.TIPO === 'POTENCIA_COM') {
+          let comData: any = {};
+          try { comData = JSON.parse(activeProfile.POT_COM_DATA || '{}'); } catch(e){}
+
+          // Configurar 12 columnas: A es variable / check, B a L son para tiempos, resultados, etc.
+          ws1.columns = [
+            { width: 32 }, // A: Variable / Check
+            { width: 10 }, // B: t=0 / merged specs
+            { width: 10 }, // C: t=15
+            { width: 10 }, // D: t=30
+            { width: 10 }, // E: t=45
+            { width: 10 }, // F: t=60
+            { width: 10 }, // G: t=90
+            { width: 10 }, // H: t=120
+            { width: 10 }, // I: t=150
+            { width: 10 }, // J: t=180
+            { width: 10 }, // K: t=210
+            { width: 10 }  // L: t=240
+          ];
+
+          // 1. CABECERA (Filas 1 a 3)
+          ws1.mergeCells('A1:B3'); applyStyle(ws1.getCell('A1'));
+          if (currentLogo) {
+            try {
+              const logoId = wb.addImage({ 
+                base64: currentLogo.split(',')[1], 
+                extension: 'png' 
+              });
+              ws1.addImage(logoId, { tl: { col: 0.1, row: 0.1 }, ext: { width: 120, height: 50 } });
+            } catch (e) {
+              console.error("Error embedding logo in Excel", e);
+            }
+          }
+
+          ws1.mergeCells('C1:J1');
+          ws1.getCell('C1').value = 'Ingeniería y Proyectos';
+          applyStyle(ws1.getCell('C1'), true);
+
+          ws1.mergeCells('C2:J3');
+          ws1.getCell('C2').value = `Formato Comisionamiento\nMotor Eléctrico Bajo Voltaje\nPRUE-ELE-03`;
+          applyStyle(ws1.getCell('C2'), true);
+          ws1.getCell('C2').font = { name: 'Calibri', bold: true, size: 10 };
+
+          ws1.getCell('K1').value = 'Código:'; applyStyle(ws1.getCell('K1'), true);
+          ws1.getCell('L1').value = activeProfile.POT_CODIGO || 'SKC-C-F-005'; applyStyle(ws1.getCell('L1'));
+
+          ws1.getCell('K2').value = 'Fecha:'; applyStyle(ws1.getCell('K2'), true);
+          ws1.getCell('L2').value = activeProfile.FECHA_REVISION || '01.19.2023'; applyStyle(ws1.getCell('L2'));
+
+          ws1.getCell('K3').value = 'Versión:'; applyStyle(ws1.getCell('K3'), true);
+          ws1.getCell('L3').value = activeProfile.REVISION || '1'; applyStyle(ws1.getCell('L3'));
+
+          // 2. METADATOS (Filas 4 a 5)
+          ws1.mergeCells('A4:C4'); ws1.getCell('A4').value = `PROYECTO: ${activeProfile.PROYECTO || ''}`; applyStyle(ws1.getCell('A4')); ws1.getCell('A4').alignment = {horizontal:'left'}; ws1.getCell('A4').font = { bold: true, name: 'Calibri', size: 9 };
+          ws1.mergeCells('D4:F4'); ws1.getCell('D4').value = `AC-1 No: ${activeProfile.AC1_NO || ''}`; applyStyle(ws1.getCell('D4')); ws1.getCell('D4').alignment = {horizontal:'left'}; ws1.getCell('D4').font = { bold: true, name: 'Calibri', size: 9 };
+          ws1.mergeCells('G4:I4'); ws1.getCell('G4').value = `HC-1 No: ${activeProfile.HC1_NO || ''}`; applyStyle(ws1.getCell('G4')); ws1.getCell('G4').alignment = {horizontal:'left'}; ws1.getCell('G4').font = { bold: true, name: 'Calibri', size: 9 };
+          ws1.mergeCells('J4:L4'); ws1.getCell('J4').value = `CONTRATISTA: ${activeProfile.CONTRATISTA || ''}`; applyStyle(ws1.getCell('J4')); ws1.getCell('J4').alignment = {horizontal:'left'};  ws1.getCell('J4').font = { bold: true, name: 'Calibri', size: 9 };
+
+          ws1.mergeCells('A5:C5'); ws1.getCell('A5').value = `AREA: ${activeProfile.AREA || ''}`; applyStyle(ws1.getCell('A5')); ws1.getCell('A5').alignment = {horizontal:'left'}; ws1.getCell('A5').font = { bold: true, name: 'Calibri', size: 9 };
+          ws1.mergeCells('D5:F5'); ws1.getCell('D5').value = `LOCACION: ${activeProfile.LOCACION || ''}`; applyStyle(ws1.getCell('D5')); ws1.getCell('D5').alignment = {horizontal:'left'}; ws1.getCell('D5').font = { bold: true, name: 'Calibri', size: 9 };
+          ws1.mergeCells('G5:I5'); ws1.getCell('G5').value = `SISTEMA: ${activeProfile.UBICACION || ''}`; applyStyle(ws1.getCell('G5')); ws1.getCell('G5').alignment = {horizontal:'left'}; ws1.getCell('G5').font = { bold: true, name: 'Calibri', size: 9 };
+          ws1.mergeCells('J5:L5'); ws1.getCell('J5').value = `P&ID: ${activeProfile.P_ID_NO || ''}`; applyStyle(ws1.getCell('J5')); ws1.getCell('J5').alignment = {horizontal:'left'}; ws1.getCell('J5').font = { bold: true, name: 'Calibri', size: 9 };
+
+          // 3. INFORMACION MOTOR (Filas 7 a 11)
+          ws1.mergeCells('A7:L7');
+          ws1.getCell('A7').value = 'INFORMACIÓN DEL MOTOR';
+          applyStyle(ws1.getCell('A7'), true);
+          ws1.getCell('A7').alignment = { horizontal: 'left' };
+
+          // Row 8
+          ws1.mergeCells('A8:B8'); ws1.getCell('A8').value = 'TAG No.:'; applyStyle(ws1.getCell('A8'), true); ws1.getCell('A8').alignment = {horizontal:'left'};
+          ws1.mergeCells('C8:D8'); ws1.getCell('C8').value = activeProfile.TAGNAME; applyStyle(ws1.getCell('C8')); ws1.getCell('C8').alignment = {horizontal:'left'};
+          ws1.mergeCells('E8:F8'); ws1.getCell('E8').value = 'CLASIFICACIÓN DE ÁREA:'; applyStyle(ws1.getCell('E8'), true); ws1.getCell('E8').alignment = {horizontal:'left'};
+          ws1.mergeCells('G8:H8'); ws1.getCell('G8').value = activeProfile.AREA || ''; applyStyle(ws1.getCell('G8')); ws1.getCell('G8').alignment = {horizontal:'left'};
+          ws1.mergeCells('I8:J8'); ws1.getCell('I8').value = 'FABRICANTE:'; applyStyle(ws1.getCell('I8'), true); ws1.getCell('I8').alignment = {horizontal:'left'};
+          ws1.mergeCells('K8:L8'); ws1.getCell('K8').value = activeProfile.FABRICANTE_MODELO || 'N/A'; applyStyle(ws1.getCell('K8')); ws1.getCell('K8').alignment = {horizontal:'left'};
+
+          // Row 9
+          ws1.mergeCells('A9:B9'); ws1.getCell('A9').value = 'SERIE No.:'; applyStyle(ws1.getCell('A9'), true); ws1.getCell('A9').alignment = {horizontal:'left'};
+          ws1.mergeCells('C9:D9'); ws1.getCell('C9').value = comData.POT_COM_SERIE || ''; applyStyle(ws1.getCell('C9')); ws1.getCell('C9').alignment = {horizontal:'left'};
+          ws1.mergeCells('E9:F9'); ws1.getCell('E9').value = 'MODELO No.:'; applyStyle(ws1.getCell('E9'), true); ws1.getCell('E9').alignment = {horizontal:'left'};
+          ws1.mergeCells('G9:H9'); ws1.getCell('G9').value = comData.POT_COM_MODELO || ''; applyStyle(ws1.getCell('G9')); ws1.getCell('G9').alignment = {horizontal:'left'};
+          ws1.mergeCells('I9:J9'); ws1.getCell('I9').value = 'NEMA:'; applyStyle(ws1.getCell('I9'), true); ws1.getCell('I9').alignment = {horizontal:'left'};
+          ws1.mergeCells('K9:L9'); ws1.getCell('K9').value = comData.POT_COM_NEMA || ''; applyStyle(ws1.getCell('K9')); ws1.getCell('K9').alignment = {horizontal:'left'};
+
+          // Row 10
+          ws1.mergeCells('A10:B10'); ws1.getCell('A10').value = 'POTENCIA HP:'; applyStyle(ws1.getCell('A10'), true); ws1.getCell('A10').alignment = {horizontal:'left'};
+          ws1.mergeCells('C10:D10'); ws1.getCell('C10').value = comData.POT_COM_POTENCIA_HP || ''; applyStyle(ws1.getCell('C10')); ws1.getCell('C10').alignment = {horizontal:'left'};
+          ws1.mergeCells('E10:F10'); ws1.getCell('E10').value = 'VELOCIDAD RPM:'; applyStyle(ws1.getCell('E10'), true); ws1.getCell('E10').alignment = {horizontal:'left'};
+          ws1.mergeCells('G10:H10'); ws1.getCell('G10').value = comData.POT_COM_VELOCIDAD_RPM || ''; applyStyle(ws1.getCell('G10')); ws1.getCell('G10').alignment = {horizontal:'left'};
+          ws1.mergeCells('I10:J10'); ws1.getCell('I10').value = 'CLASE DE AISL.:'; applyStyle(ws1.getCell('I10'), true); ws1.getCell('I10').alignment = {horizontal:'left'};
+          ws1.mergeCells('K10:L10'); ws1.getCell('K10').value = comData.POT_COM_CLASE_AISL || ''; applyStyle(ws1.getCell('K10')); ws1.getCell('K10').alignment = {horizontal:'left'};
+
+          // Row 11
+          ws1.mergeCells('A11:B11'); ws1.getCell('A11').value = 'SERVICIO:'; applyStyle(ws1.getCell('A11'), true); ws1.getCell('A11').alignment = {horizontal:'left'};
+          ws1.mergeCells('C11:D11'); ws1.getCell('C11').value = activeProfile.SERVICIO || ''; applyStyle(ws1.getCell('C11')); ws1.getCell('C11').alignment = {horizontal:'left'};
+          ws1.mergeCells('E11:F11'); ws1.getCell('E11').value = 'VOLTAJE V:'; applyStyle(ws1.getCell('E11'), true); ws1.getCell('E11').alignment = {horizontal:'left'};
+          ws1.mergeCells('G11:H11'); ws1.getCell('G11').value = comData.POT_COM_VOLTAJE_V || ''; applyStyle(ws1.getCell('G11')); ws1.getCell('G11').alignment = {horizontal:'left'};
+          ws1.mergeCells('I11:J11'); ws1.getCell('I11').value = 'F.L.A. AMP:'; applyStyle(ws1.getCell('I11'), true); ws1.getCell('I11').alignment = {horizontal:'left'};
+          ws1.mergeCells('K11:L11'); ws1.getCell('K11').value = comData.POT_COM_FLA_AMP || ''; applyStyle(ws1.getCell('K11')); ws1.getCell('K11').alignment = {horizontal:'left'};
+
+          // Row 12
+          ws1.mergeCells('A12:B12'); ws1.getCell('A12').value = 'FRECUENCIA Hz:'; applyStyle(ws1.getCell('A12'), true); ws1.getCell('A12').alignment = {horizontal:'left'};
+          ws1.mergeCells('C12:D12'); ws1.getCell('C12').value = comData.POT_COM_FRECUENCIA_HZ || ''; applyStyle(ws1.getCell('C12')); ws1.getCell('C12').alignment = {horizontal:'left'};
+          ws1.mergeCells('E12:L12'); ws1.getCell('E12').value = ''; applyStyle(ws1.getCell('E12'));
+
+          // 4. TABLA LISTA DE REQUERIMIENTOS FUNCIONALES (Fila 14)
+          ws1.getCell('A14').value = 'Check'; applyStyle(ws1.getCell('A14'), true);
+          ws1.mergeCells('B14:J14'); ws1.getCell('B14').value = '1.1 REQUERIMIENTOS PRUEBAS FUNCIONALES'; applyStyle(ws1.getCell('B14'), true);
+          ws1.getCell('K14').value = 'Resultados'; applyStyle(ws1.getCell('K14'), true);
+          ws1.getCell('L14').value = 'Iniciales / Fecha'; applyStyle(ws1.getCell('L14'), true);
+
+          const reqs = [
+            'Realice la prueba de inyección sobre los relés de protección y medición. Chequee los ratings y setting de protección de los fusibles. Anexe los data sheet.',
+            'Mida la resistencia de Aislamiento del cableado de control Mínimo 10 MΩ con Megger de 500 V. Registre el serial del equipo.',
+            'Prueba funcional del arrancador Interruptor/Contactor incluyendo la interfase de control.',
+            'Prueba funcional Mecánica y Eléctrica de los Interlocks incluido las señales de disparo. Liste las pruebas funcionales en una hoja y anéxela.',
+            'Verifique el aterrizaje del motor de acuerdo con las especificaciones del proyecto.',
+            'Mida la resistencia de Aislamiento del Heater. Mínimo 10 MΩ con Megger de 500 V.',
+            'Mida la resistencia de Aislamiento del cable y devanados del motor. Mínimo 100 MΩ con Megger de 1000 V.'
+          ];
+
+          let currRow = 15;
+          reqs.forEach((lbl, i) => {
+            ws1.getRow(currRow).height = i === 3 ? 32 : 24;
+            ws1.getCell(`A${currRow}`).value = `0${i+1}`;
+            applyStyle(ws1.getCell(`A${currRow}`));
+            ws1.getCell(`A${currRow}`).font = { bold: true };
+
+            ws1.mergeCells(`B${currRow}:J${currRow}`);
+            ws1.getCell(`B${currRow}`).value = lbl;
+            applyStyle(ws1.getCell(`B${currRow}`));
+            ws1.getCell(`B${currRow}`).alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+            ws1.getCell(`B${currRow}`).font = { size: 9 };
+
+            ws1.getCell(`K${currRow}`).value = comData[`RES_${i}`] || '';
+            applyStyle(ws1.getCell(`K${currRow}`));
+            ws1.getCell(`K${currRow}`).font = { size: 9, bold: true };
+
+            ws1.getCell(`L${currRow}`).value = comData[`INI_${i}`] || '';
+            applyStyle(ws1.getCell(`L${currRow}`));
+            ws1.getCell(`L${currRow}`).font = { size: 9 };
+
+            currRow++;
+          });
+
+          // Serial instrument note (Fila currRow)
+          ws1.mergeCells(`A${currRow}:J${currRow}`);
+          ws1.getCell(`A${currRow}`).value = 'NOTA. Registre el # del serial de todos los instrumentos involucrados en las pruebas:';
+          applyStyle(ws1.getCell(`A${currRow}`), true);
+          ws1.getCell(`A${currRow}`).alignment = { horizontal: 'left' };
+          ws1.getCell(`A${currRow}`).font = { size: 8.5, bold: true };
+
+          ws1.mergeCells(`K${currRow}:L${currRow}`);
+          ws1.getCell(`K${currRow}`).value = comData['NOTA_SERIALES'] || '';
+          applyStyle(ws1.getCell(`K${currRow}`));
+          ws1.getCell(`K${currRow}`).font = { size: 9, bold: true };
+
+          currRow += 2;
+
+          // 5. PRUEBAS DE FUNCIONAMIENTO (Fila currRow)
+          ws1.mergeCells(`A${currRow}:J${currRow}`);
+          ws1.getCell(`A${currRow}`).value = 'PRUEBAS DE FUNCIONAMIENTO REQUERIDAS';
+          applyStyle(ws1.getCell(`A${currRow}`), true);
+          ws1.getCell(`A${currRow}`).alignment = { horizontal: 'left' };
+
+          ws1.getCell(`K${currRow}`).value = 'RESULTADOS'; applyStyle(ws1.getCell(`K${currRow}`), true);
+          ws1.getCell(`L${currRow}`).value = 'INICIAL. Y FECHA'; applyStyle(ws1.getCell(`L${currRow}`), true);
+
+          currRow++;
+
+          const funcRows = [
+            'Corra el motor sin carga (Desacoplado) por 1 a 4 horas. Registre los datos. Nota: 1 Hora para motores<40 KW. 4 horas para motores>40 KW',
+            'Verificar correspondencia de cargas',
+            'Verifique el sentido de rotación.',
+            'Corriente de arranque',
+            'Tiempo de arranque'
+          ];
+
+          funcRows.forEach((lbl, i) => {
+            ws1.getRow(currRow).height = i === 0 ? 32 : 22;
+            ws1.mergeCells(`B${currRow}:J${currRow}`);
+            ws1.getCell(`A${currRow}`).value = ''; applyStyle(ws1.getCell(`A${currRow}`));
+            
+            ws1.getCell(`B${currRow}`).value = lbl;
+            applyStyle(ws1.getCell(`B${currRow}`));
+            ws1.getCell(`B${currRow}`).alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+            ws1.getCell(`B${currRow}`).font = { size: 9 };
+
+            ws1.getCell(`K${currRow}`).value = comData[`FUNC_RES_${i}`] || '';
+            applyStyle(ws1.getCell(`K${currRow}`));
+            ws1.getCell(`K${currRow}`).font = { size: 9, bold: true };
+
+            ws1.getCell(`L${currRow}`).value = comData[`FUNC_INI_${i}`] || '';
+            applyStyle(ws1.getCell(`L${currRow}`));
+            ws1.getCell(`L${currRow}`).font = { size: 9 };
+
+            currRow++;
+          });
+
+          currRow += 2;
+
+          // 6. TIME GRID TABLE (Fila currRow)
+          ws1.mergeCells(`A${currRow}:L${currRow}`);
+          ws1.getCell(`A${currRow}`).value = 'REGISTRO DE TEMPERATURA, CORRIENTE Y VIBRACIONES (Tiempo 15/30 min. Use 15 Minutos para periodos de 1 H.)';
+          applyStyle(ws1.getCell(`A${currRow}`), true);
+          ws1.getCell(`A${currRow}`).alignment = { horizontal: 'left' };
+          
+          currRow++;
+
+          const times = ['0', '15', '30', '45', '60', '90', '120', '150', '180', '210', '240'];
+          ws1.getCell(`A${currRow}`).value = 'Variable / Tiempo (min)';
+          applyStyle(ws1.getCell(`A${currRow}`), true);
+
+          times.forEach((t, i) => {
+            const colLetter = String.fromCharCode(66 + i); // 66 is 'B'
+            ws1.getCell(`${colLetter}${currRow}`).value = t;
+            applyStyle(ws1.getCell(`${colLetter}${currRow}`), true);
+          });
+
+          currRow++;
+
+          const gridRowsDef = [
+            { id: 'TEMP_AMB', label: 'Temperatura Ambiente' },
+            { id: 'TEMP_DE', label: 'Temperatura Cojinetes (Drive End)' },
+            { id: 'TEMP_NDE', label: 'Temperatura Cojin. (Not Drive End)' },
+            { id: 'CORRIENTE', label: 'Corriente' },
+            { id: 'TEMP_DEV_90', label: 'Temperatura del Devanado 90°' },
+            { id: 'TEMP_DEV_180', label: 'Temperatura del Devanado 180°' },
+            { id: 'TEMP_DEV_270', label: 'Temperatura del Devanado 270°' },
+            { id: 'VIB_DE_V', label: 'Medición Vibración (Drive End) V' },
+            { id: 'VIB_DE_H', label: 'Medición Vibración (Drive End) H' },
+            { id: 'VIB_NDE_V', label: 'Medición Vibración (Not Drive End) V' },
+            { id: 'VIB_NDE_H', label: 'Medición Vibración (Not Drive End) H' }
+          ];
+
+          gridRowsDef.forEach(row => {
+            ws1.getRow(currRow).height = 20;
+            ws1.getCell(`A${currRow}`).value = row.label;
+            applyStyle(ws1.getCell(`A${currRow}`), true);
+            ws1.getCell(`A${currRow}`).alignment = { horizontal: 'left' };
+            ws1.getCell(`A${currRow}`).font = { size: 8, bold: true, color: { argb: 'FFFFFFFF' } };
+
+            times.forEach((t, i) => {
+              const colLetter = String.fromCharCode(66 + i); // 'B' through 'L'
+              const key = `GRID_${row.id}_${t}`;
+              ws1.getCell(`${colLetter}${currRow}`).value = comData[key] || '';
+              applyStyle(ws1.getCell(`${colLetter}${currRow}`));
+              ws1.getCell(`${colLetter}${currRow}`).font = { size: 9, bold: true };
+            });
+
+            currRow++;
+          });
+
+          // NOTA: Terminada la prueba se aislará el motor.
+          ws1.mergeCells(`A${currRow}:L${currRow}`);
+          ws1.getCell(`A${currRow}`).value = 'NOTA: Terminada la prueba se aislará el motor.';
+          applyStyle(ws1.getCell(`A${currRow}`));
+          ws1.getCell(`A${currRow}`).alignment = { horizontal: 'left' };
+          ws1.getCell(`A${currRow}`).font = { italic: true, bold: true, size: 9 };
+
+          currRow += 2;
+
+          // 7. FIRMAS (COMISIONAMIENTO FORMAT)
+          ws1.mergeCells(`A${currRow}:C${currRow}`); 
+          ws1.getCell(`A${currRow}`).value = 'CONTRATISTA Y/O VENDOR'; 
+          applyStyle(ws1.getCell(`A${currRow}`), true);
+
+          ws1.mergeCells(`D${currRow}:H${currRow}`); 
+          ws1.getCell(`D${currRow}`).value = 'GESTOR DEL CONTRATO'; 
+          applyStyle(ws1.getCell(`D${currRow}`), true);
+
+          ws1.mergeCells(`I${currRow}:L${currRow}`); 
+          ws1.getCell(`I${currRow}`).value = 'COMISIONAMIENTO'; 
+          applyStyle(ws1.getCell(`I${currRow}`), true);
+
+          ws1.mergeCells(`A${currRow+1}:C${currRow+1}`); ws1.getCell(`A${currRow+1}`).value = `COMPAÑÍA: ${activeProfile.POT_COMPANIA_1 || ''}`; applyStyle(ws1.getCell(`A${currRow+1}`)); ws1.getCell(`A${currRow+1}`).alignment = {horizontal:'left'};
+          ws1.mergeCells(`D${currRow+1}:H${currRow+1}`); ws1.getCell(`D${currRow+1}`).value = `COMPAÑÍA: ${activeProfile.POT_COMPANIA_2 || ''}`; applyStyle(ws1.getCell(`D${currRow+1}`)); ws1.getCell(`D${currRow+1}`).alignment = {horizontal:'left'};
+          ws1.mergeCells(`I${currRow+1}:L${currRow+1}`); ws1.getCell(`I${currRow+1}`).value = `COMPAÑÍA: ${activeProfile.POT_COMPANIA_3 || ''}`; applyStyle(ws1.getCell(`I${currRow+1}`)); ws1.getCell(`I${currRow+1}`).alignment = {horizontal:'left'};
+
+          ws1.mergeCells(`A${currRow+2}:C${currRow+2}`); ws1.getCell(`A${currRow+2}`).value = `NOMBRE: ${activeProfile.POT_NOMBRE_1 || ''}`; applyStyle(ws1.getCell(`A${currRow+2}`)); ws1.getCell(`A${currRow+2}`).alignment = {horizontal:'left'};
+          ws1.mergeCells(`D${currRow+2}:H${currRow+2}`); ws1.getCell(`D${currRow+2}`).value = `NOMBRE: ${activeProfile.POT_NOMBRE_2 || ''}`; applyStyle(ws1.getCell(`D${currRow+2}`)); ws1.getCell(`D${currRow+2}`).alignment = {horizontal:'left'};
+          ws1.mergeCells(`I${currRow+2}:L${currRow+2}`); ws1.getCell(`I${currRow+2}`).value = `NOMBRE: ${activeProfile.POT_NOMBRE_3 || ''}`; applyStyle(ws1.getCell(`I${currRow+2}`)); ws1.getCell(`I${currRow+2}`).alignment = {horizontal:'left'};
+
+          ws1.mergeCells(`A${currRow+3}:C${currRow+3}`); ws1.getCell(`A${currRow+3}`).value = `FECHA: ${activeProfile.POT_FECHA_1 || ''}`; applyStyle(ws1.getCell(`A${currRow+3}`)); ws1.getCell(`A${currRow+3}`).alignment = {horizontal:'left'};
+          ws1.mergeCells(`D${currRow+3}:H${currRow+3}`); ws1.getCell(`D${currRow+3}`).value = `FECHA: ${activeProfile.POT_FECHA_2 || ''}`; applyStyle(ws1.getCell(`D${currRow+3}`)); ws1.getCell(`D${currRow+3}`).alignment = {horizontal:'left'};
+          ws1.mergeCells(`I${currRow+3}:L${currRow+3}`); ws1.getCell(`I${currRow+3}`).value = `FECHA: ${activeProfile.POT_FECHA_3 || ''}`; applyStyle(ws1.getCell(`I${currRow+3}`)); ws1.getCell(`I${currRow+3}`).alignment = {horizontal:'left'};
+
+          ws1.mergeCells(`A${currRow+4}:C${currRow+6}`); ws1.getCell(`A${currRow+4}`).value = 'FIRMA:'; applyStyle(ws1.getCell(`A${currRow+4}`)); ws1.getCell(`A${currRow+4}`).alignment = {vertical:'top', horizontal:'left'}; ws1.getCell(`A${currRow+4}`).font = { bold: true };
+          ws1.mergeCells(`D${currRow+4}:H${currRow+6}`); ws1.getCell(`D${currRow+4}`).value = 'FIRMA:'; applyStyle(ws1.getCell(`D${currRow+4}`)); ws1.getCell(`D${currRow+4}`).alignment = {vertical:'top', horizontal:'left'}; ws1.getCell(`D${currRow+4}`).font = { bold: true };
+          ws1.mergeCells(`I${currRow+4}:L${currRow+6}`); ws1.getCell(`I${currRow+4}`).value = 'FIRMA:'; applyStyle(ws1.getCell(`I${currRow+4}`)); ws1.getCell(`I${currRow+4}`).alignment = {vertical:'top', horizontal:'left'}; ws1.getCell(`I${currRow+4}`).font = { bold: true };
+
+          ws1.getRow(currRow+4).height = 18;
+          ws1.getRow(currRow+5).height = 18;
+          ws1.getRow(currRow+6).height = 18;
+
+          embedSig(activeProfile.POT_FIRMA_1, 0, 3, currRow+4);
+          embedSig(activeProfile.POT_FIRMA_2, 3, 5, currRow+4);
+          embedSig(activeProfile.POT_FIRMA_3, 8, 4, currRow+4);
+
         } else {
-          embedSig(activeProfile.ELABORO_FIRMA, 0, 3, currentRow+3);
-          embedSig(activeProfile.REVISO_FIRMA, 3, 2, currentRow+3);
-          embedSig(activeProfile.APROBO_FIRMA, 5, 3, currentRow+3);
+          ws1.columns = [
+            { width: 12 }, { width: 12 }, { width: 12 }, { width: 18 }, 
+            { width: 18 }, { width: 12 }, { width: 12 }, { width: 12 }
+          ];
+          
+          // Logo
+          ws1.mergeCells('A1:B2'); applyStyle(ws1.getCell('A1'));
+          if (currentLogo) {
+            try {
+              const logoId = wb.addImage({ 
+                base64: currentLogo.split(',')[1], 
+                extension: 'png' 
+              });
+              ws1.addImage(logoId, { tl: { col: 0.1, row: 0.1 }, ext: { width: 120, height: 35 } });
+            } catch (e) {
+              console.error("Error embedding logo", e);
+            }
+          }
+
+          ws1.mergeCells('C1:F2'); 
+          ws1.getCell('C1').value = (activeProfile.TIPO as string) === 'POTENCIA' 
+            ? (activeProfile.SUBTIPO === 'MOTOR' 
+                ? 'LISTA DE CHEQUEO MOTOR BAJA TENSIÓN' 
+                : 'LISTA DE CHEQUEO CABLE Y MOTOR BAJA TENSIÓN')
+            : 'PROTOCOLO DE PRUEBAS DE INSTRUMENTACIÓN'; 
+          applyStyle(ws1.getCell('C1'), true); 
+          ws1.getCell('G1').value = 'REVISIÓN:'; applyStyle(ws1.getCell('G1'), true);
+          ws1.getCell('H1').value = activeProfile.REVISION; applyStyle(ws1.getCell('H1'));
+          ws1.getCell('G2').value = 'FECHA DE REVISIÓN:'; applyStyle(ws1.getCell('G2'), true);
+          ws1.getCell('H2').value = activeProfile.FECHA_REVISION; applyStyle(ws1.getCell('H2'));
+
+          ws1.getCell('A3').value = 'CLIENTE:'; applyStyle(ws1.getCell('A3'), true);
+          ws1.mergeCells('B3:E3'); ws1.getCell('B3').value = activeProfile.CLIENTE; applyStyle(ws1.getCell('B3')); ws1.getCell('B3').alignment = {horizontal:'left'};
+          ws1.mergeCells('F3:G3'); ws1.getCell('F3').value = 'FECHA:'; applyStyle(ws1.getCell('F3'), true); ws1.getCell('F3').alignment = {horizontal:'left'};
+          ws1.getCell('H3').value = activeProfile.FECHA; applyStyle(ws1.getCell('H3')); ws1.getCell('H3').alignment = {horizontal:'left'};
+
+          ws1.getCell('A4').value = 'PROYECTO:'; applyStyle(ws1.getCell('A4'), true);
+          ws1.mergeCells('B4:E4'); ws1.getCell('B4').value = activeProfile.PROYECTO; applyStyle(ws1.getCell('B4')); ws1.getCell('B4').alignment = {horizontal:'left'};
+          ws1.mergeCells('F4:G4'); ws1.getCell('F4').value = 'CONTRATO:'; applyStyle(ws1.getCell('F4'), true); ws1.getCell('F4').alignment = {horizontal:'left'};
+          ws1.getCell('H4').value = activeProfile.CONTRATO; applyStyle(ws1.getCell('H4')); ws1.getCell('H4').alignment = {horizontal:'left'};
+
+          // 1. INFORMACIÓN GENERAL
+          ws1.mergeCells('A6:H6'); ws1.getCell('A6').value = activeProfile.TIPO.startsWith('POTENCIA') ? '1. INFORMACIÓN DEL EQUIPO' : '1. INFORMACIÓN GENERAL DEL INSTRUMENTO'; applyStyle(ws1.getCell('A6'), true); ws1.getCell('A6').alignment = {horizontal:'left'};
+              ws1.mergeCells('A7:B7'); ws1.getCell('A7').value = 'Tag No:'; applyStyle(ws1.getCell('A7'), true); ws1.getCell('A7').alignment = {horizontal:'left'};
+          ws1.mergeCells('C7:D7'); ws1.getCell('C7').value = (activeItem as any)[tagKey]; applyStyle(ws1.getCell('C7')); ws1.getCell('C7').alignment = {horizontal:'left'};
+          ws1.mergeCells('E7:F7'); ws1.getCell('E7').value = 'Fabricante/Modelo:'; applyStyle(ws1.getCell('E7'), true); ws1.getCell('E7').alignment = {horizontal:'left'};
+          ws1.mergeCells('G7:H7'); ws1.getCell('G7').value = activeProfile.FABRICANTE_MODELO || 'N/A'; applyStyle(ws1.getCell('G7')); ws1.getCell('G7').alignment = {horizontal:'left'};
+          
+          ws1.mergeCells('A8:B8'); ws1.getCell('A8').value = activeProfile.TIPO.startsWith('POTENCIA') ? 'Descripción:' : 'Tipo Cable / Desc:'; applyStyle(ws1.getCell('A8'), true); ws1.getCell('A8').alignment = {horizontal:'left'};
+          ws1.mergeCells('C8:H8'); 
+          ws1.getCell('C8').value = activeProfile.TIPO.startsWith('POTENCIA') 
+            ? (activeItem as any).DESCRIPCIÓN || ''
+            : `${(activeItem as any).TIPO_CABLE || ''} / ${(activeItem as any).DESCRIPCIÓN || ''}`;
+          applyStyle(ws1.getCell('C8')); ws1.getCell('C8').alignment = {horizontal:'left'};
+          
+          if (!activeProfile.TIPO.startsWith('POTENCIA')) {
+            ws1.mergeCells('A9:B9'); ws1.getCell('A9').value = 'Rango de Operación:'; applyStyle(ws1.getCell('A9'), true); ws1.getCell('A9').alignment = {horizontal:'left'};
+            ws1.mergeCells('C9:D9'); ws1.getCell('C9').value = activeProfile.RANGO_OPERACION || 'N/A'; applyStyle(ws1.getCell('C9')); ws1.getCell('C9').alignment = {horizontal:'left'};
+            ws1.mergeCells('E9:F9'); ws1.getCell('E9').value = 'Clase de Exactitud:'; applyStyle(ws1.getCell('E9'), true); ws1.getCell('E9').alignment = {horizontal:'left'};
+            ws1.mergeCells('G9:H9'); ws1.getCell('G9').value = activeProfile.CLASE_EXACTITUD || 'N/A'; applyStyle(ws1.getCell('G9')); ws1.getCell('G9').alignment = {horizontal:'left'};
+      
+            ws1.mergeCells('A10:B10'); ws1.getCell('A10').value = 'Ubicación:'; applyStyle(ws1.getCell('A10'), true); ws1.getCell('A10').alignment = {horizontal:'left'};
+            ws1.mergeCells('C10:D10'); ws1.getCell('C10').value = (activeItem as any).UBICACIÓN || ''; applyStyle(ws1.getCell('C10')); ws1.getCell('C10').alignment = {horizontal:'left'};
+            ws1.mergeCells('E10:F10'); ws1.getCell('E10').value = 'Tag Cable SWC:'; applyStyle(ws1.getCell('E10'), true); ws1.getCell('E10').alignment = {horizontal:'left'};
+            ws1.mergeCells('G10:H10'); ws1.getCell('G10').value = (activeItem as any).TAG_CABLE_SWC || 'N/A'; applyStyle(ws1.getCell('G10')); ws1.getCell('G10').alignment = {horizontal:'left'};
+          }
+
+          // 2. CONDICIONES DE LA PRUEBA
+          ws1.mergeCells('A12:H12'); ws1.getCell('A12').value = '2. CONDICIONES DE LA PRUEBA'; applyStyle(ws1.getCell('A12'), true); ws1.getCell('A12').alignment = {horizontal:'left'};
+          ws1.mergeCells('A13:B13'); ws1.getCell('A13').value = 'Norma/Procedimiento:'; applyStyle(ws1.getCell('A13'), true); ws1.getCell('A13').alignment = {horizontal:'left'};
+          ws1.mergeCells('C13:H13'); ws1.getCell('C13').value = activeProfile.NORMA_PROCEDIMIENTO; applyStyle(ws1.getCell('C13')); ws1.getCell('C13').alignment = {horizontal:'left'};
+          
+          ws1.mergeCells('A14:B15'); ws1.getCell('A14').value = 'Tipo de Prueba:'; applyStyle(ws1.getCell('A14'), true); ws1.getCell('A14').alignment = {horizontal:'left', vertical:'middle'};
+          ws1.mergeCells('C14:E14'); ws1.getCell('C14').value = activeProfile.TIPO_PRUEBA_PLANO ? '☑ Equipo instalado en ubicación/PLANO' : '☐ Equipo instalado en ubicación/PLANO'; applyStyle(ws1.getCell('C14')); ws1.getCell('C14').alignment = {horizontal:'left'};
+          ws1.mergeCells('F14:H14'); ws1.getCell('F14').value = activeProfile.TIPO_PRUEBA_FUNC_SIM ? '☑ Prueba funcional simulada' : '☐ Prueba funcional simulada'; applyStyle(ws1.getCell('F14')); ws1.getCell('F14').alignment = {horizontal:'left'};
+          ws1.mergeCells('C15:E15'); ws1.getCell('C15').value = activeProfile.TIPO_PRUEBA_LOOP ? '☑ Pruebas de lazo (loop check)' : '☐ Pruebas de lazo (loop check)'; applyStyle(ws1.getCell('C15')); ws1.getCell('C15').alignment = {horizontal:'left'};
+          ws1.mergeCells('F15:H15'); ws1.getCell('F15').value = activeProfile.TIPO_PRUEBA_FUNC_LINEA ? '☑ Prueba funcional acoplada a línea' : '☐ Prueba funcional acoplada a línea'; applyStyle(ws1.getCell('F15')); ws1.getCell('F15').alignment = {horizontal:'left'};
+
+          ws1.mergeCells('A16:B16'); ws1.getCell('A16').value = 'Equipo de prueba 1:'; applyStyle(ws1.getCell('A16'), true); ws1.getCell('A16').alignment = {horizontal:'left'};
+          ws1.mergeCells('C16:E16'); ws1.getCell('C16').value = activeProfile.EQUIPO_PRUEBA_1; applyStyle(ws1.getCell('C16')); ws1.getCell('C16').alignment = {horizontal:'left'};
+          ws1.mergeCells('F16:G16'); ws1.getCell('F16').value = 'Certificado/Fecha de Vigencia:'; applyStyle(ws1.getCell('F16'), true); ws1.getCell('F16').alignment = {horizontal:'left'};
+          ws1.getCell('H16').value = activeProfile.CERT_FECHA_1; applyStyle(ws1.getCell('H16')); ws1.getCell('H16').alignment = {horizontal:'left'};
+
+          ws1.mergeCells('A17:B17'); ws1.getCell('A17').value = 'Equipo de prueba 2:'; applyStyle(ws1.getCell('A17'), true); ws1.getCell('A17').alignment = {horizontal:'left'};
+          ws1.mergeCells('C17:E17'); ws1.getCell('C17').value = activeProfile.EQUIPO_PRUEBA_2; applyStyle(ws1.getCell('C17')); ws1.getCell('C17').alignment = {horizontal:'left'};
+          ws1.mergeCells('F17:G17'); ws1.getCell('F17').value = 'Certificado/Fecha de Vigencia:'; applyStyle(ws1.getCell('F17'), true); ws1.getCell('F17').alignment = {horizontal:'left'};
+          ws1.getCell('H17').value = activeProfile.CERT_FECHA_2; applyStyle(ws1.getCell('H17')); ws1.getCell('H17').alignment = {horizontal:'left'};
+
+          // 3. Pruebas de Lazo (Loop Check)
+          ws1.mergeCells('A19:H19'); ws1.getCell('A19').value = '3. PRUEBAS DE LAZO (LOOP CHECK)'; applyStyle(ws1.getCell('A19'), true); ws1.getCell('A19').alignment = {horizontal:'left'};
+          ws1.mergeCells('A20:C20'); ws1.getCell('A20').value = activeProfile.LOOP_C1 || ''; applyStyle(ws1.getCell('A20'), true);
+          ws1.mergeCells('D20:E20'); ws1.getCell('D20').value = activeProfile.LOOP_C2 || ''; applyStyle(ws1.getCell('D20'), true);
+          ws1.mergeCells('F20:H20'); ws1.getCell('F20').value = activeProfile.LOOP_C3 || ''; applyStyle(ws1.getCell('F20'), true);
+
+          const addLoopRow = (r: number, v1: string, v2: string, v3: string) => {
+            ws1.mergeCells(`A${r}:C${r}`); ws1.getCell(`A${r}`).value = v1; applyStyle(ws1.getCell(`A${r}`));
+            ws1.mergeCells(`D${r}:E${r}`); ws1.getCell(`D${r}`).value = v2; applyStyle(ws1.getCell(`D${r}`));
+            ws1.mergeCells(`F${r}:H${r}`); ws1.getCell(`F${r}`).value = v3; applyStyle(ws1.getCell(`F${r}`));
+          };
+          addLoopRow(21, activeProfile.L1_C1, activeProfile.L1_C2, activeProfile.L1_C3);
+          addLoopRow(22, activeProfile.L2_C1, activeProfile.L2_C2, activeProfile.L2_C3);
+          addLoopRow(23, activeProfile.L3_C1, activeProfile.L3_C2, activeProfile.L3_C3);
+
+          // 4. Inspección
+          ws1.mergeCells('A25:H25'); ws1.getCell('A25').value = '4. INSPECCIÓN'; applyStyle(ws1.getCell('A25'), true); ws1.getCell('A25').alignment = {horizontal:'left'};
+          ws1.mergeCells('A26:D26'); ws1.getCell('A26').value = 'Ítem Revisado'; applyStyle(ws1.getCell('A26'), true);
+          ws1.getCell('E26').value = 'Estado'; applyStyle(ws1.getCell('E26'), true);
+          ws1.mergeCells('F26:H26'); ws1.getCell('F26').value = 'Observaciones'; applyStyle(ws1.getCell('F26'), true);
+
+          const addInspRow = (r: number, label: string, val: string, obs: string) => {
+            ws1.mergeCells(`A${r}:D${r}`); ws1.getCell(`A${r}`).value = label; applyStyle(ws1.getCell(`A${r}`)); ws1.getCell(`A${r}`).alignment = {horizontal:'left', wrapText:true};
+            ws1.getCell(`E${r}`).value = val; applyStyle(ws1.getCell(`E${r}`));
+            ws1.mergeCells(`F${r}:H${r}`); ws1.getCell(`F${r}`).value = obs; applyStyle(ws1.getCell(`F${r}`)); ws1.getCell(`F${r}`).alignment = {horizontal:'left', wrapText:true};
+          };
+          addInspRow(27, activeProfile.LABEL_4_1, activeProfile.INSP_4_1, activeProfile.OBS_4_1);
+          addInspRow(28, activeProfile.LABEL_4_2, activeProfile.INSP_4_2, activeProfile.OBS_4_2);
+          addInspRow(29, activeProfile.LABEL_4_3, activeProfile.INSP_4_3, activeProfile.OBS_4_3);
+          addInspRow(30, activeProfile.LABEL_4_4, activeProfile.INSP_4_4, activeProfile.OBS_4_4);
+
+          // 5. Comentarios
+          ws1.mergeCells('A32:H32'); ws1.getCell('A32').value = '5. COMENTARIOS'; applyStyle(ws1.getCell('A32'), true); ws1.getCell('A32').alignment = {horizontal:'left'};
+          ws1.mergeCells('A33:H34'); ws1.getCell('A33').value = activeProfile.COMENTARIOS; applyStyle(ws1.getCell('A33')); ws1.getCell('A33').alignment = {vertical: 'top', horizontal:'left', wrapText:true};
+
+          let currentRow = 36;
+
+          // FOTOS
+          if (fotosDelTag.length > 0) {
+            ws1.mergeCells(`A${currentRow}:H${currentRow}`); 
+            ws1.getCell(`A${currentRow}`).value = `6. REGISTRO FOTOGRÁFICO`; 
+            applyStyle(ws1.getCell(`A${currentRow}`), true); 
+            ws1.getCell(`A${currentRow}`).alignment = {horizontal:'left'};
+            currentRow++;
+
+            fotosDelTag.forEach((foto, idx) => {
+              const isLeft = idx % 2 === 0;
+              const rowOffset = Math.floor(idx / 2) * 16;
+              const r = currentRow + rowOffset;
+              const colStart = isLeft ? 'A' : 'E';
+              const colEnd = isLeft ? 'D' : 'H';
+              const colIdx = isLeft ? 0 : 4;
+
+              // Asegurar alturas de filas para que las fotos no se vean "incompletas"
+              for (let h = 0; h < 15; h++) {
+                ws1.getRow(r + h).height = 18;
+              }
+              ws1.getRow(r + 15).height = 15; // Altura para observación
+
+              ws1.mergeCells(`${colStart}${r}:${colEnd}${r+14}`);
+              applyStyle(ws1.getCell(`${colStart}${r}`));
+              
+              try {
+                const mimeType = foto.blobData.match(/data:([^;]+);/)?.[1] || 'image/jpeg';
+                const ext = (mimeType.split('/')[1] || 'jpeg').replace('jpg', 'jpeg');
+                
+                const imageId = wb.addImage({ 
+                  base64: foto.blobData.split(',')[1], 
+                  extension: ext as any
+                });
+                
+                // Ajuste de posicionamiento y tamaño
+                // Usaremos coordenadas 'tl' (top-left) y 'br' (bottom-right) para que exceljs lo ancle al recuadro.
+                ws1.addImage(imageId, { 
+                  tl: { col: colIdx + 0.2, row: r - 1 + 0.3 } as any, 
+                  br: { col: colIdx + 3.8, row: r - 1 + 14.7 } as any,
+                  editAs: 'oneCell'
+                });
+              } catch (e) {
+                console.error("Error adding photo to spreadsheet", e);
+              }
+
+              ws1.mergeCells(`${colStart}${r+15}:${colEnd}${r+15}`);
+              ws1.getCell(`${colStart}${r+15}`).value = foto.observacion || `Foto ${idx+1}`; 
+              applyStyle(ws1.getCell(`${colStart}${r+15}`));
+            });
+
+            currentRow += Math.ceil(fotosDelTag.length / 2) * 16 + 1;
+          }
+
+          // Firmas
+          const isPotencia = (activeProfile.TIPO as string).startsWith('POTENCIA');
+          
+          ws1.mergeCells(`A${currentRow}:C${currentRow}`); 
+          ws1.getCell(`A${currentRow}`).value = isPotencia ? 'CONTRATISTA Y/O VENDOR' : 'ELABORÓ'; 
+          applyStyle(ws1.getCell(`A${currentRow}`), true);
+
+          ws1.mergeCells(`D${currentRow}:E${currentRow}`); 
+          ws1.getCell(`D${currentRow}`).value = isPotencia ? (((activeProfile.TIPO as string) === 'POTENCIA_COM' ? 'GESTOR DEL CONTRATO' : 'PRECOMISIONAMIENTO')) : 'REVISÓ'; 
+          applyStyle(ws1.getCell(`D${currentRow}`), true);
+
+          ws1.mergeCells(`F${currentRow}:H${currentRow}`); 
+          ws1.getCell(`F${currentRow}`).value = isPotencia ? 'COMISIONAMIENTO' : 'APROBÓ (CLIENTE / INTERVENTOR)'; 
+          applyStyle(ws1.getCell(`F${currentRow}`), true);
+          
+          // Fila de NOMBRES / COMPAÑÍAS
+          if (isPotencia) {
+            ws1.mergeCells(`A${currentRow+1}:C${currentRow+1}`); ws1.getCell(`A${currentRow+1}`).value = `COMPAÑÍA: ${activeProfile.POT_COMPANIA_1 || ''}`; applyStyle(ws1.getCell(`A${currentRow+1}`)); ws1.getCell(`A${currentRow+1}`).alignment = {horizontal:'left'};
+            ws1.mergeCells(`D${currentRow+1}:E${currentRow+1}`); ws1.getCell(`D${currentRow+1}`).value = `COMPAÑÍA: ${activeProfile.POT_COMPANIA_2 || ''}`; applyStyle(ws1.getCell(`D${currentRow+1}`)); ws1.getCell('D' + (currentRow+1)).alignment = {horizontal:'left'};
+            ws1.mergeCells(`F${currentRow+1}:H${currentRow+1}`); ws1.getCell(`F${currentRow+1}`).value = `COMPAÑÍA: ${activeProfile.POT_COMPANIA_3 || ''}`; applyStyle(ws1.getCell(`F${currentRow+1}`)); ws1.getCell('F' + (currentRow+1)).alignment = {horizontal:'left'};
+
+            ws1.mergeCells(`A${currentRow+2}:C${currentRow+2}`); ws1.getCell(`A${currentRow+2}`).value = `NOMBRE: ${activeProfile.POT_NOMBRE_1 || ''}`; applyStyle(ws1.getCell(`A${currentRow+2}`)); ws1.getCell('A' + (currentRow+2)).alignment = {horizontal:'left'};
+            ws1.mergeCells(`D${currentRow+2}:E${currentRow+2}`); ws1.getCell(`D${currentRow+2}`).value = `NOMBRE: ${activeProfile.POT_NOMBRE_2 || ''}`; applyStyle(ws1.getCell(`D${currentRow+2}`)); ws1.getCell('D' + (currentRow+2)).alignment = {horizontal:'left'};
+            ws1.mergeCells(`F${currentRow+2}:H${currentRow+2}`); ws1.getCell(`F${currentRow+2}`).value = `NOMBRE: ${activeProfile.POT_NOMBRE_3 || ''}`; applyStyle(ws1.getCell(`F${currentRow+2}`)); ws1.getCell('F' + (currentRow+2)).alignment = {horizontal:'left'};
+            
+            ws1.mergeCells(`A${currentRow+6}:C${currentRow+6}`); ws1.getCell(`A${currentRow+6}`).value = `FECHA: ${activeProfile.POT_FECHA_1 || ''}`; applyStyle(ws1.getCell(`A${currentRow+6}`)); ws1.getCell('A' + (currentRow+6)).alignment = {horizontal:'left'};
+            ws1.mergeCells(`D${currentRow+6}:E${currentRow+6}`); ws1.getCell(`D${currentRow+6}`).value = `FECHA: ${activeProfile.POT_FECHA_2 || ''}`; applyStyle(ws1.getCell(`D${currentRow+6}`)); ws1.getCell('D' + (currentRow+6)).alignment = {horizontal:'left'};
+            ws1.mergeCells(`F${currentRow+6}:H${currentRow+6}`); ws1.getCell(`F${currentRow+6}`).value = `FECHA: ${activeProfile.POT_FECHA_3 || ''}`; applyStyle(ws1.getCell(`F${currentRow+6}`)); ws1.getCell('F' + (currentRow+6)).alignment = {horizontal:'left'};
+          } else {
+            ws1.mergeCells(`A${currentRow+1}:C${currentRow+1}`); ws1.getCell(`A${currentRow+1}`).value = `NOMBRE: ${activeProfile.ELABORO_NOMBRE}`; applyStyle(ws1.getCell(`A${currentRow+1}`)); ws1.getCell(`A${currentRow+1}`).alignment = {horizontal:'left'};
+            ws1.mergeCells(`D${currentRow+1}:E${currentRow+1}`); ws1.getCell(`D${currentRow+1}`).value = `NOMBRE: ${activeProfile.REVISO_NOMBRE}`; applyStyle(ws1.getCell(`D${currentRow+1}`)); ws1.getCell('D' + (currentRow+1)).alignment = {horizontal:'left'};
+            ws1.mergeCells(`F${currentRow+1}:H${currentRow+1}`); ws1.getCell(`F${currentRow+1}`).value = `NOMBRE: ${activeProfile.APROBO_NOMBRE}`; applyStyle(ws1.getCell(`F${currentRow+1}`)); ws1.getCell('F' + (currentRow+1)).alignment = {horizontal:'left'};
+
+            ws1.mergeCells(`A${currentRow+2}:C${currentRow+2}`); ws1.getCell(`A${currentRow+2}`).value = `CARGO: ${activeProfile.ELABORO_CARGO}`; applyStyle(ws1.getCell(`A${currentRow+2}`)); ws1.getCell('A' + (currentRow+2)).alignment = {horizontal:'left'};
+            ws1.mergeCells(`D${currentRow+2}:E${currentRow+2}`); ws1.getCell(`D${currentRow+2}`).value = `CARGO: ${activeProfile.REVISO_CARGO}`; applyStyle(ws1.getCell(`D${currentRow+2}`)); ws1.getCell('D' + (currentRow+2)).alignment = {horizontal:'left'};
+            ws1.mergeCells(`F${currentRow+2}:H${currentRow+2}`); ws1.getCell(`F${currentRow+2}`).value = `CARGO: ${activeProfile.APROBO_CARGO}`; applyStyle(ws1.getCell(`F${currentRow+2}`)); ws1.getCell('F' + (currentRow+2)).alignment = {horizontal:'left'};
+            
+            ws1.mergeCells(`A${currentRow+6}:C${currentRow+6}`); ws1.getCell(`A${currentRow+6}`).value = `FECHA: ${activeProfile.FECHA}`; applyStyle(ws1.getCell(`A${currentRow+6}`)); ws1.getCell('A' + (currentRow+6)).alignment = {horizontal:'left'};
+            ws1.mergeCells(`D${currentRow+6}:E${currentRow+6}`); ws1.getCell(`D${currentRow+6}`).value = `FECHA: `; applyStyle(ws1.getCell(`D${currentRow+6}`)); ws1.getCell('D' + (currentRow+6)).alignment = {horizontal:'left'};
+            ws1.mergeCells(`F${currentRow+6}:H${currentRow+6}`); ws1.getCell(`F${currentRow+6}`).value = `FECHA: `; applyStyle(ws1.getCell(`F${currentRow+6}`)); ws1.getCell('F' + (currentRow+6)).alignment = {horizontal:'left'};
+          }
+
+          ws1.mergeCells(`A${currentRow+3}:C${currentRow+5}`); ws1.getCell(`A${currentRow+3}`).value = 'FIRMA:'; applyStyle(ws1.getCell(`A${currentRow+3}`)); ws1.getCell(`A${currentRow+3}`).font = { bold: true }; ws1.getCell(`A${currentRow+3}`).alignment = {vertical:'top', horizontal:'left'};
+          ws1.mergeCells(`D${currentRow+3}:E${currentRow+5}`); ws1.getCell(`D${currentRow+3}`).value = 'FIRMA:'; applyStyle(ws1.getCell(`D${currentRow+3}`)); ws1.getCell(`D${currentRow+3}`).font = { bold: true }; ws1.getCell(`D${currentRow+3}`).alignment = {vertical:'top', horizontal:'left'};
+          ws1.mergeCells(`F${currentRow+3}:H${currentRow+5}`); ws1.getCell(`F${currentRow+3}`).value = 'FIRMA:'; applyStyle(ws1.getCell(`F${currentRow+3}`)); ws1.getCell(`F${currentRow+3}`).font = { bold: true }; ws1.getCell(`F${currentRow+3}`).alignment = {vertical:'top', horizontal:'left'};
+
+          if (isPotencia) {
+            embedSig(activeProfile.POT_FIRMA_1, 0, 3, currentRow+4);
+            embedSig(activeProfile.POT_FIRMA_2, 3, 2, currentRow+4);
+            embedSig(activeProfile.POT_FIRMA_3, 5, 3, currentRow+4);
+          } else {
+            embedSig(activeProfile.ELABORO_FIRMA, 0, 3, currentRow+4);
+            embedSig(activeProfile.REVISO_FIRMA, 3, 2, currentRow+4);
+            embedSig(activeProfile.APROBO_FIRMA, 5, 3, currentRow+4);
+          }
         }
       }
 
@@ -783,28 +1282,30 @@ export const VistaGenerar: React.FC = () => {
         const currentLogo = (activeProfile.TIPO === 'POTENCIA' || activeProfile.TIPO === 'POTENCIA_COM') ? logoPotencia : logoInstrumentacion;
 
         if (activeProfile.TIPO === 'POTENCIA') {
-          return `
-          <div class="protocol-page">
+          const cabeceraFormatoHtml = `
             <!-- CABECERA -->
             <table class="grid-table">
               <tr>
                 <td colspan="2" rowspan="3" class="center no-padding" style="width: 25%;">
                   ${currentLogo ? `<img src="${currentLogo}" style="max-height: 50px; max-width: 90%; object-fit: contain; margin: 5px;" />` : 'LOGO'}
                 </td>
-                <td colspan="4" class="center">Ingeniería y Proyectos</td>
-                <td class="bg-blue" style="width: 12.5%;">Código:</td>
+                <td colspan="4" class="center" style="font-weight: bold; font-family: 'Calibri', 'Arial', sans-serif;">Ingeniería y Proyectos</td>
+                <td class="bg-blue" style="width: 12.5%; font-weight: bold;">Código:</td>
                 <td class="center" style="width: 12.5%;">${activeProfile.POT_CODIGO || ''}</td>
               </tr>
               <tr>
-                <td colspan="4" rowspan="2" class="center" style="font-size: 14px; font-weight: bold;">
+                <td colspan="4" rowspan="2" class="center" style="font-size: 14px; font-weight: bold; font-family: 'Calibri', 'Arial', sans-serif;">
                   Formato Precomisionamiento<br/>
-                  ${activeProfile.POT_SUBTIPO === 'MOTOR' ? 'Lista de chequeo Motor baja tensión<br/>CHKL-ELE-08' : 'Lista de chequeo Cable-Motor baja tensión'}
+                  ${activeProfile.SUBTIPO === 'MOTOR' 
+                    ? 'Lista de chequeo Motor baja tensión' 
+                    : 'Lista de chequeo Cable y Motor baja tensión'
+                  }<br/>CHKL-ELE-08
                 </td>
-                <td class="bg-blue">Fecha:</td>
+                <td class="bg-blue" style="font-weight: bold;">Fecha:</td>
                 <td class="center">${activeProfile.FECHA_REVISION || ''}</td>
               </tr>
               <tr>
-                <td class="bg-blue">Versión:</td>
+                <td class="bg-blue" style="font-weight: bold;">Versión:</td>
                 <td class="center">${activeProfile.REVISION || ''}</td>
               </tr>
               <tr>
@@ -828,6 +1329,12 @@ export const VistaGenerar: React.FC = () => {
                 <td colspan="2" class="text-left font-bold">REV: <span style="font-weight: normal">${activeProfile.REV_PLANO || ''}</span></td>
               </tr>
             </table>
+          `;
+
+          return `
+          <!-- PAGINA 1: LISTA DE CHEQUEO -->
+          <div class="protocol-page">
+            ${cabeceraFormatoHtml}
 
             <!-- LISTA DE CHEQUEO -->
             <table class="grid-table mt-4">
@@ -844,26 +1351,52 @@ export const VistaGenerar: React.FC = () => {
               ${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(num => `
                 <tr>
                   <td class="center font-bold">${num}</td>
-                  <td class="text-left">${(activeProfile as any)[`CHKL_${num}_DESC`] || ''}</td>
-                  <td class="center">${(activeProfile as any)[`CHKL_${num}_ESTADO`] === 'CUMPLE' ? 'X' : ''}</td>
-                  <td class="center">${(activeProfile as any)[`CHKL_${num}_ESTADO`] === 'NO_CUMPLE' ? 'X' : ''}</td>
-                  <td class="center">${(activeProfile as any)[`CHKL_${num}_ESTADO`] === 'N/A' ? 'X' : ''}</td>
+                  <td class="text-left" style="font-size: 11px; padding: 4px;">${(activeProfile as any)[`CHKL_${num}_DESC`] || ''}</td>
+                  <td class="center font-bold">${(activeProfile as any)[`CHKL_${num}_ESTADO`] === 'CUMPLE' ? 'X' : ''}</td>
+                  <td class="center font-bold">${(activeProfile as any)[`CHKL_${num}_ESTADO`] === 'NO_CUMPLE' ? 'X' : ''}</td>
+                  <td class="center font-bold">${(activeProfile as any)[`CHKL_${num}_ESTADO`] === 'N/A' ? 'X' : ''}</td>
                 </tr>
               `).join('')}
               <tr>
-                <td colspan="5" style="text-align: left; padding: 10px; height: 100px; vertical-align: top;">
-                  <div style="font-weight: bold;">Comentarios:</div>
-                  <div style="white-space: pre-wrap; font-family: monospace;">${activeProfile.COMENTARIOS || ''}</div>
+                <td colspan="5" style="text-align: left; padding: 10px; height: 120px; vertical-align: top;">
+                  <div style="font-weight: bold; margin-bottom: 5px;">Comentarios:</div>
+                  <div style="white-space: pre-wrap; font-family: monospace; font-size: 11px;">${activeProfile.COMENTARIOS || ''}</div>
                 </td>
               </tr>
             </table>
+          </div>
+
+          <!-- PAGINA 2: REGISTRO FOTOGRÁFICO Y FIRMAS -->
+          <div class="protocol-page" style="page-break-before: always;">
+            ${cabeceraFormatoHtml}
+
+            <!-- REGISTRO FOTOGRÁFICO -->
+            ${fotosDelTag.length > 0 ? `
+              <table class="grid-table mt-4">
+                <tr><td class="bg-blue text-left font-bold" style="padding: 4px 8px;">6. REGISTRO FOTOGRÁFICO</td></tr>
+              </table>
+              <div class="photo-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 10px;">
+                ${fotosDelTag.map((f, i) => `
+                  <div class="photo-item" style="border: 1px solid #ddd; padding: 8px; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-self: center; width: 100%; max-width: 320px;">
+                    <div class="photo-box" style="width: 100%; height: 180px; display: flex; align-items: center; justify-content: center; background-color: #fcfcfc; overflow: hidden; border: 1px solid #eee; border-radius: 2px;">
+                      <img src="${f.blobData}" style="max-height: 100%; max-width: 100%; object-fit: contain;" />
+                    </div>
+                    <div class="photo-caption" style="margin-top: 8px; font-size: 11px; text-align: center; color: #555; word-wrap: break-word; width: 100%;">${f.observacion || `Foto ${i+1}`}</div>
+                  </div>
+                `).join('')}
+              </div>
+            ` : `
+              <div style="height: 140px; display: flex; align-items: center; justify-content: center; border: 1px dashed #ccc; margin-top: 20px; border-radius: 4px; font-weight: bold; color: #999;">
+                SIN REGISTRO FOTOGRÁFICO
+              </div>
+            `}
 
             <!-- FIRMAS -->
-            <table class="grid-table mt-4" style="page-break-inside: avoid;">
+            <table class="grid-table mt-6" style="page-break-inside: avoid; margin-top: 30px;">
               <tr>
-                <td colspan="3" class="bg-blue">CONTRATISTA Y/O VENDOR</td>
-                <td colspan="3" class="bg-blue">PRECOMISIONAMIENTO</td>
-                <td colspan="2" class="bg-blue">COMISIONAMIENTO</td>
+                <td colspan="3" class="bg-blue" style="font-weight: bold;">CONTRATISTA Y/O VENDOR</td>
+                <td colspan="3" class="bg-blue" style="font-weight: bold;">PRECOMISIONAMIENTO</td>
+                <td colspan="2" class="bg-blue" style="font-weight: bold;">COMISIONAMIENTO</td>
               </tr>
               <tr>
                 <td class="text-left font-bold" style="width: 15%">COMPAÑÍA</td>
@@ -873,14 +1406,14 @@ export const VistaGenerar: React.FC = () => {
               </tr>
               <tr>
                 <td class="text-left font-bold">FIRMA</td>
-                <td colspan="2" class="signature-box" style="height: 60px;">
-                  ${activeProfile.POT_FIRMA_1 ? `<img src="${activeProfile.POT_FIRMA_1}" class="sign-img" style="max-height: 50px;" />` : ''}
+                <td colspan="2" class="signature-box" style="height: 60px; vertical-align: middle; text-align: center;">
+                  ${activeProfile.POT_FIRMA_1 ? `<img src="${activeProfile.POT_FIRMA_1}" class="sign-img" style="max-height: 50px; max-width: 90%; object-fit: contain;" />` : ''}
                 </td>
-                <td colspan="3" class="signature-box" style="height: 60px;">
-                  ${activeProfile.POT_FIRMA_2 ? `<img src="${activeProfile.POT_FIRMA_2}" class="sign-img" style="max-height: 50px;" />` : ''}
+                <td colspan="3" class="signature-box" style="height: 60px; vertical-align: middle; text-align: center;">
+                  ${activeProfile.POT_FIRMA_2 ? `<img src="${activeProfile.POT_FIRMA_2}" class="sign-img" style="max-height: 50px; max-width: 90%; object-fit: contain;" />` : ''}
                 </td>
-                <td colspan="2" class="signature-box" style="height: 60px;">
-                  ${activeProfile.POT_FIRMA_3 ? `<img src="${activeProfile.POT_FIRMA_3}" class="sign-img" style="max-height: 50px;" />` : ''}
+                <td colspan="2" class="signature-box" style="height: 60px; vertical-align: middle; text-align: center;">
+                  ${activeProfile.POT_FIRMA_3 ? `<img src="${activeProfile.POT_FIRMA_3}" class="sign-img" style="max-height: 50px; max-width: 90%; object-fit: contain;" />` : ''}
                 </td>
               </tr>
               <tr>
@@ -896,23 +1429,6 @@ export const VistaGenerar: React.FC = () => {
                 <td colspan="2" class="text-left">${activeProfile.POT_FECHA_3 || ''}</td>
               </tr>
             </table>
-
-            ${fotosDelTag.length > 0 ? `
-              <div style="page-break-before: always; margin-top: 20px;"></div>
-              <table class="grid-table mt-4 overflow-hidden">
-                <tr><td colspan="8" class="bg-blue text-left">REGISTRO FOTOGRÁFICO</td></tr>
-              </table>
-              <div class="photo-container">
-                ${fotosDelTag.map((f, i) => `
-                  <div class="photo-item">
-                    <div class="photo-box">
-                      <img src="${f.blobData}" />
-                    </div>
-                    <div class="photo-caption">${f.observacion || `Foto ${i+1}`}</div>
-                  </div>
-                `).join('')}
-              </div>
-            ` : ''}
           </div>
           `;
         }
@@ -1030,6 +1546,77 @@ export const VistaGenerar: React.FC = () => {
                   `).join('')}
                 </tbody>
             </table>
+
+            <!-- NOTA SERIALES -->
+            <table class="grid-table mt-2" style="font-size: 8px;">
+               <tr>
+                 <td class="text-left font-bold" style="width: 50%;">NOTA: Registre el # del serial de todos los instrumentos involucrados en las pruebas:</td>
+                 <td class="text-left font-bold" style="width: 50%; font-family: monospace; color: #1F3864;">${comData['NOTA_SERIALES'] || ''}</td>
+               </tr>
+            </table>
+
+            <!-- PRUEBAS DE FUNCIONAMIENTO -->
+            <table class="grid-table mt-4" style="font-size: 8px;">
+              <thead>
+                <tr class="bg-blue">
+                  <th class="p-1 text-left" style="width: 60%">PRUEBAS DE FUNCIONAMIENTO REQUERIDAS</th>
+                  <th class="p-1 text-center" style="width: 20%">RESULTADOS</th>
+                  <th class="p-1 text-center" style="width: 20%">INICIAL. Y FECHA</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${[
+                  'Corra el motor sin carga (Desacoplado) por 1 a 4 horas. Registre los datos. Nota: 1 Hora para motores<40 KW. 4 horas para motores>40 KW',
+                  'Verificar correspondencia de cargas',
+                  'Verifique el sentido de rotación.',
+                  'Corriente de arranque',
+                  'Tiempo de arranque'
+                ].map((lbl, i) => `
+                  <tr>
+                    <td class="text-left">${lbl}</td>
+                    <td class="center font-bold" style="color: #1F3864;">${comData[`FUNC_RES_${i}`] || ''}</td>
+                    <td class="center">${comData[`FUNC_INI_${i}`] || ''}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+
+            <!-- REGISTER GRID (PAGE 2) -->
+            <div style="page-break-before: always; margin-top: 15px;"></div>
+            
+            <h4 class="mt-4 text-[#1F3864]" style="font-size: 10px; font-weight: bold; text-transform: uppercase;">REGISTRO DE TEMPERATURA, CORRIENTE Y VIBRACIONES (PRUEBA DE 1 A 4 HORAS)</h4>
+            <table class="grid-table mt-1" style="font-size: 7.5px;">
+              <thead>
+                <tr class="bg-blue">
+                  <th class="p-1 text-left" style="width: 23%;">Variable / Tiempo (min)</th>
+                  ${['0', '15', '30', '45', '60', '90', '120', '150', '180', '210', '240'].map(t => `<th class="p-1 text-center" style="width: 7%;">${t}</th>`).join('')}
+                </tr>
+              </thead>
+              <tbody>
+                ${[
+                  { id: 'TEMP_AMB', label: 'Temperatura Ambiente' },
+                  { id: 'TEMP_DE', label: 'Temperatura Cojinetes (Drive End)' },
+                  { id: 'TEMP_NDE', label: 'Temperatura Cojin. (Not Drive End)' },
+                  { id: 'CORRIENTE', label: 'Corriente' },
+                  { id: 'TEMP_DEV_90', label: 'Temperatura del Devanado 90°' },
+                  { id: 'TEMP_DEV_180', label: 'Temperatura del Devanado 180°' },
+                  { id: 'TEMP_DEV_270', label: 'Temperatura del Devanado 270°' },
+                  { id: 'VIB_DE_V', label: 'Medición Vibración (Drive End) V' },
+                  { id: 'VIB_DE_H', label: 'Medición Vibración (Drive End) H' },
+                  { id: 'VIB_NDE_V', label: 'Medición Vibración (Not Drive End) V' },
+                  { id: 'VIB_NDE_H', label: 'Medición Vibración (Not Drive End) H' }
+                ].map(row => `
+                  <tr>
+                    <td class="text-left font-bold" style="background-color: #f9fafb;">${row.label}</td>
+                    ${['0', '15', '30', '45', '60', '90', '120', '150', '180', '210', '240'].map(t => {
+                      const key = `GRID_${row.id}_${t}`;
+                      return `<td class="center font-bold" style="color: #1F3864;">${comData[key] || ''}</td>`;
+                    }).join('')}
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            <p style="font-size: 7.5px; font-style: italic; margin-top: 5px; font-weight: bold; color: #555;">NOTA: Terminada la prueba se aislará el motor.</p>
 
             <!-- FIRMAS -->
             <table class="grid-table mt-4" style="page-break-inside: avoid;">

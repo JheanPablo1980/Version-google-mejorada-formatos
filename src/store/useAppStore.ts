@@ -156,7 +156,7 @@ export interface Perfil {
   POT_NOMBRE_3?: string;
   POT_FECHA_3?: string;
   POT_COM_DATA?: string;
-  POT_SUBTIPO?: 'CABLE_MOTOR' | 'MOTOR';
+  SUBTIPO?: 'CABLE-MOTOR' | 'MOTOR';
 }
 
 export interface ExportLog {
@@ -639,7 +639,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           timestamp: p.timestamp || p.created_at,
           USER_EMAIL: p.user_email || '',
           ENABLED: p.enabled ?? true,
-          POT_SUBTIPO: p.pot_subtipo || 'CABLE_MOTOR'
+          SUBTIPO: p.subtipo || ''
         }));
         const txP = db.transaction('perfiles', 'readwrite');
         await txP.store.clear();
@@ -717,7 +717,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         reviso_nombre: p.REVISO_NOMBRE, reviso_cargo: p.REVISO_CARGO, reviso_firma: p.REVISO_FIRMA,
         aprobo_nombre: p.APROBO_NOMBRE, aprobo_cargo: p.APROBO_CARGO, aprobo_firma: p.APROBO_FIRMA,
         user_email: p.USER_EMAIL || '',
-        enabled: p.ENABLED ?? true,
         pot_codigo: p.POT_CODIGO,
         ac1_no: p.AC1_NO,
         hc1_no: p.HC1_NO,
@@ -745,46 +744,19 @@ export const useAppStore = create<AppState>((set, get) => ({
         pot_compania_2: p.POT_COMPANIA_2, pot_firma_2: p.POT_FIRMA_2, pot_nombre_2: p.POT_NOMBRE_2, pot_fecha_2: p.POT_FECHA_2,
         pot_compania_3: p.POT_COMPANIA_3, pot_firma_3: p.POT_FIRMA_3, pot_nombre_3: p.POT_NOMBRE_3, pot_fecha_3: p.POT_FECHA_3,
         pot_com_data: p.POT_COM_DATA || '',
-        pot_subtipo: p.POT_SUBTIPO || 'CABLE_MOTOR'
+        subtipo: p.SUBTIPO || null
       }));
       for (let i = 0; i < perfilesToSync.length; i += 500) {
-        const chunk = perfilesToSync.slice(i, i + 500);
-        let success = false;
-        const maxRetries = 10;
-        
-        for (let attempt = 0; attempt < maxRetries; attempt++) {
-          const { error } = await supabase.from('perfiles').upsert(chunk);
-          if (!error) {
-            success = true;
-            break;
+        const batch = perfilesToSync.slice(i, i + 500);
+        const { error } = await supabase.from('perfiles').upsert(batch);
+        if (error) {
+          if (error.message.includes('subtipo') || error.message.includes('column "subtipo" of relation "perfiles" does not exist')) {
+            const batchNoSubtipo = batch.map(({ subtipo, ...rest }) => rest);
+            const { error: retryError } = await supabase.from('perfiles').upsert(batchNoSubtipo);
+            if (retryError) console.error('Error syncing perfiles (retry):', retryError);
+          } else {
+            console.error('Error syncing perfiles:', error);
           }
-          
-          const errMsg = error.message || '';
-          console.error('Error syncing perfiles chunk:', errMsg);
-          
-          let missingColumn: string | null = null;
-          const match1 = errMsg.match(/Could not find the '([^']+)' column/i);
-          const match2 = errMsg.match(/column "([^"]+)"/i);
-          
-          if (match1 && match1[1]) {
-            missingColumn = match1[1];
-          } else if (match2 && match2[1]) {
-            missingColumn = match2[1];
-          }
-          
-          if (errMsg.includes('user_email')) {
-            missingColumn = 'user_email';
-          }
-          
-          if (missingColumn) {
-            console.log(`Pruning absent column "${missingColumn}" from bulk sync chunk and retrying...`);
-            for (const row of chunk) {
-              delete (row as any)[missingColumn];
-            }
-            continue;
-          }
-          
-          break; // other database error
         }
       }
     }
@@ -895,7 +867,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     
     let supabaseError = null;
 
-    // Intentar sincronizar con Supabase de manera robusta
+    // Intentar sincronizar con Supabase
     try {
       const payload: any = {
         id_perfil: perfil.ID_PERFIL,
@@ -939,8 +911,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         aprobo_nombre: perfil.APROBO_NOMBRE || '', aprobo_cargo: perfil.APROBO_CARGO || '', aprobo_firma: perfil.APROBO_FIRMA || '',
         timestamp: perfil.timestamp || new Date().toISOString(),
         user_email: perfil.USER_EMAIL || userEmail,
-        enabled: perfil.ENABLED ?? true,
-        pot_subtipo: perfil.POT_SUBTIPO || 'CABLE_MOTOR',
         pot_codigo: perfil.POT_CODIGO,
         ac1_no: perfil.AC1_NO,
         hc1_no: perfil.HC1_NO,
@@ -967,58 +937,45 @@ export const useAppStore = create<AppState>((set, get) => ({
         pot_compania_1: perfil.POT_COMPANIA_1, pot_firma_1: perfil.POT_FIRMA_1, pot_nombre_1: perfil.POT_NOMBRE_1, pot_fecha_1: perfil.POT_FECHA_1,
         pot_compania_2: perfil.POT_COMPANIA_2, pot_firma_2: perfil.POT_FIRMA_2, pot_nombre_2: perfil.POT_NOMBRE_2, pot_fecha_2: perfil.POT_FECHA_2,
         pot_compania_3: perfil.POT_COMPANIA_3, pot_firma_3: perfil.POT_FIRMA_3, pot_nombre_3: perfil.POT_NOMBRE_3, pot_fecha_3: perfil.POT_FECHA_3,
-        pot_com_data: perfil.POT_COM_DATA || ''
+        pot_com_data: perfil.POT_COM_DATA || '',
+        subtipo: perfil.SUBTIPO || null
       };
 
       const { data: existingRemote } = await supabase.from('perfiles').select('id_perfil').eq('id_perfil', perfil.ID_PERFIL).maybeSingle();
       
-      const currentPayload = { ...payload };
-      const maxRetries = 10;
-      let success = false;
-
-      for (let attempt = 0; attempt < maxRetries; attempt++) {
-        let res;
-        if (!existingRemote) {
-          res = await supabase.from('perfiles').insert(currentPayload);
-        } else {
-          res = await supabase.from('perfiles').update(currentPayload).eq('id_perfil', perfil.ID_PERFIL);
-        }
-
-        if (!res.error) {
-          success = true;
-          break;
-        }
-
-        const errMsg = res.error.message || '';
-        console.warn(`Supabase savePerfil sync retry ${attempt + 1}:`, errMsg);
-
-        let missingColumn: string | null = null;
-        const match1 = errMsg.match(/Could not find the '([^']+)' column/i);
-        const match2 = errMsg.match(/column "([^"]+)"/i);
-        
-        if (match1 && match1[1]) {
-          missingColumn = match1[1];
-        } else if (match2 && match2[1]) {
-          missingColumn = match2[1];
-        }
-
-        if (errMsg.includes('user_email') && currentPayload.user_email) {
-          missingColumn = 'user_email';
-        }
-
-        if (missingColumn && currentPayload[missingColumn] !== undefined) {
-          console.log(`Pruning absent column "${missingColumn}" from Supabase payload`);
-          delete currentPayload[missingColumn];
-          continue;
-        }
-
-        // If it's a different error or we didn't identify a missing column, fail gracefully
-        supabaseError = errMsg;
-        break;
+      let res;
+      if (!existingRemote) {
+        res = await supabase.from('perfiles').insert(payload);
+      } else {
+        res = await supabase.from('perfiles').update(payload).eq('id_perfil', perfil.ID_PERFIL);
       }
 
-      if (!success && !supabaseError) {
-        supabaseError = 'Fallo en la sincronización de campos con la nube';
+      if (res.error) {
+        if (res.error.message.includes('subtipo') || res.error.message.includes('column "subtipo" of relation "perfiles" does not exist')) {
+          delete payload.subtipo;
+          const retryRes = !existingRemote ? 
+            await supabase.from('perfiles').insert(payload) : 
+            await supabase.from('perfiles').update(payload).eq('id_perfil', perfil.ID_PERFIL);
+          if (retryRes.error) {
+            if (retryRes.error.message.includes('user_email')) {
+              delete payload.user_email;
+              const retryRes2 = !existingRemote ? 
+                await supabase.from('perfiles').insert(payload) : 
+                await supabase.from('perfiles').update(payload).eq('id_perfil', perfil.ID_PERFIL);
+              if (retryRes2.error) supabaseError = retryRes2.error.message;
+            } else {
+              supabaseError = retryRes.error.message;
+            }
+          }
+        } else if (res.error.message.includes('user_email')) {
+          delete payload.user_email;
+          const retryRes = !existingRemote ? 
+            await supabase.from('perfiles').insert(payload) : 
+            await supabase.from('perfiles').update(payload).eq('id_perfil', perfil.ID_PERFIL);
+          if (retryRes.error) supabaseError = retryRes.error.message;
+        } else {
+          supabaseError = res.error.message;
+        }
       }
 
       if (perfil.TAGNAME) {

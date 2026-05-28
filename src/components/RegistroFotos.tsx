@@ -1,18 +1,9 @@
 import React, { useState, useRef, useMemo } from 'react';
-import { Camera, ImagePlus, Search, Check, X, Trash2, AlertTriangle, Cloud, Loader2, Filter, ArrowDownAZ, ArrowUpZA, FolderOpen, Upload } from 'lucide-react';
+import { Camera, ImagePlus, Search, Check, X, Trash2, AlertTriangle, Cloud, Loader2, Filter, ArrowDownAZ, ArrowUpZA, Upload, Sparkles, AlertCircle, FileImage, Folder, FolderOpen, ChevronRight, ChevronDown, Layers, MapPin } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { Button } from './ui/Button';
 import { compressImage } from '../lib/imageUtils';
 import { motion, AnimatePresence } from 'motion/react';
-
-interface LogImportFile {
-  id: string;
-  file: File;
-  name: string;
-  matchedTag: string;
-  type: 'INSTRUMENTACION' | 'POTENCIA' | null;
-  previewUrl: string;
-}
 
 export const RegistroFotos: React.FC = () => {
   const { instrumentos, potenciaEquipos, fotos, saveFoto, deleteFoto, driveFolderLink } = useAppStore();
@@ -27,6 +18,15 @@ export const RegistroFotos: React.FC = () => {
   const [observacion, setObservacion] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // Estados para Modo Automático
+  const [uploadMode, setUploadMode] = useState<'manual' | 'auto'>('manual');
+  const [autoPreviews, setAutoPreviews] = useState<any[]>([]);
+  const [autoIsDragging, setAutoIsDragging] = useState(false);
+  const [isProcessingAuto, setIsProcessingAuto] = useState(false);
+  const fileInputAutoRef = useRef<HTMLInputElement>(null);
+  const [isHoveringDropzone, setIsHoveringDropzone] = useState(false);
+  const [selectedAutoTagFilter, setSelectedAutoTagFilter] = useState<string | null>(null);
+
   const [isDriveModalOpen, setIsDriveModalOpen] = useState(false);
   const [driveFiles, setDriveFiles] = useState<{id: string, name: string, mimeType: string, thumbnailLink?: string}[]>([]);
   const [isFetchingDrive, setIsFetchingDrive] = useState(false);
@@ -34,12 +34,6 @@ export const RegistroFotos: React.FC = () => {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
-  const directoryInputRef = useRef<HTMLInputElement>(null);
-  const multiFileInputRef = useRef<HTMLInputElement>(null);
-
-  const [registroMode, setRegistroMode] = useState<'manual' | 'automatico'>('manual');
-  const [importFiles, setImportFiles] = useState<LogImportFile[]>([]);
-  const [importProgress, setImportProgress] = useState<{current: number, total: number} | null>(null);
 
   const MAX_RESULTS = 100;
 
@@ -80,6 +74,43 @@ export const RegistroFotos: React.FC = () => {
     }).slice(0, MAX_RESULTS);
   }, [currentList, activeCategory, tagKey, searchTerm, filtroUbicacion, filtroTipoCable, sortOrder]);
 
+  const uniqueTagsInBatch = useMemo(() => {
+    const tags: Record<string, { count: number; status: 'success' | 'warning' | 'error'; description?: string }> = {};
+    
+    const currentList = activeCategory === 'INSTRUMENTACION' ? instrumentos : potenciaEquipos;
+    const tagKey = activeCategory === 'INSTRUMENTACION' ? 'TAGNAME' : 'TAG';
+    
+    autoPreviews.forEach(item => {
+      const tag = item.matchedTag;
+      if (tag) {
+        if (!tags[tag]) {
+          const matchingElement = currentList.find(c => (c as any)[tagKey] === tag);
+          tags[tag] = { 
+            count: 0, 
+            status: 'success',
+            description: matchingElement?.DESCRIPCIÓN || 'Sin descripción'
+          };
+        }
+        tags[tag].count += 1;
+        
+        if (item.status === 'error') {
+          tags[tag].status = 'error';
+        } else if (item.status === 'warning' && tags[tag].status !== 'error') {
+          tags[tag].status = 'warning';
+        }
+      }
+    });
+
+    return Object.keys(tags).sort().map(tag => ({
+      tag,
+      count: tags[tag].count,
+      status: tags[tag].status,
+      description: tags[tag].description
+    }));
+  }, [autoPreviews, activeCategory, instrumentos, potenciaEquipos]);
+
+
+
   const tagsParaPrevisualizar = selectedTags.length > 0 ? selectedTags : lastCapturedTags;
   const fotosAPrevisualizar = fotos.filter(f => tagsParaPrevisualizar.includes(f.TAGNAME));
 
@@ -93,9 +124,9 @@ export const RegistroFotos: React.FC = () => {
   const handleToggleTag = (tag: string) => {
     setSelectedTags(prev => {
       if (prev.includes(tag)) {
-        return prev.filter(t => t !== tag);
+        return [];
       } else {
-        return [...prev, tag];
+        return [tag];
       }
     });
   };
@@ -107,90 +138,56 @@ export const RegistroFotos: React.FC = () => {
   };
 
   const handleImageCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []) as File[];
+    const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
     setIsProcessing(true);
     try {
       const timestamp = new Date().toISOString();
-      const tagsAfectados = new Set<string>();
-      let savedCount = 0;
-      let limitExceededCount = 0;
-      let unmatchedCount = 0;
+      let tagsActualizados = 0;
+      let tagsParaMantener: string[] = [];
 
-      for (const file of files) {
-        // First try to match filename
-        const match = detectTagFromFilename(file.name);
-        if (match) {
-          const matchedTag = match.tag;
-          const currentCount = fotos.filter(f => f.TAGNAME === matchedTag).length;
+      for (const tag of selectedTags) {
+        const fotosDelTag = fotos.filter(f => f.TAGNAME === tag).length;
+        let cupoDisponible = 4 - fotosDelTag;
+        
+        if (cupoDisponible <= 0) continue; 
+        
+        const archivosAProcesar = files.slice(0, cupoDisponible);
+
+        for (let i = 0; i < archivosAProcesar.length; i++) {
+          const file = archivosAProcesar[i] as File;
+          const base64 = await compressImage(file);
           
-          if (currentCount < 4) {
-            const base64 = await compressImage(file);
-            await saveFoto({
-              id: crypto.randomUUID(),
-              TAGNAME: matchedTag,
-              blobData: base64,
-              nombre_archivo: file.name,
-              observacion,
-              timestamp,
-              estado: 'pending_upload'
-            });
-            tagsAfectados.add(matchedTag);
-            savedCount++;
-          } else {
-            limitExceededCount++;
-          }
-        } else {
-          // Fallback to manually selected tags
-          if (selectedTags.length > 0) {
-            let base64Cache = '';
-            
-            for (const tag of selectedTags) {
-              const currentCount = fotos.filter(f => f.TAGNAME === tag).length;
-              if (currentCount < 4) {
-                if (!base64Cache) {
-                  base64Cache = await compressImage(file);
-                }
-                await saveFoto({
-                  id: crypto.randomUUID(),
-                  TAGNAME: tag,
-                  blobData: base64Cache,
-                  nombre_archivo: file.name || `${tag}_${new Date().getTime()}.jpg`,
-                  observacion,
-                  timestamp,
-                  estado: 'pending_upload'
-                });
-                tagsAfectados.add(tag);
-                savedCount++;
-              } else {
-                limitExceededCount++;
-              }
-            }
-          } else {
-            unmatchedCount++;
-          }
+          await saveFoto({
+            id: crypto.randomUUID(), 
+            TAGNAME: tag, 
+            blobData: base64,
+            nombre_archivo: `${tag}_${new Date().getTime()}_${i}.jpg`,
+            observacion, 
+            timestamp, 
+            estado: 'pending_upload'
+          });
+        }
+        tagsActualizados++;
+
+        if (cupoDisponible - archivosAProcesar.length > 0) {
+          tagsParaMantener.push(tag);
         }
       }
 
-      if (savedCount > 0) {
-        setObservacion('');
-        setLastCapturedTags(Array.from(tagsAfectados));
-        // Clear only those selected tags that have reached 4 photos
-        setSelectedTags(prev => prev.filter(tag => fotos.filter(f => f.TAGNAME === tag).length < 4));
-        
-        let msg = `Se guardaron ${savedCount} foto(s) correctamente.`;
-        if (tagsAfectados.size > 0) {
-          msg += ` Vinculadas a: ${Array.from(tagsAfectados).join(', ')}`;
-        }
-        showNotification(msg, 'info');
+      if (tagsActualizados === 0) {
+        showNotification("Los TAGs seleccionados ya tienen el límite de 4 fotos.", "error");
       } else {
-        if (limitExceededCount > 0 && unmatchedCount === 0) {
-          showNotification("Los TAGs ya tienen el límite máximo de 4 fotos.", "error");
-        } else if (unmatchedCount > 0) {
-          showNotification("No se detectó ningún TAG en los nombres de los archivos. Seleccione un TAG manualmente.", "error");
+        if (tagsParaMantener.length === 0) {
+          setObservacion('');
+        }
+        setLastCapturedTags([...selectedTags]);
+        setSelectedTags(tagsParaMantener); 
+        if (tagsParaMantener.length > 0) {
+          showNotification(`Foto guardada. Aún puedes tomar más fotos para los TAGs marcados.`);
         } else {
-          showNotification("No se procesaron fotos.", "error");
+          showNotification(`Fotos guardadas correctamente.`);
         }
       }
 
@@ -330,133 +327,171 @@ export const RegistroFotos: React.FC = () => {
     }
   };
 
-  const availableTags = useMemo(() => {
-    const list: { tag: string; type: 'INSTRUMENTACION' | 'POTENCIA'; desc: string }[] = [];
-    instrumentos.forEach(i => {
-      if (i.TAGNAME) {
-        list.push({ tag: i.TAGNAME.trim(), type: 'INSTRUMENTACION', desc: i.DESCRIPCIÓN || '' });
-      }
-    });
-    potenciaEquipos.forEach(p => {
-      if (p.TAG) {
-        list.push({ tag: p.TAG.trim(), type: 'POTENCIA', desc: p.DESCRIPCIÓN || '' });
-      }
-    });
-    return list;
-  }, [instrumentos, potenciaEquipos]);
+  // --- MÉTODOS PARA EL MODO AUTOMÁTICO DE RECONOCIMIENTO ---
 
-  const detectTagFromFilename = (filename: string): { tag: string; type: 'INSTRUMENTACION' | 'POTENCIA' } | null => {
-    const nameWithoutExt = filename.substring(0, filename.lastIndexOf('.')) || filename;
-    const upperName = nameWithoutExt.toUpperCase();
+  const sortedAllTagsForDropdown = useMemo(() => {
+    const list = activeCategory === 'INSTRUMENTACION' ? instrumentos : potenciaEquipos;
+    const key = activeCategory === 'INSTRUMENTACION' ? 'TAGNAME' : 'TAG';
+    return list.map((item: any) => item[key]).filter(Boolean).sort();
+  }, [instrumentos, potenciaEquipos, activeCategory]);
+
+  const recalculateAutoPreviewStatuses = (items: any[]) => {
+    const countsPerTag: Record<string, number> = {};
     
-    const cleanString = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    const cleanFile = cleanString(nameWithoutExt);
-
-    let bestMatch: { tag: string; type: 'INSTRUMENTACION' | 'POTENCIA'; length: number } | null = null;
-
-    for (const item of availableTags) {
-      const rawTag = item.tag;
-      const upperTag = rawTag.toUpperCase();
-      const cleanTag = cleanString(rawTag);
-
-      if (cleanTag.length < 2) continue;
-
-      if (upperName.includes(upperTag) || cleanFile.includes(cleanTag)) {
-        if (!bestMatch || rawTag.length > bestMatch.length) {
-          bestMatch = { tag: rawTag, type: item.type, length: rawTag.length };
-        }
+    return items.map(item => {
+      const tag = item.matchedTag;
+      if (!tag) {
+        return {
+          ...item,
+          status: 'warning',
+          message: 'Sin coincidencia'
+        };
       }
-    }
-
-    return bestMatch ? { tag: bestMatch.tag, type: bestMatch.type } : null;
-  };
-
-  const handleFolderOrFilesSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedList = Array.from(e.target.files || []) as File[];
-    if (selectedList.length === 0) return;
-
-    const processed: LogImportFile[] = selectedList.map((file: File) => {
-      const match = detectTagFromFilename(file.name);
+      
+      // Calcular fotos actualmente en DB
+      const dbCount = fotos.filter(f => f.TAGNAME === tag).length;
+      const batchCount = countsPerTag[tag] || 0;
+      const totalCount = dbCount + batchCount + 1;
+      
+      if (totalCount > 4) {
+        return {
+          ...item,
+          status: 'error',
+          message: `Supera límite (Tiene: ${dbCount}, Lote: ${batchCount + 1}/Máx 4)`
+        };
+      }
+      
+      countsPerTag[tag] = batchCount + 1;
       return {
-        id: crypto.randomUUID(),
-        file,
-        name: file.name,
-        matchedTag: match ? match.tag : '',
-        type: match ? match.type : null,
-        previewUrl: URL.createObjectURL(file),
+        ...item,
+        status: 'success',
+        message: `Asignado a ${tag}`
       };
     });
-
-    setImportFiles(prev => [...prev, ...processed]);
-    
-    if (directoryInputRef.current) directoryInputRef.current.value = '';
-    if (multiFileInputRef.current) multiFileInputRef.current.value = '';
   };
 
-  const handleRemoveImportFile = (id: string) => {
-    const found = importFiles.find(f => f.id === id);
-    if (found) {
-      URL.revokeObjectURL(found.previewUrl);
+  const handleQueueAutoFiles = async (newFiles: File[]) => {
+    setIsProcessingAuto(true);
+    try {
+      const currentList = activeCategory === 'INSTRUMENTACION' ? instrumentos : potenciaEquipos;
+      const tagKey = activeCategory === 'INSTRUMENTACION' ? 'TAGNAME' : 'TAG';
+
+      // Preparar y ordenar los TAGs (por longitud de mayor a menor para calzar el más largo primero)
+      const tagsListClean = currentList.map(item => {
+        const originalTag = (item as any)[tagKey] || '';
+        return {
+          originalTag,
+          normalizedTag: originalTag.toLowerCase().replace(/[^a-zA-Z0-9]/g, '')
+        };
+      }).filter(x => x.originalTag);
+
+      tagsListClean.sort((a, b) => b.normalizedTag.length - a.normalizedTag.length);
+
+      const processedItems: any[] = [];
+
+      for (const file of newFiles) {
+        const base64 = await compressImage(file);
+        const fileNameWithoutExt = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+        const normalizedFile = fileNameWithoutExt.toLowerCase().replace(/[^a-zA-Z0-9]/g, '');
+
+        // Buscar coincidencia robusta
+        const matched = tagsListClean.find(t => {
+          if (!t.normalizedTag) return false;
+          return normalizedFile.includes(t.normalizedTag);
+        });
+
+        const matchedTagStr = matched ? matched.originalTag : null;
+
+        processedItems.push({
+          tempId: crypto.randomUUID(),
+          fileName: file.name,
+          blobData: base64,
+          matchedTag: matchedTagStr,
+          observacion: '',
+          status: 'warning',
+          message: ''
+        });
+      }
+
+      // Añadir al listado existente y recalcular
+      setAutoPreviews(prev => {
+        const combined = [...prev, ...processedItems];
+        return recalculateAutoPreviewStatuses(combined);
+      });
+
+    } catch (err) {
+      console.error("Error processing auto files:", err);
+      showNotification("Error procesando lote de imágenes.", "error");
+    } finally {
+      setIsProcessingAuto(false);
+      if (fileInputAutoRef.current) fileInputAutoRef.current.value = '';
     }
-    setImportFiles(prev => prev.filter(f => f.id !== id));
   };
 
-  const handleClearImportList = () => {
-    importFiles.forEach(f => URL.revokeObjectURL(f.previewUrl));
-    setImportFiles([]);
+  const handleUpdateItemTag = (tempId: string, newTag: string) => {
+    setAutoPreviews(prev => {
+      const updated = prev.map(item => 
+        item.tempId === tempId 
+          ? { ...item, matchedTag: newTag || null } 
+          : item
+      );
+      return recalculateAutoPreviewStatuses(updated);
+    });
   };
 
-  const startAutoImport = async () => {
-    const toImport = importFiles.filter(item => item.matchedTag !== '');
-    if (toImport.length === 0) {
-      showNotification("Asigna al menos un TAG para iniciar la importación.", "error");
+  const handleUpdateItemObs = (tempId: string, obs: string) => {
+    setAutoPreviews(prev => 
+      prev.map(item => 
+        item.tempId === tempId ? { ...item, observacion: obs } : item
+      )
+    );
+  };
+
+  const handleDeleteItem = (tempId: string) => {
+    setAutoPreviews(prev => {
+      const updated = prev.filter(item => item.tempId !== tempId);
+      return recalculateAutoPreviewStatuses(updated);
+    });
+  };
+
+  const handleSaveAutoLot = async () => {
+    const validItems = autoPreviews.filter(item => item.status === 'success');
+    if (validItems.length === 0) {
+      showNotification("No hay fotos válidas para guardar.", "error");
       return;
     }
 
-    setIsProcessing(true);
-    setImportProgress({ current: 0, total: toImport.length });
-
+    setIsProcessingAuto(true);
     try {
       const timestamp = new Date().toISOString();
-      let importedCount = 0;
+      let countSaved = 0;
 
-      for (let i = 0; i < toImport.length; i++) {
-        const item = toImport[i];
-        setImportProgress({ current: i + 1, total: toImport.length });
-
-        const fotosDelTag = fotos.filter(f => f.TAGNAME === item.matchedTag).length;
-        if (fotosDelTag >= 4) {
-          continue;
-        }
-
-        try {
-          const base64 = await compressImage(item.file);
-          
-          await saveFoto({
-            id: crypto.randomUUID(),
-            TAGNAME: item.matchedTag,
-            blobData: base64,
-            nombre_archivo: item.name,
-            observacion: observacion || '',
-            timestamp,
-            estado: 'pending_upload'
-          });
-          importedCount++;
-        } catch (err) {
-          console.error("Error compressing file: ", item.name, err);
-        }
+      for (const item of validItems) {
+        await saveFoto({
+          id: crypto.randomUUID(),
+          TAGNAME: item.matchedTag!,
+          blobData: item.blobData,
+          nombre_archivo: item.fileName,
+          observacion: item.observacion || observacion,
+          timestamp,
+          estado: 'pending_upload'
+        });
+        countSaved++;
       }
 
-      showNotification(`Se han importado y vinculado ${importedCount} fotos con éxito.`, 'info');
-      importFiles.forEach(f => URL.revokeObjectURL(f.previewUrl));
-      setImportFiles([]);
-      setObservacion('');
+      showNotification(`Se han guardado ${countSaved} fotos correctamente.`, 'info');
+      
+      // Limpiar fotos guardadas exitosamente, dejar las que tienen advertencias o errores para que el usuario las resuelva
+      setAutoPreviews(prev => {
+        const remaining = prev.filter(item => item.status !== 'success');
+        return recalculateAutoPreviewStatuses(remaining);
+      });
+
     } catch (err) {
       console.error(err);
-      showNotification("Error durante la importación automática.", "error");
+      showNotification("Ocurrió un error al guardar el lote de fotos.", "error");
     } finally {
-      setIsProcessing(false);
-      setImportProgress(null);
+      setIsProcessingAuto(false);
     }
   };
 
@@ -469,7 +504,7 @@ export const RegistroFotos: React.FC = () => {
   );
 
   return (
-    <div className="p-4 space-y-6 max-w-lg mx-auto pb-24 relative">
+    <div className="p-4 space-y-6 max-w-6xl mx-auto pb-24 relative">
       <AnimatePresence>
         {notification && (
           <motion.div
@@ -487,68 +522,38 @@ export const RegistroFotos: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Progress Overlay for Automatic Loading */}
-      <AnimatePresence>
-        {importProgress && (
-          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm text-center space-y-4 border border-gray-100"
-            >
-              <Loader2 className="animate-spin mx-auto text-blue-600" size={36} />
-              <div className="space-y-1">
-                <h4 className="font-bold text-[#1F3864] text-xs uppercase tracking-wider">Modo Automático</h4>
-                <p className="text-xs text-gray-500 font-medium font-mono">
-                  Procesando, comprimiendo y guardando:<br />
-                  {importProgress.current} de {importProgress.total} fotos
-                </p>
-              </div>
-              <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
-                <div 
-                  className="bg-green-600 h-2.5 rounded-full transition-all duration-300"
-                  style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
-                />
-              </div>
-              <p className="text-[10px] text-gray-400">Por favor, no cierres esta pestaña</p>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
       <h2 className="text-2xl font-bold text-[#1F3864] flex items-center gap-2"><Camera size={24} /> Registro Fotográfico</h2>
-
-      {/* Selector de Modo de Registro */}
-      <div className="bg-white p-1.5 rounded-xl border border-gray-100 flex gap-2 shrink-0 shadow-sm">
+      
+      {/* Selector de Modo (Manual / Automático) */}
+      <div className="bg-gray-100 p-1 rounded-xl grid grid-cols-2 gap-1 mb-4 shrink-0 shadow-inner">
         <button
-          type="button"
-          onClick={() => setRegistroMode('manual')}
-          className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all uppercase tracking-wider flex items-center justify-center gap-2 ${
-            registroMode === 'manual'
-              ? 'bg-[#1F3864] text-white shadow-sm'
-              : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+          onClick={() => setUploadMode('manual')}
+          className={`py-2 px-3 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-2 ${
+            uploadMode === 'manual'
+            ? 'bg-[#1F3864] text-white shadow-sm ring-1 ring-black/5'
+            : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50/50'
           }`}
         >
-          <Camera size={14} /> Modo Manual
+          <Camera size={14} />
+          Modo Manual
         </button>
         <button
-          type="button"
-          onClick={() => setRegistroMode('automatico')}
-          className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all uppercase tracking-wider flex items-center justify-center gap-2 ${
-            registroMode === 'automatico'
-              ? 'bg-[#1F3864] text-white shadow-sm'
-              : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+          onClick={() => setUploadMode('auto')}
+          className={`py-2 px-3 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-2 ${
+            uploadMode === 'auto'
+            ? 'bg-[#1F3864] text-white shadow-sm ring-1 ring-black/5'
+            : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50/50'
           }`}
         >
-          <FolderOpen size={14} /> Modo Automático
+          <Sparkles size={14} className={uploadMode === 'auto' ? 'text-yellow-400 fill-yellow-400 animate-pulse' : 'text-gray-400'} />
+          Carga Masiva Automática
         </button>
       </div>
 
-      {registroMode === 'manual' ? (
-        <>
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col max-h-[500px]">
+      {uploadMode === 'manual' ? (
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+          {/* Columna Izquierda: Listado de Tags Planos */}
+          <div className="md:col-span-5 bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col min-h-[500px] md:h-[620px]">
             {/* Selector de Categoría (Instrumentación / Potencia) */}
             <div className="grid grid-cols-2 gap-3 mb-4 shrink-0">
               <button
@@ -575,14 +580,14 @@ export const RegistroFotos: React.FC = () => {
               </button>
             </div>
 
-            <label className="block text-sm font-semibold text-gray-700 mb-2">1. Seleccionar {activeCategory === 'POTENCIA' ? 'Equipo' : 'Instrumento'}</label>
+            <label className="block text-sm font-semibold text-gray-750 mb-2.5">1. Seleccionar {activeCategory === 'POTENCIA' ? 'Equipo' : 'Instrumento'}</label>
             
             {selectedTags.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-3 max-h-24 overflow-y-auto p-1 font-sans">
+              <div className="flex flex-wrap gap-2 mb-3 max-h-24 overflow-y-auto p-1 shrink-0">
                 {selectedTags.map(tag => (
                   <span key={tag} className={`px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 border shadow-sm uppercase ${activeCategory === 'POTENCIA' ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-[#D9E1F2] text-[#1F3864] border-blue-200'}`}>
                     {tag}
-                    <button onClick={() => handleToggleTag(tag)} className={`p-0.5 rounded-full ml-1 ${activeCategory === 'POTENCIA' ? 'hover:bg-orange-200 text-orange-800' : 'hover:bg-blue-300 text-blue-800'}`}>
+                    <button onClick={() => handleToggleTag(tag)} className={`p-0.5 rounded-full ml-1 ${activeCategory === 'POTENCIA' ? 'hover:bg-orange-200 text-orange-850' : 'hover:bg-blue-300 text-blue-800'}`}>
                       <X size={12} />
                     </button>
                   </span>
@@ -592,11 +597,11 @@ export const RegistroFotos: React.FC = () => {
 
             <div className="flex gap-2 mb-3 shrink-0">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-3 text-gray-400" size={18} />
+                <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
                 <input 
                   type="text" 
-                  placeholder={`Buscar por ${activeCategory === 'POTENCIA' ? 'TAG' : 'TAGNAME'} o desc...`} 
-                  className={`w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 ${activeCategory === 'POTENCIA' ? 'focus:ring-orange-600' : 'focus:ring-[#1F3864]'}`} 
+                  placeholder={`Buscar coincidencia...`} 
+                  className={`w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs focus:ring-2 ${activeCategory === 'POTENCIA' ? 'focus:ring-orange-600' : 'focus:ring-[#1F3864]'}`} 
                   value={searchTerm} 
                   onChange={(e) => setSearchTerm(e.target.value)} 
                 />
@@ -606,7 +611,7 @@ export const RegistroFotos: React.FC = () => {
                 className="p-2 border rounded-lg transition-colors flex items-center justify-center bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100"
                 title={`Ordenar ${sortOrder === 'asc' ? 'Descendente' : 'Ascendente'}`}
               >
-                {sortOrder === 'asc' ? <ArrowDownAZ size={18} /> : <ArrowUpZA size={18} />}
+                {sortOrder === 'asc' ? <ArrowDownAZ size={16} /> : <ArrowUpZA size={16} />}
               </button>
               
               {activeCategory === 'INSTRUMENTACION' && (
@@ -615,19 +620,19 @@ export const RegistroFotos: React.FC = () => {
                   className={`p-2 border rounded-lg transition-colors flex items-center justify-center ${showFilters || filtroUbicacion || filtroTipoCable ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'}`}
                   title="Filtros avanzados"
                 >
-                  <Filter size={18} />
+                  <Filter size={16} />
                 </button>
               )}
             </div>
 
             {showFilters && activeCategory === 'INSTRUMENTACION' && (
-              <div className="bg-white p-3 rounded-lg border border-gray-200 grid grid-cols-1 md:grid-cols-2 gap-3 shrink-0 mb-3 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="bg-white p-3 rounded-lg border border-gray-200 grid grid-cols-1 gap-2 shrink-0 mb-3 animate-in fade-in slide-in-from-top-2 duration-200">
                 <div>
-                  <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Ubicación</label>
+                  <label className="block text-[9px] font-bold text-gray-500 uppercase mb-0.5">Ubicación</label>
                   <select 
                     value={filtroUbicacion} 
                     onChange={(e) => setFiltroUbicacion(e.target.value)}
-                    className="w-full p-2 text-xs border border-gray-200 rounded bg-gray-50 focus:ring-[#1F3864] focus:outline-none"
+                    className="w-full px-2 py-1.5 text-[11px] border border-gray-200 rounded bg-gray-50 focus:ring-[#1F3864] focus:outline-none"
                   >
                     <option value="">Todas</option>
                     {ubicacionesUnicas.map(u => (
@@ -636,11 +641,11 @@ export const RegistroFotos: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Tipo de Cable</label>
+                  <label className="block text-[9px] font-bold text-gray-500 uppercase mb-0.5">Tipo de Cable</label>
                   <select 
                     value={filtroTipoCable} 
                     onChange={(e) => setFiltroTipoCable(e.target.value)}
-                    className="w-full p-2 text-xs border border-gray-200 rounded bg-gray-50 focus:ring-[#1F3864] focus:outline-none"
+                    className="w-full px-2 py-1.5 text-[11px] border border-gray-200 rounded bg-gray-50 focus:ring-[#1F3864] focus:outline-none"
                   >
                     <option value="">Todos</option>
                     {tiposCableUnicos.map(t => (
@@ -651,7 +656,17 @@ export const RegistroFotos: React.FC = () => {
               </div>
             )}
 
-            <div className="flex-1 overflow-y-auto border border-gray-200 rounded-lg bg-gray-50/30 p-1 space-y-0.5 custom-scrollbar">
+            <div className="flex justify-between items-center mb-2 px-1 shrink-0">
+              <span className="font-extrabold text-[#1F3864] uppercase tracking-wider text-[9px] flex items-center gap-1">
+                <Layers size={11} className="text-blue-500" />
+                Listado de TAGS
+              </span>
+              <span className="text-[10px] text-gray-400 font-bold bg-gray-100 px-1.5 rounded-full">
+                {filteredInstruments.length} items
+              </span>
+            </div>
+
+            <div className="flex-1 overflow-y-auto border border-gray-200 rounded-lg bg-gray-50/40 p-2 space-y-1.5 custom-scrollbar">
               {filteredInstruments.length > 0 ? (
                 filteredInstruments.map((inst: any, index) => {
                   const tag = inst[tagKey];
@@ -659,291 +674,546 @@ export const RegistroFotos: React.FC = () => {
                   const fotosDelInst = fotos.filter(f => f.TAGNAME === tag).length;
 
                   return (
-                    <label 
-                      key={`${tag}-${index}`} 
-                      className={`flex items-center gap-3 w-full text-left p-2.5 rounded-lg border transition-all ${
+                    <div 
+                      key={`${tag}-${index}`}
+                      className={`flex items-center justify-between p-2 rounded-md border transition-all ${
                         isSelected 
-                        ? activeCategory === 'POTENCIA' ? 'bg-orange-50 border-orange-300 shadow-sm' : 'bg-blue-50 border-blue-300 shadow-sm' 
-                        : 'hover:bg-white hover:border-gray-300 border-transparent cursor-pointer'
+                        ? activeCategory === 'POTENCIA' 
+                          ? 'bg-orange-50/50 border-orange-200 shadow-sm' 
+                          : 'bg-blue-50/50 border-blue-200 shadow-sm' 
+                        : 'hover:bg-slate-50/40 border-transparent bg-white'
+                      }`}
+                    >
+                      <label className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={isSelected}
+                          onChange={() => handleToggleTag(tag)}
+                          className={`w-4 h-4 rounded border-gray-300 ${activeCategory === 'POTENCIA' ? 'text-orange-600 focus:ring-orange-600' : 'text-[#1F3864] focus:ring-[#1F3864]'}`} 
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className={`font-black text-xs ${isSelected ? activeCategory === 'POTENCIA' ? 'text-orange-750' : 'text-[#1F3864]' : 'text-gray-800'}`}>
+                            {tag}
+                          </div>
+                          <div className="text-[9px] text-gray-500 truncate uppercase">
+                            {inst.DESCRIPCIÓN || 'Sin descripción'}
+                            {inst.UBICACIÓN && ` • ${inst.UBICACIÓN}`}
+                          </div>
+                        </div>
+                      </label>
+                      
+                      <div className="flex items-center gap-1 shrink-0 ml-2">
+                        {fotosDelInst > 0 && (
+                          <div className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5 ${fotosDelInst === 4 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                            {fotosDelInst === 4 ? <Check size={10} className="stroke-[3]" /> : null} {fotosDelInst}/4
+                          </div>
+                        )}
+                        {isSelected && fotosDelInst > 0 && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleClearTagPhotos(tag);
+                            }}
+                            className="p-1 text-red-500 hover:bg-red-50 hover:text-red-700 rounded-full transition-colors"
+                            title="Eliminar todas las fotos"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="p-8 text-xs text-gray-500 text-center uppercase tracking-tight">No se encontraron resultados para {activeCategory}.</div>
+              )}
+            </div>
+          </div>
+
+          {/* Columna Derecha: Captura e imágenes cargándose */}
+          <div className="md:col-span-7 space-y-4">
+            {selectedTags.length > 0 ? (
+              <>
+                <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                  <h3 className="font-extrabold text-[#1F3864] mb-3 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                    <Camera size={14} className="text-blue-500" />
+                    2. Capturar Imagen para {selectedTags.join(', ')}
+                  </h3>
+                  
+                  <input 
+                    type="text" 
+                    placeholder="Observación (Opcional)..." 
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg mb-4 text-sm focus:ring-2 focus:ring-[#1F3864] focus:outline-none" 
+                    value={observacion} 
+                    onChange={(e) => setObservacion(e.target.value)} 
+                  />
+                  
+                  <div className="grid grid-cols-3 gap-2">
+                    <input type="file" accept="image/*" capture="environment" className="hidden" ref={cameraInputRef} onChange={handleImageCapture} />
+                    <input type="file" accept="image/*" multiple className="hidden" ref={fileInputRef} onChange={handleImageCapture} />
+                    
+                    <Button onClick={() => cameraInputRef.current?.click()} variant="primary" icon={Camera} disabled={isProcessing} className="text-xs px-2 font-bold py-2.5">
+                      {isProcessing ? 'Proc...' : 'Cámara'}
+                    </Button>
+                    <Button onClick={() => fileInputRef.current?.click()} variant="secondary" icon={ImagePlus} disabled={isProcessing} className="text-xs px-2 font-bold py-2.5">
+                      Galería
+                    </Button>
+                    <Button onClick={openDriveModal} variant="secondary" icon={Cloud} disabled={isProcessing} className="text-xs px-2 font-bold py-2.5 bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200">
+                      Drive
+                    </Button>
+                  </div>
+                </div>
+
+                {fotosAPrevisualizar.length > 0 ? (
+                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                    <h3 className="font-bold text-[#1F3864] mb-3 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                      <Layers size={13} className="text-blue-500" />
+                      Fotos de la selección actual ({fotosAPrevisualizar.length}/4)
+                    </h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      {fotosAPrevisualizar.map((foto) => (
+                        <div key={foto.id} className="relative bg-gray-50 p-2 rounded-xl border border-gray-200 animate-in zoom-in-95">
+                          <div className="aspect-square bg-gray-200 rounded-lg overflow-hidden mb-2 relative group">
+                            <img src={foto.blobData} alt="Captura" className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                            <button 
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteFoto(foto.id);
+                              }} 
+                              className="absolute top-2 right-2 bg-white/95 p-2 rounded-full text-red-600 hover:bg-red-500 hover:text-white shadow-md transition-all active:scale-90 z-10"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                            <div className="absolute top-2 left-2 bg-[#1F3864]/90 text-white text-[9px] font-bold px-2 py-0.5 rounded shadow-sm max-w-[75%] truncate uppercase">
+                              {foto.TAGNAME}
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-gray-650 truncate font-semibold bg-gray-100/50 p-1.5 rounded border border-gray-200/50">
+                            {foto.observacion || 'Sin observación'}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-white p-6 rounded-xl border border-dashed border-gray-200 text-center py-10 text-gray-400 flex flex-col items-center justify-center">
+                    <ImagePlus className="text-gray-300 mb-2" size={32} />
+                    <p className="text-xs font-semibold text-gray-500">Sin fotos registradas todavía</p>
+                    <p className="text-[10px] text-gray-400">Captura una foto usando los controles de arriba para este TAG.</p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="bg-white p-6 rounded-xl border border-dashed border-gray-200 text-center py-20 text-gray-400 flex flex-col items-center justify-center h-full min-h-[300px]">
+                <Camera className="text-gray-300 mb-3" size={44} />
+                <p className="text-sm font-bold text-gray-600 uppercase tracking-tight">Ningún TAG Seleccionado</p>
+                <p className="text-xs text-gray-400 mt-1 max-w-xs mx-auto">Selecciona un TAG en el listado de la izquierda para capturar la imagen o ver las fotos que se van registrando.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* VISTA DE MODO AUTOMÁTICO DE CARGA */
+        <div className="space-y-6">
+          {/* Selector de Categoría (Instrumentación / Potencia) */}
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-3">1. Seleccionar Categoría a buscar</label>
+            <div className="grid grid-cols-2 gap-3 shrink-0">
+              <button
+                onClick={() => { setActiveCategory('INSTRUMENTACION'); setAutoPreviews([]); setSelectedAutoTagFilter(null); }}
+                className={`py-3 px-4 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
+                  activeCategory === 'INSTRUMENTACION' 
+                  ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-100 ring-2 ring-blue-50' 
+                  : 'bg-white border-blue-50 text-blue-400 hover:border-blue-200 hover:text-blue-600'
+                }`}
+              >
+                <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'INSTRUMENTACION' ? 'bg-white animate-pulse' : 'bg-blue-100'}`} />
+                Instrumentación
+              </button>
+              <button
+                onClick={() => { setActiveCategory('POTENCIA'); setAutoPreviews([]); setSelectedAutoTagFilter(null); }}
+                className={`py-3 px-4 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
+                  activeCategory === 'POTENCIA' 
+                  ? 'bg-orange-600 border-orange-600 text-white shadow-lg shadow-orange-100 ring-2 ring-orange-50' 
+                  : 'bg-white border-orange-50 text-orange-400 hover:border-orange-200 hover:text-orange-600'
+                }`}
+              >
+                <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'POTENCIA' ? 'bg-white animate-pulse' : 'bg-orange-100'}`} />
+                Potencia
+              </button>
+            </div>
+            <p className="text-[11px] text-gray-500 mt-3 italic">
+              El buscador automático comparará los nombres de las fotos con los registros de la categoría elegida.
+            </p>
+          </div>
+
+          {/* Área de Carga / Dropzone */}
+          <div 
+            onMouseEnter={() => setIsHoveringDropzone(true)}
+            onMouseLeave={() => setIsHoveringDropzone(false)}
+            className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-4"
+          >
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-gray-500 uppercase">2. Cargar fotos en lote</label>
+              {autoPreviews.length > 0 && !isHoveringDropzone && (
+                <span className="text-[10px] text-blue-600 bg-blue-50 font-bold px-2.5 py-0.5 rounded-full animate-pulse transition-all">
+                  Pasa el mouse cerca para arrastrar o agregar más
+                </span>
+              )}
+            </div>
+            
+            {autoPreviews.length > 0 ? (
+              <div className="relative overflow-hidden transition-all duration-300">
+                {!isHoveringDropzone ? (
+                  <div className="flex items-center justify-center gap-2 py-4 px-4 bg-blue-50/40 hover:bg-blue-100/60 border-2 border-dashed border-blue-200 rounded-xl cursor-pointer text-blue-600 transition-colors animate-in fade-in duration-200">
+                    <Upload size={14} className="animate-bounce" />
+                    <span className="text-xs font-black uppercase tracking-wider">Arrastrar o agregar más fotos (Pasa el mouse aquí)</span>
+                  </div>
+                ) : (
+                  <div className="animate-in fade-in zoom-in-95 duration-200">
+                    <div 
+                      onDragOver={(e) => { e.preventDefault(); setAutoIsDragging(true); }}
+                      onDragEnter={() => setAutoIsDragging(true)}
+                      onDragLeave={() => setAutoIsDragging(false)}
+                      onDrop={async (e) => {
+                        e.preventDefault();
+                        setAutoIsDragging(false);
+                        const files = (Array.from(e.dataTransfer.files) as File[]).filter(f => f.type.startsWith('image/'));
+                        if (files.length > 0) {
+                          await handleQueueAutoFiles(files);
+                        }
+                      }}
+                      onClick={() => fileInputAutoRef.current?.click()}
+                      className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center bg-[#F8FAFC] ${
+                        autoIsDragging 
+                        ? 'border-blue-600 bg-blue-50/50 scale-[0.99] shadow-inner' 
+                        : 'border-blue-300 hover:border-blue-600 hover:bg-blue-50/20'
                       }`}
                     >
                       <input 
-                        type="checkbox" 
-                        checked={isSelected}
-                        onChange={() => handleToggleTag(tag)}
-                        className={`w-5 h-5 rounded border-gray-300 ${activeCategory === 'POTENCIA' ? 'text-orange-600 focus:ring-orange-600' : 'text-[#1F3864] focus:ring-[#1F3864]'}`} 
+                        type="file" 
+                        accept="image/*" 
+                        multiple 
+                        className="hidden" 
+                        ref={fileInputAutoRef}
+                        onChange={async (e) => {
+                          const files = Array.from(e.target.files || []) as File[];
+                          if (files.length > 0) {
+                            await handleQueueAutoFiles(files);
+                          }
+                        }}
                       />
-                      <div className="flex-1 min-w-0" onClick={() => handleToggleTag(tag)}>
-                        <div className={`font-bold text-sm cursor-pointer ${isSelected ? activeCategory === 'POTENCIA' ? 'text-orange-700' : 'text-[#1F3864]' : 'text-gray-800'}`}>
-                          {tag}
-                        </div>
-                        <div className="text-[10px] text-gray-500 truncate uppercase cursor-pointer">{inst.DESCRIPCIÓN || 'Sin descripción'}</div>
+                      <div className="p-3 bg-blue-100 text-blue-600 rounded-full mb-2">
+                        <Upload size={20} className="animate-bounce" />
                       </div>
-                      {fotosDelInst > 0 && (
-                        <div className="flex items-center gap-1">
-                          <div className={`text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 ${fotosDelInst === 4 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                            {fotosDelInst === 4 ? <Check size={12} /> : null} {fotosDelInst}/4
-                          </div>
-                          {isSelected && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                handleClearTagPhotos(tag);
-                              }}
-                              className="p-1.5 text-red-500 hover:bg-red-100 hover:text-red-700 rounded-full transition-colors"
-                              title="Eliminar todas las fotos"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </label>
-                  )
-                })
-              ) : (
-                <div className="p-8 text-sm text-gray-500 text-center uppercase tracking-tight">No se encontraron resultados.</div>
-              )}
-            </div>
-          </div>
-
-          <div className="bg-white p-4 rounded-xl shadow-lg border-2 border-[#1F3864]/10 animate-in fade-in slide-in-from-bottom-4 space-y-3">
-            <h3 className="font-bold text-gray-800 text-xs uppercase tracking-widest flex items-center justify-between">
-              <span>2. Capturar Imagen</span>
-              {selectedTags.length === 0 ? (
-                <span className="text-[9px] font-black uppercase tracking-widest text-[#1F3864] bg-[#D9E1F2] px-2 py-0.5 rounded-full">
-                  Automatch Activo
-                </span>
-              ) : (
-                <span className="text-[9px] font-black uppercase tracking-widest text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
-                  Asignación Manual ({selectedTags.length})
-                </span>
-              )}
-            </h3>
-
-            {selectedTags.length === 0 ? (
-              <p className="text-[10px] text-gray-500 leading-relaxed font-semibold uppercase tracking-tight">
-                No tienes TAGs seleccionados. Sube fotos directamente mediante Cámara o Galería y el detector asociará cada una al TAG correspondiente según su nombre de archivo de forma automática.
-              </p>
-            ) : (
-              <p className="text-[10px] text-gray-500 leading-relaxed font-semibold uppercase tracking-tight">
-                Se guardarán las fotos en los {selectedTags.length} TAGs seleccionados: <span className="text-[#1F3864] font-bold">{selectedTags.join(', ')}</span>. Los archivos cuyos nombres contengan un TAG exacto se asignarán prioritariamente a dicho TAG (Automatch).
-              </p>
-            )}
-
-            <input 
-              type="text" 
-              placeholder="Observación general (Opcional)..." 
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#1F3864] focus:outline-none" 
-              value={observacion} 
-              onChange={(e) => setObservacion(e.target.value)} 
-            />
-            <div className="grid grid-cols-3 gap-2">
-              <input type="file" accept="image/*" capture="environment" className="hidden" ref={cameraInputRef} onChange={handleImageCapture} />
-              <input type="file" accept="image/*" multiple className="hidden" ref={fileInputRef} onChange={handleImageCapture} />
-              
-              <Button onClick={() => cameraInputRef.current?.click()} variant="primary" icon={Camera} disabled={isProcessing} className="text-xs px-2">
-                {isProcessing ? 'Proc...' : 'Cámara'}
-              </Button>
-              <Button onClick={() => fileInputRef.current?.click()} variant="secondary" icon={ImagePlus} disabled={isProcessing} className="text-xs px-2">
-                Galería
-              </Button>
-              <Button onClick={openDriveModal} variant="secondary" icon={Cloud} disabled={isProcessing} className="text-xs px-2 bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200">
-                Drive
-              </Button>
-            </div>
-          </div>
-
-          {fotosAPrevisualizar.length > 0 && (
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-              <h3 className="font-bold text-gray-600 mb-3 text-[10px] uppercase tracking-widest">
-                {selectedTags.length > 0 ? 'Fotos de la selección actual' : 'Última captura'}
-              </h3>
-              <div className="grid grid-cols-2 gap-3">
-                {fotosAPrevisualizar.map((foto) => (
-                  <div key={foto.id} className="relative bg-gray-50 p-2 rounded-xl border border-gray-200 animate-in zoom-in-95">
-                    <div className="aspect-square bg-gray-200 rounded-lg overflow-hidden mb-2 relative group">
-                      <img src={foto.blobData} alt="Captura" className="w-full h-full object-cover transition-transform group-hover:scale-105" referrerPolicy="no-referrer" />
-                      <button 
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteFoto(foto.id);
-                        }} 
-                        className="absolute top-2 right-2 bg-white/95 p-2 rounded-full text-red-600 hover:bg-red-500 hover:text-white shadow-md transition-all active:scale-90 z-10"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                      <div className="absolute top-2 left-2 bg-[#1F3864]/90 text-white text-[9px] font-bold px-2 py-0.5 rounded shadow-sm max-w-[75%] truncate uppercase">
-                        {foto.TAGNAME}
-                      </div>
+                      <span className="text-sm font-bold text-gray-700">Arrastra tus fotos aquí</span>
+                      <span className="text-xs text-gray-400 mt-1">o haz clic para explorar tus archivos</span>
                     </div>
-                    <p className="text-[10px] text-gray-600 truncate font-medium">{foto.observacion || 'Sin observación'}</p>
                   </div>
-                ))}
+                )}
               </div>
-            </div>
-          )}
-        </>
-      ) : (
-        /* UI de Relación y Carga Automática */
-        <div className="space-y-6">
-          <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4">
-            <div className="space-y-1">
-              <h3 className="font-bold text-[#1F3864] text-xs uppercase tracking-wider">Relación Automática de Fotos</h3>
-              <p className="text-xs text-gray-500 leading-relaxed">
-                Selecciona una carpeta local de fotos o un grupo de imágenes. El programa extraerá los nombres de archivo y buscará coincidencias con los TAGNAMEs e identificar los TAGs equivalentes al instante.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 pt-2">
-              <input 
-                type="file" 
-                multiple 
-                {...{ webkitdirectory: "", directory: "" }} 
-                className="hidden" 
-                ref={directoryInputRef} 
-                onChange={handleFolderOrFilesSelect} 
-              />
-              <input 
-                type="file" 
-                multiple 
-                accept="image/*" 
-                className="hidden" 
-                ref={multiFileInputRef} 
-                onChange={handleFolderOrFilesSelect} 
-              />
-
-              <button
-                type="button"
-                onClick={() => directoryInputRef.current?.click()}
-                disabled={isProcessing}
-                className="py-4 px-3 bg-blue-50/70 hover:bg-blue-100/90 text-[#1F3864] border-2 border-dashed border-blue-200 rounded-2xl flex flex-col items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest transition-all"
+            ) : (
+              <div 
+                onDragOver={(e) => { e.preventDefault(); setAutoIsDragging(true); }}
+                onDragEnter={() => setAutoIsDragging(true)}
+                onDragLeave={() => setAutoIsDragging(false)}
+                onDrop={async (e) => {
+                  e.preventDefault();
+                  setAutoIsDragging(false);
+                  const files = (Array.from(e.dataTransfer.files) as File[]).filter(f => f.type.startsWith('image/'));
+                  if (files.length > 0) {
+                    await handleQueueAutoFiles(files);
+                  }
+                }}
+                onClick={() => fileInputAutoRef.current?.click()}
+                className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center ${
+                  autoIsDragging 
+                  ? 'border-blue-600 bg-blue-50/50 scale-[0.99] shadow-inner' 
+                  : 'border-gray-200 hover:border-blue-600 hover:bg-gray-50 bg-white'
+                }`}
               >
-                <FolderOpen size={24} className="text-blue-600" />
-                Seleccionar Carpeta
-              </button>
-
-              <button
-                type="button"
-                onClick={() => multiFileInputRef.current?.click()}
-                disabled={isProcessing}
-                className="py-4 px-3 bg-gray-50/70 hover:bg-gray-100/90 text-gray-700 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest transition-all"
-              >
-                <Upload size={24} className="text-gray-500" />
-                Cargar Archivos
-              </button>
-            </div>
-
-            <div className="space-y-2 pt-2">
-              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest">Observación por defecto (Opcional)</label>
-              <input 
-                type="text" 
-                placeholder="Ej. Foto cargada en lote..." 
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-[#1F3864] focus:outline-none" 
-                value={observacion} 
-                onChange={(e) => setObservacion(e.target.value)} 
-              />
-            </div>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  multiple 
+                  className="hidden" 
+                  ref={fileInputAutoRef}
+                  onChange={async (e) => {
+                    const files = Array.from(e.target.files || []) as File[];
+                    if (files.length > 0) {
+                      await handleQueueAutoFiles(files);
+                    }
+                  }}
+                />
+                <div className="p-3 bg-blue-50 text-blue-600 rounded-full mb-2">
+                  <Upload size={20} className="animate-bounce" />
+                </div>
+                <span className="text-sm font-bold text-gray-700">Arrastra tus fotos aquí</span>
+                <span className="text-xs text-gray-400 mt-1">o haz clic para explorar tus archivos</span>
+              </div>
+            )}
+            
+            {autoPreviews.length > 0 && (
+              <div className="animate-in fade-in duration-200 pb-1">
+                <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">
+                  Observación General (Opcional - aplica a todo el lote)
+                </label>
+                <input 
+                  type="text" 
+                  placeholder="Ej. Registro fotográfico de calibración..." 
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium focus:ring-1 focus:ring-[#1F3864] focus:outline-none" 
+                  value={observacion} 
+                  onChange={(e) => setObservacion(e.target.value)} 
+                />
+              </div>
+            )}
           </div>
 
-          {importFiles.length > 0 && (
-            <div className="bg-white p-4 rounded-xl shadow-md border border-gray-100 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
-              <div className="flex justify-between items-center pb-2 border-b border-gray-100 shrink-0">
-                <div>
-                  <h4 className="font-bold text-[#1F3864] text-xs uppercase tracking-wide">Relación de Fotos extraídas</h4>
-                  <p className="text-[10px] text-gray-400 font-mono font-medium">{importFiles.length} imágenes cargadas</p>
+          {/* Listado de Previsualización y Asignaciones más la Lista Lateral en Rejilla Responsiva */}
+          {autoPreviews.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+              
+              {/* Columna Izquierda: Detalle de Fotos y Asignaciones */}
+              <div className="md:col-span-8 bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <label className="block text-xs font-bold text-gray-500 uppercase">
+                      3. Revisar Asignaciones ({autoPreviews.length} fotos)
+                    </label>
+                    {selectedAutoTagFilter && (
+                      <div className="flex items-center gap-1.5 text-[10px] font-extrabold text-blue-700 uppercase bg-blue-50 border border-blue-100 px-2 py-0.5 rounded shadow-sm w-fit animate-in fade-in duration-150">
+                        <span>Filtrando por: {selectedAutoTagFilter}</span>
+                        <button 
+                          onClick={() => setSelectedAutoTagFilter(null)}
+                          className="hover:bg-blue-200 hover:text-blue-900 rounded p-0.5 transition-colors"
+                          title="Mostrar todas"
+                        >
+                          <X size={11} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <button 
+                    onClick={() => { setAutoPreviews([]); setSelectedAutoTagFilter(null); }} 
+                    className="text-xs font-bold text-red-500 hover:text-red-700 uppercase"
+                  >
+                    Limpiar lote
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleClearImportList}
-                  disabled={isProcessing}
-                  className="text-[10px] font-bold text-red-500 hover:text-red-700 uppercase tracking-widest transition-colors"
-                >
-                  Limpiar lista
-                </button>
+
+                <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
+                  {(selectedAutoTagFilter 
+                    ? autoPreviews.filter(p => p.matchedTag === selectedAutoTagFilter) 
+                    : autoPreviews
+                  ).map((item) => {
+                    const isSuccess = item.status === 'success';
+                    const isError = item.status === 'error';
+                    const isWarning = item.status === 'warning';
+
+                    return (
+                      <div 
+                        key={item.tempId} 
+                        className={`flex flex-col gap-3 p-3 rounded-lg border transition-all ${
+                          isSuccess ? 'border-green-100 bg-green-50/20' : 
+                          isError ? 'border-red-100 bg-red-50/20' : 
+                          'border-yellow-100 bg-yellow-50/20'
+                        }`}
+                      >
+                        <div className="flex gap-3 items-start flex-1 min-w-0">
+                          {/* Thumbnail */}
+                          <div className="w-16 h-16 rounded overflow-hidden border border-gray-200 bg-gray-50 shrink-0 relative flex items-center justify-center">
+                            <img src={item.blobData} alt="Miniatura" className="w-full h-full object-cover" />
+                          </div>
+
+                          {/* Detalles de Match o Dropdown */}
+                          <div className="flex-1 min-w-0 space-y-1.5">
+                            <div className="text-xs font-bold text-gray-700 truncate" title={item.fileName}>
+                              {item.fileName}
+                            </div>
+
+                            {/* Badge de estado */}
+                            <div className="flex flex-wrap items-center gap-1">
+                              {isSuccess && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-green-700 uppercase">
+                                  <Check size={12} className="stroke-[3]" /> Asignado
+                                </span>
+                              )}
+                              {isWarning && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-yellow-600 uppercase">
+                                  <AlertCircle size={11} /> Sin coincidencia
+                                </span>
+                              )}
+                              {isError && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 uppercase">
+                                  <AlertCircle size={11} /> Fuera de límite
+                                </span>
+                              )}
+                              <span className="text-[9px] text-gray-500 italic">
+                                ({item.message})
+                              </span>
+                            </div>
+
+                            {/* Selector de Tag Manual */}
+                            <div className="space-y-0.5">
+                              <span className="text-[9px] font-bold text-gray-400 uppercase">Asignar TAG:</span>
+                              <select
+                                value={item.matchedTag || ''}
+                                onChange={(e) => handleUpdateItemTag(item.tempId, e.target.value)}
+                                className="w-full text-xs font-medium border border-gray-200 rounded p-1 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                              >
+                                <option value="">-- Selecciona el TAG --</option>
+                                {sortedAllTagsForDropdown.map(tOption => (
+                                  <option key={tOption} value={tOption}>{tOption}</option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {/* Observación Individual */}
+                            <div className="space-y-0.5">
+                              <span className="text-[9px] font-bold text-gray-400 uppercase">Comentario para esta foto:</span>
+                              <input 
+                                type="text" 
+                                placeholder="Frente del equipo, calibrador..." 
+                                value={item.observacion}
+                                onChange={(e) => handleUpdateItemObs(item.tempId, e.target.value)}
+                                className="w-full p-1 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Botón descartar foto del lote */}
+                        <div className="flex justify-end items-start p-1 shrink-0">
+                          <button
+                            onClick={() => handleDeleteItem(item.tempId)}
+                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-gray-100 rounded transition-colors"
+                            title="Quitar foto de la lista"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {selectedAutoTagFilter && autoPreviews.filter(p => p.matchedTag === selectedAutoTagFilter).length === 0 && (
+                    <div className="text-center py-10 bg-gray-50/50 border border-dashed border-gray-200 rounded-lg p-6">
+                      <p className="text-xs font-semibold text-gray-500 uppercase">No quedan fotos asignadas para {selectedAutoTagFilter}</p>
+                      <button 
+                        onClick={() => setSelectedAutoTagFilter(null)}
+                        className="text-xs font-black text-blue-600 hover:underline mt-2 uppercase tracking-wide"
+                      >
+                        Ver todas las fotos
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Botones de acción */}
+                <div className="pt-2">
+                  <Button
+                    onClick={handleSaveAutoLot}
+                    variant="primary"
+                    disabled={autoPreviews.filter(p => p.status === 'success').length === 0 || isProcessingAuto}
+                    className="w-full font-bold uppercase tracking-wide flex items-center justify-center gap-2 py-3"
+                  >
+                    {isProcessingAuto ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" /> Procesando lote...
+                      </>
+                    ) : (
+                      <>
+                        <Check size={16} className="stroke-[3]" /> Guardar fotos válidas ({autoPreviews.filter(p => p.status === 'success').length})
+                      </>
+                    )}
+                  </Button>
+                  {autoPreviews.filter(p => p.status !== 'success').length > 0 && (
+                    <p className="text-[10px] text-yellow-800 font-semibold mt-2 text-center bg-yellow-55 p-1.5 rounded border border-yellow-200">
+                      💡 Algunas fotos no coinciden o exceden el límite de 4 fotos por TAG y no serán guardadas hasta que las corrijas o asignes manualmente en la lista.
+                    </p>
+                  )}
+                </div>
               </div>
 
-              <div className="space-y-3.5 max-h-[350px] overflow-y-auto pr-1 custom-scrollbar">
-                {importFiles.map((item) => (
-                  <div key={item.id} className="flex gap-3 bg-gray-50/60 p-2.5 rounded-xl border border-gray-100 items-center justify-between">
-                    <div className="flex gap-3 items-center min-w-0 flex-1">
-                      <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-200 shrink-0 border border-gray-200">
-                        <img src={item.previewUrl} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      </div>
-                      
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <p className="text-xs font-bold text-gray-700 truncate" title={item.name}>{item.name}</p>
-                        <select
-                          value={item.matchedTag}
-                          disabled={isProcessing}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            const tagObj = availableTags.find(t => t.tag === val);
-                            setImportFiles(prev => prev.map(f => f.id === item.id ? {
-                              ...f,
-                              matchedTag: val,
-                              type: tagObj ? tagObj.type : null
-                            } : f));
-                          }}
-                          className={`text-[11px] px-2 py-1.5 border rounded-lg focus:outline-none bg-white font-bold max-w-[160px] truncate ${
-                            item.matchedTag 
-                              ? 'border-green-200 text-green-700 bg-green-50/30' 
-                              : 'border-red-200 text-red-500 bg-red-50/10'
+              {/* Columna Derecha: TAGs seleccionados */}
+              <div className="md:col-span-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col md:max-h-[620px] shrink-0">
+                <div className="flex items-center justify-between border-b pb-2.5 mb-3 shrink-0">
+                  <span className="font-extrabold text-[#1F3864] uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+                    <Layers size={13} className="text-blue-500" />
+                    TAGS Seleccionados ({uniqueTagsInBatch.length})
+                  </span>
+                  {selectedAutoTagFilter && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAutoTagFilter(null)}
+                      className="text-[9px] font-black uppercase text-blue-600 bg-blue-50 hover:bg-blue-100 hover:text-blue-800 transition-colors px-1.5 py-0.5 rounded cursor-pointer"
+                    >
+                      Mostrar todo
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                  {uniqueTagsInBatch.length > 0 ? (
+                    uniqueTagsInBatch.map(({ tag, count, status, description }) => {
+                      const isActiveFilter = selectedAutoTagFilter === tag;
+                      const isSuccess = status === 'success';
+                      const isError = status === 'error';
+
+                      return (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => setSelectedAutoTagFilter(isActiveFilter ? null : tag)}
+                          className={`w-full text-left p-2.5 rounded-lg border transition-all flex items-center justify-between gap-3 cursor-pointer ${
+                            isActiveFilter 
+                              ? activeCategory === 'POTENCIA'
+                                ? 'bg-orange-50/80 border-orange-400 ring-2 ring-orange-100 shadow-md scale-[1.01]'
+                                : 'bg-blue-50/80 border-blue-400 ring-2 ring-blue-100 shadow-md scale-[1.01]'
+                              : 'bg-gray-50 border-gray-150 hover:bg-gray-100/50'
                           }`}
                         >
-                          <option value="">-- No asignado (Ignorar) --</option>
-                          <optgroup label="Instrumentación">
-                            {availableTags.filter(t => t.type === 'INSTRUMENTACION').map(t => (
-                              <option key={`opt-inst-${item.id}-${t.tag}`} value={t.tag}>{t.tag}</option>
-                            ))}
-                          </optgroup>
-                          <optgroup label="Potencia">
-                            {availableTags.filter(t => t.type === 'POTENCIA').map(t => (
-                              <option key={`opt-pot-${item.id}-${t.tag}`} value={t.tag}>{t.tag}</option>
-                            ))}
-                          </optgroup>
-                        </select>
-                      </div>
-                    </div>
+                          <div className="min-w-0 flex-1">
+                            <div className={`font-black text-xs uppercase ${isActiveFilter ? activeCategory === 'POTENCIA' ? 'text-orange-800' : 'text-[#1F3864]' : 'text-gray-800'}`}>
+                              {tag}
+                            </div>
+                            <div className="text-[9px] text-gray-400 font-semibold truncate uppercase" title={description}>
+                              {description}
+                            </div>
+                          </div>
 
-                    <div className="flex flex-col items-end gap-2 shrink-0 select-none">
-                      {item.matchedTag ? (
-                        <span className="text-[8px] font-black uppercase bg-green-100 text-green-700 px-2.5 py-1 rounded-full tracking-widest animate-in fade-in">
-                          Auto Match
-                        </span>
-                      ) : (
-                        <span className="text-[8px] font-black uppercase bg-red-100 text-red-600 px-2.5 py-1 rounded-full tracking-widest animate-in fade-in">
-                          Sin Tag
-                        </span>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveImportFile(item.id)}
-                        disabled={isProcessing}
-                        className="p-1 text-gray-400 hover:text-red-500 rounded-lg transition-colors"
-                        title="Remover"
-                      >
-                        <X size={14} />
-                      </button>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${
+                              isSuccess ? 'bg-green-100 text-green-700' :
+                              isError ? 'bg-red-100 text-red-700' :
+                              'bg-yellow-101 text-yellow-700'
+                            }`}>
+                              {count} {count === 1 ? 'foto' : 'fotos'}
+                            </span>
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${
+                              isSuccess ? 'bg-green-500 animate-pulse' :
+                              isError ? 'bg-red-500 animate-bounce' :
+                              'bg-yellow-500'
+                            }`} />
+                          </div>
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <div className="text-center py-12 text-gray-400 flex flex-col items-center justify-center">
+                      <FileImage size={32} className="text-gray-300 mb-2" />
+                      <p className="text-xs font-semibold text-gray-500">Sin TAGs detectados</p>
+                      <p className="text-[9.5px] text-gray-400 mt-1 max-w-[180px]">
+                        Asigna o corrige las fotos del lote para visualizar los TAGs relacionados aquí.
+                      </p>
                     </div>
-                  </div>
-                ))}
+                  )}
+                </div>
               </div>
 
-              <div className="pt-2">
-                <Button
-                  onClick={startAutoImport}
-                  variant="primary"
-                  disabled={isProcessing || importFiles.filter(i => i.matchedTag !== '').length === 0}
-                  className="w-full py-3.5 text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-100"
-                >
-                  {isProcessing ? 'Guardando...' : `Vincular e Importar (${importFiles.filter(i => i.matchedTag !== '').length})`}
-                </Button>
-              </div>
             </div>
           )}
         </div>

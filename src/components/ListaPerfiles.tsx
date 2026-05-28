@@ -193,9 +193,9 @@ export const ListaPerfiles: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-2 w-full">
+          <div className="flex gap-2">
             {selectedCategory === 'POTENCIA' ? (
-              <div className="flex gap-2 flex-[2]">
+              <>
                 <Button 
                   onClick={() => {
                     setEditingPerfil({ ...PERFIL_POTENCIA_CABLE_MOTOR_INICIAL, ID_PERFIL: crypto.randomUUID() } as Perfil);
@@ -211,12 +211,12 @@ export const ListaPerfiles: React.FC = () => {
                     setEditingPerfil({ ...PERFIL_POTENCIA_MOTOR_INICIAL, ID_PERFIL: crypto.randomUUID() } as Perfil);
                     setView('form');
                   }} 
-                  className="flex-1 bg-amber-600 hover:bg-amber-700 shadow-md font-black uppercase tracking-widest text-[9px] py-2" 
+                  className="flex-1 bg-blue-900 hover:bg-blue-955 shadow-md font-black uppercase tracking-widest text-[10px] py-2" 
                   icon={Plus}
                 >
                   Motor
                 </Button>
-              </div>
+              </>
             ) : (
               <Button 
                 onClick={handleCreateNew} 
@@ -324,17 +324,17 @@ export const ListaPerfiles: React.FC = () => {
                   <div className="flex-1 min-w-0 flex flex-col">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className={`font-black text-sm uppercase tracking-tight truncate ${perfil.ENABLED === false ? 'text-gray-400' : 'text-[#1F3864]'}`}>{perfil.NOMBRE_PERFIL}</h3>
-                      {perfil.TIPO === 'POTENCIA' && (
-                        <span className={`text-[8px] font-black px-1.5 py-0.5 rounded border ${
-                          perfil.POT_SUBTIPO === 'MOTOR' 
-                            ? 'bg-amber-50 text-amber-700 border-amber-200' 
-                            : 'bg-orange-50 text-orange-700 border-orange-200'
-                        }`}>
-                          {perfil.POT_SUBTIPO === 'MOTOR' ? 'MOTOR' : 'CABLE-MOTOR'}
-                        </span>
-                      )}
                       {perfil.ENABLED === false && (
                         <span className="bg-gray-100 text-[8px] font-black px-1.5 py-0.5 rounded text-gray-400 border border-gray-200">INACTIVO</span>
+                      )}
+                      {perfil.TIPO === 'POTENCIA' && (
+                        <span className={`text-[8px] font-black px-1.5 py-0.5 rounded border uppercase tracking-wider ${
+                          perfil.SUBTIPO === 'MOTOR' 
+                            ? 'bg-blue-50 text-blue-700 border-blue-200' 
+                            : 'bg-orange-50 text-orange-700 border-orange-200'
+                        }`}>
+                          {perfil.SUBTIPO || 'CABLE-MOTOR'}
+                        </span>
                       )}
                     </div>
                     <div className="flex items-center gap-2 mt-1">

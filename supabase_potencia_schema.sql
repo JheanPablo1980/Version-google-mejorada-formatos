@@ -10,6 +10,11 @@ BEGIN
     ALTER TABLE perfiles ADD COLUMN tipo text DEFAULT 'INSTRUMENTACION';
   END IF;
 
+  -- We add the 'subtipo' column if it does not exist
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='perfiles' AND column_name='subtipo') THEN
+    ALTER TABLE perfiles ADD COLUMN subtipo text DEFAULT 'CABLE-MOTOR';
+  END IF;
+
   -- Metadata for Potencia
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='perfiles' AND column_name='pot_codigo') THEN
     ALTER TABLE perfiles ADD COLUMN pot_codigo text;
@@ -94,14 +99,6 @@ BEGIN
 
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='perfiles' AND column_name='pot_com_data') THEN
     ALTER TABLE perfiles ADD COLUMN pot_com_data text;
-  END IF;
-
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='perfiles' AND column_name='pot_subtipo') THEN
-    ALTER TABLE perfiles ADD COLUMN pot_subtipo text DEFAULT 'CABLE_MOTOR';
-  END IF;
-
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='perfiles' AND column_name='enabled') THEN
-    ALTER TABLE perfiles ADD COLUMN enabled boolean DEFAULT true;
   END IF;
 
 END $$;

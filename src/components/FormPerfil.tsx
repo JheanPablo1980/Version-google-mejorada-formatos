@@ -3,7 +3,7 @@ import { ArrowLeft, Trash2, FileUp, Save } from 'lucide-react';
 import { useAppStore, Perfil } from '../store/useAppStore';
 import { Button } from './ui/Button';
 import { InputGroup } from './ui/InputGroup';
-import { PERFIL_INICIAL, PERFIL_POTENCIA_INICIAL, PERFIL_POTENCIA_COM_INICIAL } from '../constants';
+import { PERFIL_INICIAL, PERFIL_POTENCIA_INICIAL, PERFIL_POTENCIA_COM_INICIAL, PERFIL_POTENCIA_CABLE_MOTOR_INICIAL, PERFIL_POTENCIA_MOTOR_INICIAL } from '../constants';
 import { Zap, Activity } from 'lucide-react';
 
 interface FormPerfilProps {
@@ -101,8 +101,11 @@ export const FormPerfil: React.FC<FormPerfilProps> = ({ perfilToEdit, onBack }) 
       return;
     }
     let basePerfil = PERFIL_INICIAL;
-    if (formData.TIPO === 'POTENCIA') basePerfil = PERFIL_POTENCIA_INICIAL;
-    else if (formData.TIPO === 'POTENCIA_COM') basePerfil = PERFIL_POTENCIA_COM_INICIAL;
+    if (formData.TIPO === 'POTENCIA') {
+      basePerfil = formData.SUBTIPO === 'MOTOR' ? PERFIL_POTENCIA_MOTOR_INICIAL : PERFIL_POTENCIA_CABLE_MOTOR_INICIAL;
+    } else if (formData.TIPO === 'POTENCIA_COM') {
+      basePerfil = PERFIL_POTENCIA_COM_INICIAL;
+    }
     setFormData({ ...basePerfil, ID_PERFIL: formData.ID_PERFIL } as Perfil);
     setConfirmClear(false);
   };
@@ -133,45 +136,35 @@ export const FormPerfil: React.FC<FormPerfilProps> = ({ perfilToEdit, onBack }) 
         <section className="bg-white p-5 rounded-xl shadow-sm border-t-4 border-t-[#1F3864]">
             <h3 className="font-bold text-sm mb-4 text-[#1F3864] uppercase tracking-widest border-b pb-2">Identificación</h3>
             <InputGroup label="Nombre del Perfil" name="NOMBRE_PERFIL" value={formData.NOMBRE_PERFIL} onChange={handleChange} required className="mb-4" />
+            
             {formData.TIPO === 'POTENCIA' && (
-              <div className="mb-4 bg-orange-50/70 p-4 rounded-xl border border-orange-100">
-                <label className="block text-[10px] font-black text-[#1F3864] uppercase tracking-widest mb-2">Subtipo de Formato (Precomisionamiento)</label>
-                <div className="flex gap-6">
-                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-700">
-                    <input 
-                      type="radio" 
-                      name="POT_SUBTIPO" 
-                      value="CABLE_MOTOR"
-                      checked={(formData.POT_SUBTIPO || 'CABLE_MOTOR') === 'CABLE_MOTOR'}
-                      onChange={() => {
-                        setFormData(prev => ({
-                          ...prev,
-                          POT_SUBTIPO: 'CABLE_MOTOR',
-                          NOMBRE_PERFIL: prev.NOMBRE_PERFIL === 'Precom Potencia - Motor' || !prev.NOMBRE_PERFIL ? 'Precom Potencia - Cable-Motor' : prev.NOMBRE_PERFIL
-                        }));
-                      }}
-                      className="text-orange-600 focus:ring-orange-500 w-4 h-4" 
-                    />
-                    Cable-Motor (Completo)
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-700">
-                    <input 
-                      type="radio" 
-                      name="POT_SUBTIPO" 
-                      value="MOTOR"
-                      checked={formData.POT_SUBTIPO === 'MOTOR'}
-                      onChange={() => {
-                        setFormData(prev => ({
-                          ...prev,
-                          POT_SUBTIPO: 'MOTOR',
-                          NOMBRE_PERFIL: prev.NOMBRE_PERFIL === 'Precom Potencia - Cable-Motor' || !prev.NOMBRE_PERFIL ? 'Precom Potencia - Motor' : prev.NOMBRE_PERFIL
-                        }));
-                      }}
-                      className="text-orange-600 focus:ring-orange-500 w-4 h-4" 
-                    />
-                    Motor (Solo)
-                  </label>
-                </div>
+              <div className="mb-4">
+                <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wider">Subtipo de Formato de Potencia</label>
+                <select 
+                  name="SUBTIPO" 
+                  value={formData.SUBTIPO || 'CABLE-MOTOR'} 
+                  onChange={(e) => {
+                    const selectedSubtipo = e.target.value as 'CABLE-MOTOR' | 'MOTOR';
+                    const defaults = selectedSubtipo === 'CABLE-MOTOR' ? PERFIL_POTENCIA_CABLE_MOTOR_INICIAL : PERFIL_POTENCIA_MOTOR_INICIAL;
+                    setFormData(prev => ({ 
+                      ...prev, 
+                      SUBTIPO: selectedSubtipo,
+                      SERVICIO: prev.SERVICIO === PERFIL_POTENCIA_CABLE_MOTOR_INICIAL.SERVICIO || prev.SERVICIO === PERFIL_POTENCIA_MOTOR_INICIAL.SERVICIO || !prev.SERVICIO ? defaults.SERVICIO : prev.SERVICIO,
+                      COMENTARIOS: prev.COMENTARIOS === PERFIL_POTENCIA_CABLE_MOTOR_INICIAL.COMENTARIOS || prev.COMENTARIOS === PERFIL_POTENCIA_MOTOR_INICIAL.COMENTARIOS || !prev.COMENTARIOS ? defaults.COMENTARIOS : prev.COMENTARIOS,
+                      AREA: prev.AREA === PERFIL_POTENCIA_CABLE_MOTOR_INICIAL.AREA || prev.AREA === PERFIL_POTENCIA_MOTOR_INICIAL.AREA || !prev.AREA ? defaults.AREA : prev.AREA,
+                      PAQUETE_NO: prev.PAQUETE_NO === PERFIL_POTENCIA_CABLE_MOTOR_INICIAL.PAQUETE_NO || prev.PAQUETE_NO === PERFIL_POTENCIA_MOTOR_INICIAL.PAQUETE_NO || !prev.PAQUETE_NO ? defaults.PAQUETE_NO : prev.PAQUETE_NO,
+                      CHKL_4_ESTADO: prev.CHKL_4_ESTADO === PERFIL_POTENCIA_CABLE_MOTOR_INICIAL.CHKL_4_ESTADO || prev.CHKL_4_ESTADO === PERFIL_POTENCIA_MOTOR_INICIAL.CHKL_4_ESTADO ? defaults.CHKL_4_ESTADO : prev.CHKL_4_ESTADO,
+                      CHKL_6_ESTADO: prev.CHKL_6_ESTADO === PERFIL_POTENCIA_CABLE_MOTOR_INICIAL.CHKL_6_ESTADO || prev.CHKL_6_ESTADO === PERFIL_POTENCIA_MOTOR_INICIAL.CHKL_6_ESTADO ? defaults.CHKL_6_ESTADO : prev.CHKL_6_ESTADO,
+                      POT_NOMBRE_1: prev.POT_NOMBRE_1 === PERFIL_POTENCIA_CABLE_MOTOR_INICIAL.POT_NOMBRE_1 || prev.POT_NOMBRE_1 === PERFIL_POTENCIA_MOTOR_INICIAL.POT_NOMBRE_1 || !prev.POT_NOMBRE_1 ? defaults.POT_NOMBRE_1 : prev.POT_NOMBRE_1,
+                      ELABORO_NOMBRE: prev.ELABORO_NOMBRE === PERFIL_POTENCIA_CABLE_MOTOR_INICIAL.ELABORO_NOMBRE || prev.ELABORO_NOMBRE === PERFIL_POTENCIA_MOTOR_INICIAL.ELABORO_NOMBRE || !prev.ELABORO_NOMBRE ? defaults.ELABORO_NOMBRE : prev.ELABORO_NOMBRE,
+                      REVISO_NOMBRE: prev.REVISO_NOMBRE === PERFIL_POTENCIA_CABLE_MOTOR_INICIAL.REVISO_NOMBRE || prev.REVISO_NOMBRE === PERFIL_POTENCIA_MOTOR_INICIAL.REVISO_NOMBRE || !prev.REVISO_NOMBRE ? defaults.REVISO_NOMBRE : prev.REVISO_NOMBRE
+                    }));
+                  }}
+                  className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:border-[#1F3864] focus:ring-1 focus:ring-[#1F3864] bg-white font-bold outline-none uppercase"
+                >
+                  <option value="CABLE-MOTOR">CABLE Y MOTOR (CABLE-MOTOR)</option>
+                  <option value="MOTOR">MOTOR SOLO (MOTOR)</option>
+                </select>
               </div>
             )}
             <div className="grid grid-cols-2 gap-4">
@@ -186,7 +179,7 @@ export const FormPerfil: React.FC<FormPerfilProps> = ({ perfilToEdit, onBack }) 
               <InputGroup label="Proyecto" name="PROYECTO" value={formData.PROYECTO} onChange={handleChange} />
               <InputGroup label="Contrato" name="CONTRATO" value={formData.CONTRATO} onChange={handleChange} />
             </div>
-            {formData.TIPO === 'POTENCIA' && (
+            {(formData.TIPO === 'POTENCIA' || formData.TIPO === 'POTENCIA_COM') && (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4 border-t border-gray-100 pt-4">
                 <InputGroup label="Código" name="POT_CODIGO" value={formData.POT_CODIGO} onChange={handleChange} />
                 <InputGroup label="AC-1 No" name="AC1_NO" value={formData.AC1_NO} onChange={handleChange} />
@@ -393,6 +386,53 @@ export const FormPerfil: React.FC<FormPerfilProps> = ({ perfilToEdit, onBack }) 
                   ))}
                 </tbody>
               </table>
+
+              <h3 className="font-bold text-sm mt-8 mb-4 text-[#1F3864] uppercase tracking-widest border-b pb-2">Registro de Temperatura, Corriente y Vibraciones (Prueba de 1 a 4 Horas)</h3>
+              <div className="overflow-x-auto w-full">
+                <table className="w-full text-xs text-left border-collapse min-w-[900px]">
+                  <thead>
+                    <tr className="bg-gray-100 border-b">
+                      <th className="p-2 border font-bold text-[#1F3864] w-48">Variable / Tiempo (min)</th>
+                      {['0', '15', '30', '45', '60', '90', '120', '150', '180', '210', '240'].map(t => (
+                        <th key={t} className="p-2 border text-center font-bold text-gray-700 w-16">{t}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      { id: 'TEMP_AMB', label: 'Temperatura Ambiente' },
+                      { id: 'TEMP_DE', label: 'Temperatura Cojinetes (Drive End)' },
+                      { id: 'TEMP_NDE', label: 'Temperatura Cojin. (Not Drive End)' },
+                      { id: 'CORRIENTE', label: 'Corriente' },
+                      { id: 'TEMP_DEV_90', label: 'Temperatura del Devanado 90°' },
+                      { id: 'TEMP_DEV_180', label: 'Temperatura del Devanado 180°' },
+                      { id: 'TEMP_DEV_270', label: 'Temperatura del Devanado 270°' },
+                      { id: 'VIB_DE_V', label: 'Medición Vibración (Drive End) V' },
+                      { id: 'VIB_DE_H', label: 'Medición Vibración (Drive End) H' },
+                      { id: 'VIB_NDE_V', label: 'Medición Vibración (Not Drive End) V' },
+                      { id: 'VIB_NDE_H', label: 'Medición Vibración (Not Drive End) H' }
+                    ].map(row => (
+                      <tr key={row.id} className="hover:bg-gray-50/50">
+                        <td className="p-2 border font-medium text-gray-700 bg-gray-50/30">{row.label}</td>
+                        {['0', '15', '30', '45', '60', '90', '120', '150', '180', '210', '240'].map(t => {
+                          const key = `GRID_${row.id}_${t}`;
+                          return (
+                            <td key={t} className="p-1 border">
+                              <input 
+                                type="text" 
+                                className="w-full text-xs text-center border rounded p-1 focus:ring-1 focus:ring-blue-500 bg-white" 
+                                value={comData[key] || ''} 
+                                onChange={(e) => handleComDataChange(key, e.target.value)} 
+                              />
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-[10px] text-gray-500 mt-2 italic font-semibold">NOTA: Terminada la prueba se aislará el motor.</p>
             </section>
 
              <section className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
