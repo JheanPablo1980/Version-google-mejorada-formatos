@@ -1074,7 +1074,7 @@ export const VistaGenerar: React.FC = () => {
           ws1.mergeCells('C8:H8'); 
           ws1.getCell('C8').value = activeProfile.TIPO.startsWith('POTENCIA') 
             ? (activeItem as any).DESCRIPCIÓN || ''
-            : `${(activeItem as any).TIPO_CABLE || ''} / ${(activeItem as any).DESCRIPCIÓN || ''}`;
+            : `${activeProfile.TIPO_CABLE || (activeItem as any).TIPO_CABLE || ''} / ${(activeItem as any).DESCRIPCIÓN || ''}`;
           applyStyle(ws1.getCell('C8')); ws1.getCell('C8').alignment = {horizontal:'left'};
           
           if (!activeProfile.TIPO.startsWith('POTENCIA')) {
@@ -1731,7 +1731,7 @@ export const VistaGenerar: React.FC = () => {
             </tr>
             <tr>
               <td colspan="2" class="bg-blue text-left">TIPO CABLE / DESC:</td>
-              <td colspan="6" class="uppercase">${(activeItem as any).TIPO_CABLE || ''} / ${(activeItem as any).DESCRIPCIÓN || ''}</td>
+              <td colspan="6" class="uppercase">${activeProfile.TIPO_CABLE || (activeItem as any).TIPO_CABLE || ''} / ${(activeItem as any).DESCRIPCIÓN || ''}</td>
             </tr>
             <tr>
               <td colspan="2" class="bg-blue text-left">RANGO OPERACIÓN:</td>

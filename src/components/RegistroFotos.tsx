@@ -17,6 +17,7 @@ export const RegistroFotos: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [observacion, setObservacion] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [fotoFilter, setFotoFilter] = useState<'all' | 'with' | 'without'>('all');
 
   // Estados para Modo Automático
   const [uploadMode, setUploadMode] = useState<'manual' | 'auto'>('manual');
@@ -58,12 +59,23 @@ export const RegistroFotos: React.FC = () => {
       const matchesSearch = tag.toLowerCase().includes(searchTerm.toLowerCase()) || 
         (i.DESCRIPCIÓN && i.DESCRIPCIÓN.toLowerCase().includes(searchTerm.toLowerCase()));
       
+      let initialMatch = matchesSearch;
       if (activeCategory === 'INSTRUMENTACION') {
         const matchesUbicacion = filtroUbicacion ? (i as any).UBICACIÓN === filtroUbicacion : true;
         const matchesTipo = filtroTipoCable ? (i as any).TIPO_CABLE === filtroTipoCable : true;
-        return matchesSearch && matchesUbicacion && matchesTipo;
+        initialMatch = matchesSearch && matchesUbicacion && matchesTipo;
       }
-      return matchesSearch;
+      
+      if (!initialMatch) return false;
+
+      const fotosDelInst = fotos.filter(f => f.TAGNAME === tag).length;
+      if (fotoFilter === 'with') {
+        return fotosDelInst > 0;
+      }
+      if (fotoFilter === 'without') {
+        return fotosDelInst === 0;
+      }
+      return true;
     });
 
     return (filtered as any[]).sort((a, b) => {
@@ -72,7 +84,7 @@ export const RegistroFotos: React.FC = () => {
       const cmp = tagA.localeCompare(tagB);
       return sortOrder === 'asc' ? cmp : -cmp;
     }).slice(0, MAX_RESULTS);
-  }, [currentList, activeCategory, tagKey, searchTerm, filtroUbicacion, filtroTipoCable, sortOrder]);
+  }, [currentList, activeCategory, tagKey, searchTerm, filtroUbicacion, filtroTipoCable, sortOrder, fotoFilter, fotos]);
 
   const uniqueTagsInBatch = useMemo(() => {
     const tags: Record<string, { count: number; status: 'success' | 'warning' | 'error'; description?: string }> = {};
@@ -542,7 +554,7 @@ export const RegistroFotos: React.FC = () => {
           className={`py-2 px-3 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-2 ${
             uploadMode === 'auto'
             ? 'bg-[#1F3864] text-white shadow-sm ring-1 ring-black/5'
-            : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50/50'
+            : 'text-gray-550 hover:text-gray-800 hover:bg-gray-50/50'
           }`}
         >
           <Sparkles size={14} className={uploadMode === 'auto' ? 'text-yellow-400 fill-yellow-400 animate-pulse' : 'text-gray-400'} />
@@ -557,7 +569,7 @@ export const RegistroFotos: React.FC = () => {
             {/* Selector de Categoría (Instrumentación / Potencia) */}
             <div className="grid grid-cols-2 gap-3 mb-4 shrink-0">
               <button
-                onClick={() => { setActiveCategory('INSTRUMENTACION'); setSelectedTags([]); }}
+                onClick={() => { setActiveCategory('INSTRUMENTACION'); setSelectedTags([]); setFotoFilter('all'); }}
                 className={`py-3 px-4 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
                   activeCategory === 'INSTRUMENTACION' 
                   ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-100 ring-2 ring-blue-50' 
@@ -568,7 +580,7 @@ export const RegistroFotos: React.FC = () => {
                 Instrumentación
               </button>
               <button
-                onClick={() => { setActiveCategory('POTENCIA'); setSelectedTags([]); }}
+                onClick={() => { setActiveCategory('POTENCIA'); setSelectedTags([]); setFotoFilter('all'); }}
                 className={`py-3 px-4 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
                   activeCategory === 'POTENCIA' 
                   ? 'bg-orange-600 border-orange-600 text-white shadow-lg shadow-orange-100 ring-2 ring-orange-50' 
@@ -587,7 +599,7 @@ export const RegistroFotos: React.FC = () => {
                 {selectedTags.map(tag => (
                   <span key={tag} className={`px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 border shadow-sm uppercase ${activeCategory === 'POTENCIA' ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-[#D9E1F2] text-[#1F3864] border-blue-200'}`}>
                     {tag}
-                    <button onClick={() => handleToggleTag(tag)} className={`p-0.5 rounded-full ml-1 ${activeCategory === 'POTENCIA' ? 'hover:bg-orange-200 text-orange-850' : 'hover:bg-blue-300 text-blue-800'}`}>
+                    <button onClick={() => handleToggleTag(tag)} className={`p-0.5 rounded-full ml-1 ${activeCategory === 'POTENCIA' ? 'hover:bg-orange-200 text-orange-855' : 'hover:bg-blue-300 text-blue-800'}`}>
                       <X size={12} />
                     </button>
                   </span>
@@ -623,6 +635,47 @@ export const RegistroFotos: React.FC = () => {
                   <Filter size={16} />
                 </button>
               )}
+            </div>
+
+            {/* Selector de filtro por relación con fotos (Coincidentes / No Coincidentes) */}
+            <div className="flex gap-1 mb-4 shrink-0 bg-gray-100 p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setFotoFilter('all')}
+                className={`flex-1 py-1.5 px-2 rounded-lg text-[10px] font-black transition-all uppercase tracking-wider text-center cursor-pointer ${
+                  fotoFilter === 'all'
+                  ? activeCategory === 'POTENCIA'
+                    ? 'bg-orange-600 text-white shadow-sm'
+                    : 'bg-[#1F3864] text-white shadow-sm'
+                  : 'text-gray-550 hover:text-gray-800 hover:bg-white/50'
+                }`}
+              >
+                Todos
+              </button>
+              <button
+                type="button"
+                onClick={() => setFotoFilter('with')}
+                className={`flex-1 py-1.5 px-2 rounded-lg text-[10px] font-black transition-all uppercase tracking-wider text-center cursor-pointer flex items-center justify-center gap-1 ${
+                  fotoFilter === 'with'
+                  ? 'bg-green-600 text-white shadow-sm font-black'
+                  : 'text-gray-555 hover:text-green-700 hover:bg-green-50/50'
+                }`}
+              >
+                <Check size={11} className="stroke-[3]" />
+                Con Foto
+              </button>
+              <button
+                type="button"
+                onClick={() => setFotoFilter('without')}
+                className={`flex-1 py-1.5 px-2 rounded-lg text-[10px] font-black transition-all uppercase tracking-wider text-center cursor-pointer flex items-center justify-center gap-1 ${
+                  fotoFilter === 'without'
+                  ? 'bg-amber-600 text-white shadow-sm font-black'
+                  : 'text-gray-555 hover:text-amber-700 hover:bg-amber-50/50'
+                }`}
+              >
+                <X size={11} className="stroke-[3]" />
+                Sin Foto
+              </button>
             </div>
 
             {showFilters && activeCategory === 'INSTRUMENTACION' && (
