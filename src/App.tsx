@@ -11,6 +11,7 @@ import { GaleriaFotos } from './components/GaleriaFotos';
 import { Dashboard } from './components/Dashboard';
 import { Login } from './components/Login';
 import { motion, AnimatePresence } from 'motion/react';
+import { OnboardingTour } from './components/OnboardingTour';
 
 type Tab = 'admin' | 'nuevo' | 'fotos' | 'galeria' | 'perfiles' | 'generar' | 'historial' | 'dashboard';
 
@@ -63,12 +64,15 @@ export default function App() {
     return true;
   });
 
+  const filteredNavIds = new Set(filteredNav.map(n => n.id));
+
   if (!session) {
     return <Login />;
   }
 
   return (
     <div className="min-h-screen bg-[#F3F6FA] font-sans selection:bg-blue-200 text-slate-900 overflow-x-hidden">
+      <OnboardingTour activeTab={activeTab} setActiveTab={setActiveTab} filteredNavIds={filteredNavIds} />
       <header className="bg-[#1F3864] text-white p-3 sm:p-4 shadow-lg sticky top-0 z-40 flex justify-between items-center transition-all">
         <div className="flex items-center gap-2 sm:gap-3">
           <div className="bg-white/10 p-1.5 sm:p-2 rounded-lg backdrop-blur">
