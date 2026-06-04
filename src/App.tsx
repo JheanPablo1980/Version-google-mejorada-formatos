@@ -106,8 +106,8 @@ export default function App() {
       <aside className={`fixed inset-y-0 left-0 z-[60] transform ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:relative md:translate-x-0 transition-transform duration-300 w-[260px] flex-shrink-0 bg-[var(--color-primary-container)] text-[var(--color-on-primary)] flex flex-col h-full shadow-lg`}>
         <div className="h-16 flex items-center justify-start px-6 border-b border-white/10 shrink-0">
            <FileText size={24} className={`${appSettings?.learningMode ? 'text-emerald-200' : 'text-[var(--color-inverse-primary)]'}`} />
-           <h1 className="ml-3 font-display-lg text-lg tracking-tight truncate">
-              {appSettings?.learningMode ? 'Aprendizaje' : 'Protocolos'}
+           <h1 className="ml-3 font-display-lg text-sm leading-tight font-bold">
+              {appSettings?.learningMode ? 'Aprendizaje' : 'Generación de protocolos de calidad'}
            </h1>
         </div>
 

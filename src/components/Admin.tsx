@@ -623,7 +623,7 @@ const handlePasswordChange = async () => {
                   value={targetUser}
                   onChange={(e) => setTargetUser(e.target.value)}
                   placeholder="Ingrese email (ej. juan@gmail.com) o deje en blanco para Global"
-                  className="w-full text-sm p-2 border border-gray-300 rounded-md focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                  className="w-full text-sm p-2 border border-gray-300 rounded-md focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB]"
                 />
               </div>
 
@@ -631,153 +631,153 @@ const handlePasswordChange = async () => {
                 <button
                   onClick={() => updateAppSettings({ enableCameraManual: !currentSettings.enableCameraManual }, targetUser)}
                   className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
-                    currentSettings.enableCameraManual ? 'bg-purple-50 border-purple-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    currentSettings.enableCameraManual ? 'bg-[#F8FAFC] border-[#D9E1F2] shadow-sm' : 'bg-transparent border-gray-200 opacity-60 hover:opacity-100'
                   }`}
                 >
                   <div className="flex items-center justify-between w-full mb-1">
-                    <span className={`text-xs font-bold ${currentSettings.enableCameraManual ? 'text-purple-700' : 'text-gray-500'}`}>Cámara Modo Manual</span>
-                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableCameraManual ? 'bg-purple-600' : 'bg-gray-300'}`}>
+                    <span className={`text-xs font-bold ${currentSettings.enableCameraManual ? 'text-[#1F3864]' : 'text-[#64748B]'}`}>Cámara Modo Manual</span>
+                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableCameraManual ? 'bg-[#2563EB]' : 'bg-gray-300'}`}>
                       <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.enableCameraManual ? 'translate-x-5' : 'translate-x-0'}`} />
                     </div>
                   </div>
-                  <span className="text-[10px] text-gray-500">Permitir seleccionar fotos del archivo.</span>
+                  <span className="text-[10px] text-[#64748B]">Permitir seleccionar fotos del archivo.</span>
                 </button>
 
                 <button
                   onClick={() => updateAppSettings({ enableCameraAuto: !currentSettings.enableCameraAuto }, targetUser)}
                   className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
-                    currentSettings.enableCameraAuto ? 'bg-purple-50 border-purple-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    currentSettings.enableCameraAuto ? 'bg-[#F8FAFC] border-[#D9E1F2] shadow-sm' : 'bg-transparent border-gray-200 opacity-60 hover:opacity-100'
                   }`}
                 >
                   <div className="flex items-center justify-between w-full mb-1">
-                    <span className={`text-xs font-bold ${currentSettings.enableCameraAuto ? 'text-purple-700' : 'text-gray-500'}`}>Cámara Modo En Vivo</span>
-                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableCameraAuto ? 'bg-purple-600' : 'bg-gray-300'}`}>
+                    <span className={`text-xs font-bold ${currentSettings.enableCameraAuto ? 'text-[#1F3864]' : 'text-[#64748B]'}`}>Cámara Modo En Vivo</span>
+                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableCameraAuto ? 'bg-[#2563EB]' : 'bg-gray-300'}`}>
                       <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.enableCameraAuto ? 'translate-x-5' : 'translate-x-0'}`} />
                     </div>
                   </div>
-                  <span className="text-[10px] text-gray-500">Tomar foto usando la cámara del dispositivo.</span>
+                  <span className="text-[10px] text-[#64748B]">Tomar foto usando la cámara del dispositivo.</span>
                 </button>
 
                 <button
                   onClick={() => updateAppSettings({ learningMode: !currentSettings.learningMode }, targetUser)}
                   className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
-                    currentSettings.learningMode ? 'bg-emerald-50 border-emerald-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    currentSettings.learningMode ? 'bg-[#F8FAFC] border-[#D9E1F2] shadow-sm' : 'bg-transparent border-gray-200 opacity-60 hover:opacity-100'
                   }`}
                 >
                   <div className="flex items-center justify-between w-full mb-1">
-                    <span className={`text-xs font-bold flex items-center gap-1 ${currentSettings.learningMode ? 'text-emerald-700' : 'text-gray-500'}`}>
+                    <span className={`text-xs font-bold flex items-center gap-1 ${currentSettings.learningMode ? 'text-[#1F3864]' : 'text-[#64748B]'}`}>
                       <GraduationCap size={14} /> Sesión de Aprendizaje
                     </span>
-                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.learningMode ? 'bg-emerald-600' : 'bg-gray-300'}`}>
+                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.learningMode ? 'bg-[#2563EB]' : 'bg-gray-300'}`}>
                       <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.learningMode ? 'translate-x-5' : 'translate-x-0'}`} />
                     </div>
                   </div>
-                  <span className="text-[10px] text-gray-500">Habilitar modo seguro para nuevos usuarios (sin guardado en la nube).</span>
+                  <span className="text-[10px] text-[#64748B]">Habilitar modo seguro para nuevos usuarios (sin guardado en la nube).</span>
                 </button>
 
                 <button
                   onClick={() => updateAppSettings({ enableGenInstrumentacion: !currentSettings.enableGenInstrumentacion }, targetUser)}
                   className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
-                    currentSettings.enableGenInstrumentacion ? 'bg-blue-50 border-blue-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    currentSettings.enableGenInstrumentacion ? 'bg-[#F8FAFC] border-[#D9E1F2] shadow-sm' : 'bg-transparent border-gray-200 opacity-60 hover:opacity-100'
                   }`}
                 >
                   <div className="flex items-center justify-between w-full mb-1">
-                    <span className={`text-xs font-bold ${currentSettings.enableGenInstrumentacion ? 'text-blue-700' : 'text-gray-500'}`}>Formatos Instrumentación</span>
-                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableGenInstrumentacion ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                    <span className={`text-xs font-bold ${currentSettings.enableGenInstrumentacion ? 'text-[#1F3864]' : 'text-[#64748B]'}`}>Formatos Instrumentación</span>
+                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableGenInstrumentacion ? 'bg-[#2563EB]' : 'bg-gray-300'}`}>
                       <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.enableGenInstrumentacion ? 'translate-x-5' : 'translate-x-0'}`} />
                     </div>
                   </div>
-                  <span className="text-[10px] text-gray-500">Habilitar creación/edición de perfiles de Inst.</span>
+                  <span className="text-[10px] text-[#64748B]">Habilitar creación/edición de perfiles de Inst.</span>
                 </button>
 
                 <button
                   onClick={() => updateAppSettings({ enableGenPotencia: !currentSettings.enableGenPotencia }, targetUser)}
                   className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
-                    currentSettings.enableGenPotencia ? 'bg-orange-50 border-orange-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    currentSettings.enableGenPotencia ? 'bg-[#F8FAFC] border-[#D9E1F2] shadow-sm' : 'bg-transparent border-gray-200 opacity-60 hover:opacity-100'
                   }`}
                 >
                   <div className="flex items-center justify-between w-full mb-1">
-                    <span className={`text-xs font-bold ${currentSettings.enableGenPotencia ? 'text-orange-700' : 'text-gray-500'}`}>Formatos Potencia</span>
-                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableGenPotencia ? 'bg-orange-500' : 'bg-gray-300'}`}>
+                    <span className={`text-xs font-bold ${currentSettings.enableGenPotencia ? 'text-[#1F3864]' : 'text-[#64748B]'}`}>Formatos Potencia</span>
+                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableGenPotencia ? 'bg-[#2563EB]' : 'bg-gray-300'}`}>
                       <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.enableGenPotencia ? 'translate-x-5' : 'translate-x-0'}`} />
                     </div>
                   </div>
-                  <span className="text-[10px] text-gray-500">Habilitar creación/edición de perfiles Potencia.</span>
+                  <span className="text-[10px] text-[#64748B]">Habilitar creación/edición de perfiles Potencia.</span>
                 </button>
 
                 <button
                   onClick={() => updateAppSettings({ enableMassUploadDrive: !currentSettings.enableMassUploadDrive }, targetUser)}
                   className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
-                    currentSettings.enableMassUploadDrive ? 'bg-blue-50 border-blue-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    currentSettings.enableMassUploadDrive ? 'bg-[#F8FAFC] border-[#D9E1F2] shadow-sm' : 'bg-transparent border-gray-200 opacity-60 hover:opacity-100'
                   }`}
                 >
                   <div className="flex items-center justify-between w-full mb-1">
-                    <span className={`text-xs font-bold ${currentSettings.enableMassUploadDrive ? 'text-blue-700' : 'text-gray-500'}`}>Integración Google Drive</span>
-                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableMassUploadDrive ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                    <span className={`text-xs font-bold ${currentSettings.enableMassUploadDrive ? 'text-[#1F3864]' : 'text-[#64748B]'}`}>Integración Google Drive</span>
+                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableMassUploadDrive ? 'bg-[#2563EB]' : 'bg-gray-300'}`}>
                       <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.enableMassUploadDrive ? 'translate-x-5' : 'translate-x-0'}`} />
                     </div>
                   </div>
-                  <span className="text-[10px] text-gray-500">Subida múltiple de carpetas GDrive para fotos.</span>
+                  <span className="text-[10px] text-[#64748B]">Subida múltiple de carpetas GDrive para fotos.</span>
                 </button>
 
                 <button
                   onClick={() => updateAppSettings({ enableExportPdf: !currentSettings.enableExportPdf }, targetUser)}
                   className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
-                    currentSettings.enableExportPdf ? 'bg-green-50 border-green-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    currentSettings.enableExportPdf ? 'bg-[#F8FAFC] border-[#D9E1F2] shadow-sm' : 'bg-transparent border-gray-200 opacity-60 hover:opacity-100'
                   }`}
                 >
                   <div className="flex items-center justify-between w-full mb-1">
-                    <span className={`text-xs font-bold ${currentSettings.enableExportPdf ? 'text-green-700' : 'text-gray-500'}`}>Exportación a PDF</span>
-                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableExportPdf ? 'bg-green-600' : 'bg-gray-300'}`}>
+                    <span className={`text-xs font-bold ${currentSettings.enableExportPdf ? 'text-[#1F3864]' : 'text-[#64748B]'}`}>Exportación a PDF</span>
+                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableExportPdf ? 'bg-[#2563EB]' : 'bg-gray-300'}`}>
                       <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.enableExportPdf ? 'translate-x-5' : 'translate-x-0'}`} />
                     </div>
                   </div>
-                  <span className="text-[10px] text-gray-500">Permitir imprimir localmente a PDF.</span>
+                  <span className="text-[10px] text-[#64748B]">Permitir imprimir localmente a PDF.</span>
                 </button>
 
                 <button
                   onClick={() => updateAppSettings({ enableExportXlsx: !currentSettings.enableExportXlsx }, targetUser)}
                   className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
-                    currentSettings.enableExportXlsx ? 'bg-green-50 border-green-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    currentSettings.enableExportXlsx ? 'bg-[#F8FAFC] border-[#D9E1F2] shadow-sm' : 'bg-transparent border-gray-200 opacity-60 hover:opacity-100'
                   }`}
                 >
                   <div className="flex items-center justify-between w-full mb-1">
-                    <span className={`text-xs font-bold ${currentSettings.enableExportXlsx ? 'text-green-700' : 'text-gray-500'}`}>Exportación a Excel</span>
-                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableExportXlsx ? 'bg-green-600' : 'bg-gray-300'}`}>
+                    <span className={`text-xs font-bold ${currentSettings.enableExportXlsx ? 'text-[#1F3864]' : 'text-[#64748B]'}`}>Exportación a Excel</span>
+                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableExportXlsx ? 'bg-[#2563EB]' : 'bg-gray-300'}`}>
                       <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.enableExportXlsx ? 'translate-x-5' : 'translate-x-0'}`} />
                     </div>
                   </div>
-                  <span className="text-[10px] text-gray-500">Permitir generar y descargar .xlsx.</span>
+                  <span className="text-[10px] text-[#64748B]">Permitir generar y descargar .xlsx.</span>
                 </button>
 
                 <button
                   onClick={() => updateAppSettings({ enableUploadManual: !currentSettings.enableUploadManual }, targetUser)}
                   className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
-                    currentSettings.enableUploadManual ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    currentSettings.enableUploadManual ? 'bg-[#F8FAFC] border-[#D9E1F2] shadow-sm' : 'bg-transparent border-gray-200 opacity-60 hover:opacity-100'
                   }`}
                 >
                   <div className="flex items-center justify-between w-full mb-1">
-                    <span className={`text-xs font-bold ${currentSettings.enableUploadManual ? 'text-indigo-700' : 'text-gray-500'}`}>Subida Modo Manual</span>
-                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableUploadManual ? 'bg-indigo-600' : 'bg-gray-300'}`}>
+                    <span className={`text-xs font-bold ${currentSettings.enableUploadManual ? 'text-[#1F3864]' : 'text-[#64748B]'}`}>Subida Modo Manual</span>
+                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableUploadManual ? 'bg-[#2563EB]' : 'bg-gray-300'}`}>
                       <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.enableUploadManual ? 'translate-x-5' : 'translate-x-0'}`} />
                     </div>
                   </div>
-                  <span className="text-[10px] text-gray-500">Habilitar subida de un tag a la vez.</span>
+                  <span className="text-[10px] text-[#64748B]">Habilitar subida de un tag a la vez.</span>
                 </button>
 
                 <button
                   onClick={() => updateAppSettings({ enableUploadAuto: !currentSettings.enableUploadAuto }, targetUser)}
                   className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
-                    currentSettings.enableUploadAuto ? 'bg-pink-50 border-pink-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    currentSettings.enableUploadAuto ? 'bg-[#F8FAFC] border-[#D9E1F2] shadow-sm' : 'bg-transparent border-gray-200 opacity-60 hover:opacity-100'
                   }`}
                 >
                   <div className="flex items-center justify-between w-full mb-1">
-                    <span className={`text-xs font-bold ${currentSettings.enableUploadAuto ? 'text-pink-700' : 'text-gray-500'}`}>Carga Masiva Automática</span>
-                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableUploadAuto ? 'bg-pink-600' : 'bg-gray-300'}`}>
+                    <span className={`text-xs font-bold ${currentSettings.enableUploadAuto ? 'text-[#1F3864]' : 'text-[#64748B]'}`}>Carga Masiva Automática</span>
+                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableUploadAuto ? 'bg-[#2563EB]' : 'bg-gray-300'}`}>
                       <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.enableUploadAuto ? 'translate-x-5' : 'translate-x-0'}`} />
                     </div>
                   </div>
-                  <span className="text-[10px] text-gray-500">Habilitar carga masiva de fotos auto-asignadas.</span>
+                  <span className="text-[10px] text-[#64748B]">Habilitar carga masiva de fotos auto-asignadas.</span>
                 </button>
               </div>
             </div>
