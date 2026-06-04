@@ -502,6 +502,8 @@ export const RegistroFotos: React.FC = () => {
         const combined = [...prev, ...processedItems];
         return recalculateAutoPreviewStatuses(combined);
       });
+      
+      showNotification("Por favor, recuerda guardar las fotos válidas para finalizar.", "info");
 
     } catch (err) {
       console.error("Error processing auto files:", err);
@@ -618,31 +620,31 @@ export const RegistroFotos: React.FC = () => {
       
       {/* Selector de Modo (Manual / Automático) */}
       {(appSettings.enableUploadManual || appSettings.enableUploadAuto) && (
-        <div className={`bg-gray-100 p-1 rounded-xl grid ${appSettings.enableUploadManual && appSettings.enableUploadAuto ? 'grid-cols-2' : 'grid-cols-1'} gap-1 mb-4 shrink-0 shadow-inner`}>
+        <div className="flex gap-2 border-b-[3px] border-[#1F3864] px-2 md:px-4 pt-2 mb-6 overflow-x-auto custom-scrollbar shrink-0">
           {appSettings.enableUploadManual && (
             <button
               onClick={() => setUploadMode('manual')}
-              className={`py-2 px-3 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-2 ${
+              className={`flex items-center justify-center gap-2 py-2.5 px-6 rounded-t-2xl font-semibold transition-all whitespace-nowrap shrink-0 ${
                 uploadMode === 'manual'
-                ? 'bg-[#1F3864] text-white shadow-sm ring-1 ring-black/5'
-                : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50/50'
+                ? 'bg-white text-[#1F3864] text-[15px]'
+                : 'bg-[#EBF0F6] text-[#64748B] hover:bg-[#DFE7F0] hover:text-[#1F3864] text-[14px]'
               }`}
             >
-              <Camera size={14} />
-              Modo Manual
+              <Camera size={16} />
+              <span>MODO MANUAL</span>
             </button>
           )}
           {appSettings.enableUploadAuto && (
             <button
               onClick={() => setUploadMode('auto')}
-              className={`py-2 px-3 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-2 ${
+              className={`flex items-center justify-center gap-2 py-2.5 px-6 rounded-t-2xl font-semibold transition-all whitespace-nowrap shrink-0 ${
                 uploadMode === 'auto'
-                ? 'bg-[#1F3864] text-white shadow-sm ring-1 ring-black/5'
-                : 'text-gray-550 hover:text-gray-800 hover:bg-gray-50/50'
+                ? 'bg-white text-[#1F3864] text-[15px]'
+                : 'bg-[#EBF0F6] text-[#64748B] hover:bg-[#DFE7F0] hover:text-[#1F3864] text-[14px]'
               }`}
             >
-              <Sparkles size={14} className={uploadMode === 'auto' ? 'text-yellow-400 fill-yellow-400 animate-pulse' : 'text-gray-400'} />
-              Carga Masiva Automática
+              <Sparkles size={16} className={uploadMode === 'auto' ? 'text-yellow-400 fill-yellow-400 animate-pulse' : 'text-[#64748B]'} />
+              <span>CARGA MASIVA AUTOMÁTICA</span>
             </button>
           )}
         </div>
@@ -665,12 +667,12 @@ export const RegistroFotos: React.FC = () => {
                   onClick={() => { setActiveCategory('INSTRUMENTACION'); setSelectedTags([]); setFotoFilter('all'); }}
                   className={`py-3 px-4 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
                     activeCategory === 'INSTRUMENTACION' 
-                    ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-100 ring-2 ring-blue-50' 
-                    : 'bg-white border-blue-50 text-blue-400 hover:border-blue-200 hover:text-blue-600'
+                    ? 'bg-[#1F3864] border-[#1F3864] text-white shadow-md' 
+                    : 'bg-white border-[#D9E1F2] text-[#64748B] hover:border-[#1F3864] hover:text-[#1F3864]'
                   }`}
                 >
-                  <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'INSTRUMENTACION' ? 'bg-white animate-pulse' : 'bg-blue-100'}`} />
-                  Instrumentación
+                  <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'INSTRUMENTACION' ? 'bg-white animate-pulse' : 'bg-current'}`} />
+                  INSTRUMENTACIÓN
                 </button>
               )}
               {appSettings.enableGenPotencia && (
@@ -678,12 +680,12 @@ export const RegistroFotos: React.FC = () => {
                   onClick={() => { setActiveCategory('POTENCIA'); setSelectedTags([]); setFotoFilter('all'); }}
                   className={`py-3 px-4 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
                     activeCategory === 'POTENCIA' 
-                    ? 'bg-orange-600 border-orange-600 text-white shadow-lg shadow-orange-100 ring-2 ring-orange-50' 
-                    : 'bg-white border-orange-50 text-orange-400 hover:border-orange-200 hover:text-orange-600'
+                    ? 'bg-[#1F3864] border-[#1F3864] text-white shadow-md' 
+                    : 'bg-white border-[#D9E1F2] text-[#64748B] hover:border-[#1F3864] hover:text-[#1F3864]'
                   }`}
                 >
-                  <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'POTENCIA' ? 'bg-white animate-pulse' : 'bg-orange-100'}`} />
-                  Potencia
+                  <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'POTENCIA' ? 'bg-white animate-pulse' : 'bg-current'}`} />
+                  POTENCIA
                 </button>
               )}
             </div>
@@ -734,15 +736,13 @@ export const RegistroFotos: React.FC = () => {
             </div>
 
             {/* Selector de filtro por relación con fotos (Coincidentes / No Coincidentes) */}
-            <div className="flex gap-1 mb-4 shrink-0 bg-gray-100 p-1 rounded-xl">
+            <div className="grid grid-cols-2 sm:flex gap-1 mb-4 shrink-0 bg-gray-100 p-1 rounded-xl">
               <button
                 type="button"
                 onClick={() => setFotoFilter('all')}
                 className={`flex-1 py-1.5 px-2 rounded-lg text-[10px] font-black transition-all uppercase tracking-wider text-center cursor-pointer ${
                   fotoFilter === 'all'
-                  ? activeCategory === 'POTENCIA'
-                    ? 'bg-orange-600 text-white shadow-sm'
-                    : 'bg-[#1F3864] text-white shadow-sm'
+                  ? 'bg-[#1F3864] text-white shadow-sm'
                   : 'text-gray-550 hover:text-gray-800 hover:bg-white/50'
                 }`}
               >
@@ -990,23 +990,23 @@ export const RegistroFotos: React.FC = () => {
                 onClick={() => { setActiveCategory('INSTRUMENTACION'); setAutoPreviews([]); setSelectedAutoTagFilter(null); setAutoStatusFilter('all'); }}
                 className={`py-3 px-4 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
                   activeCategory === 'INSTRUMENTACION' 
-                  ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-100 ring-2 ring-blue-50' 
-                  : 'bg-white border-blue-50 text-blue-400 hover:border-blue-200 hover:text-blue-600'
+                  ? 'bg-[#1F3864] border-[#1F3864] text-white shadow-md' 
+                  : 'bg-white border-[#D9E1F2] text-[#64748B] hover:border-[#1F3864] hover:text-[#1F3864]'
                 }`}
               >
-                <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'INSTRUMENTACION' ? 'bg-white animate-pulse' : 'bg-blue-100'}`} />
-                Instrumentación
+                <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'INSTRUMENTACION' ? 'bg-white animate-pulse' : 'bg-current'}`} />
+                INSTRUMENTACIÓN
               </button>
               <button
                 onClick={() => { setActiveCategory('POTENCIA'); setAutoPreviews([]); setSelectedAutoTagFilter(null); setAutoStatusFilter('all'); }}
                 className={`py-3 px-4 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
                   activeCategory === 'POTENCIA' 
-                  ? 'bg-orange-600 border-orange-600 text-white shadow-lg shadow-orange-100 ring-2 ring-orange-50' 
-                  : 'bg-white border-orange-50 text-orange-400 hover:border-orange-200 hover:text-orange-600'
+                  ? 'bg-[#1F3864] border-[#1F3864] text-white shadow-md' 
+                  : 'bg-white border-[#D9E1F2] text-[#64748B] hover:border-[#1F3864] hover:text-[#1F3864]'
                 }`}
               >
-                <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'POTENCIA' ? 'bg-white animate-pulse' : 'bg-orange-100'}`} />
-                Potencia
+                <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'POTENCIA' ? 'bg-white animate-pulse' : 'bg-current'}`} />
+                POTENCIA
               </button>
             </div>
             <p className="text-[11px] text-gray-500 mt-3 italic">
@@ -1142,7 +1142,14 @@ export const RegistroFotos: React.FC = () => {
               
               {/* Columna Izquierda: Detalle de Fotos y Asignaciones */}
               <div className="md:col-span-8 bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="bg-blue-50 border border-blue-200 text-blue-800 p-3 rounded-lg flex items-start gap-3">
+                  <AlertCircle className="text-blue-600 mt-0.5 shrink-0" size={18} />
+                  <div className="text-xs">
+                    <p className="font-bold">¡Atención! Fotos pendientes de guardar</p>
+                    <p className="text-blue-700/90 mt-0.5">Recuerda hacer clic en el botón <strong>"Guardar Lote Válido"</strong> (Abajo o en la columna derecha) para confirmar y registrar las fotos que estén marcadas en verde.</p>
+                  </div>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
                   <div className="space-y-0.5">
                     <label className="block text-xs font-bold text-gray-500 uppercase">
                       3. Revisar Asignaciones ({autoPreviews.length} fotos)
@@ -1175,7 +1182,7 @@ export const RegistroFotos: React.FC = () => {
                     onClick={() => setAutoStatusFilter('all')}
                     className={`py-1.5 px-2 rounded-lg text-[10px] font-black transition-all uppercase tracking-wider text-center cursor-pointer flex items-center justify-center gap-1 min-h-[32px] ${
                       autoStatusFilter === 'all'
-                        ? `${activeCategory === 'POTENCIA' ? 'bg-orange-600' : 'bg-[#1F3864]'} text-white shadow-sm`
+                        ? 'bg-[#1F3864] text-white shadow-sm'
                         : 'text-gray-500 hover:text-gray-800 hover:bg-white/50'
                     }`}
                   >

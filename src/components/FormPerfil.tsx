@@ -167,15 +167,15 @@ export const FormPerfil: React.FC<FormPerfilProps> = ({ perfilToEdit, onBack }) 
                 </select>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <InputGroup label="Revisión Format." name="REVISION" value={formData.REVISION} onChange={handleChange} />
               <InputGroup label="Fecha de Revisión" name="FECHA_REVISION" value={formData.FECHA_REVISION} onChange={handleChange} />
             </div>
-            <div className="grid grid-cols-2 gap-4 mt-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
               <InputGroup label="Cliente" name="CLIENTE" value={formData.CLIENTE} onChange={handleChange} />
               <InputGroup label="Fecha Elaboración" name="FECHA" type="date" value={formData.FECHA} onChange={handleChange} />
             </div>
-            <div className="grid grid-cols-2 gap-4 mt-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
               <InputGroup label="Proyecto" name="PROYECTO" value={formData.PROYECTO} onChange={handleChange} />
               <InputGroup label="Contrato" name="CONTRATO" value={formData.CONTRATO} onChange={handleChange} />
             </div>

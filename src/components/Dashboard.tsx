@@ -15,12 +15,14 @@ import {
   BarChart3,
   TrendingUp,
   Package,
-  User as UserIcon
+  User as UserIcon,
+  Sliders,
+  Zap
 } from 'lucide-react';
 import { format, isWithinInterval, parseISO, startOfDay, endOfDay } from 'date-fns';
 
 export function Dashboard() {
-  const { conteoExportacion } = useAppStore();
+  const { conteoExportacion, instrumentos, potenciaEquipos } = useAppStore();
   const [startDate, setStartDate] = useState(format(new Date(new Date().setDate(new Date().getDate() - 30)), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [selectedTag, setSelectedTag] = useState<string>('all');
@@ -40,6 +42,25 @@ export function Dashboard() {
       return isWithinDates && matchesTag && matchesRole;
     });
   }, [conteoExportacion, startDate, endDate, selectedTag, selectedRole]);
+
+  // Contar exportaciones clasificados por tabla (Instrumentos vs Potencia)
+  const exportsByType = useMemo(() => {
+    let instrumentacion = 0;
+    let potencia = 0;
+    
+    const instTagnames = new Set(instrumentos.map(i => i.TAGNAME));
+    const potTags = new Set(potenciaEquipos.map(p => p.TAG));
+    
+    filteredConteos.forEach(log => {
+      if (instTagnames.has(log.tag)) {
+        instrumentacion += log.conteo;
+      } else if (potTags.has(log.tag)) {
+        potencia += log.conteo;
+      }
+    });
+    
+    return { instrumentacion, potencia };
+  }, [filteredConteos, instrumentos, potenciaEquipos]);
 
   // Lista de tags únicos que han sido exportados
   const uniqueTags = useMemo(() => {
@@ -96,28 +117,35 @@ export function Dashboard() {
           <LayoutDashboard size={24} /> Análisis de Exportaciones
         </h2>
         
-        <div className="flex flex-wrap items-center gap-3 bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
-          <div className="flex items-center gap-2">
-            <Filter size={14} className="text-gray-400" />
-            <input 
-              type="date" 
-              value={startDate} 
-              onChange={e => setStartDate(e.target.value)} 
-              className="text-xs border rounded p-1 font-bold text-blue-900"
-            />
-            <ArrowRight size={14} className="text-gray-300" />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white p-3 rounded-xl border border-gray-200 shadow-sm w-full">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            <div className="flex items-center gap-2">
+              <Filter size={14} className="text-gray-400 hidden sm:block" />
+              <input 
+                type="date" 
+                value={startDate} 
+                onChange={e => setStartDate(e.target.value)} 
+                className="w-full sm:w-auto text-xs border rounded p-2 sm:p-1 font-bold text-blue-900"
+              />
+            </div>
+            <div className="hidden sm:flex items-center justify-center">
+               <ArrowRight size={14} className="text-gray-300" />
+            </div>
+            <div className="flex sm:hidden justify-center text-gray-300">
+               <ArrowRight size={14} className="rotate-90" />
+            </div>
             <input 
               type="date" 
               value={endDate} 
               onChange={e => setEndDate(e.target.value)} 
-              className="text-xs border rounded p-1 font-bold text-blue-900"
+              className="w-full sm:w-auto text-xs border rounded p-2 sm:p-1 font-bold text-blue-900"
             />
           </div>
-          <div className="h-4 w-px bg-gray-200 mx-1"></div>
+          <div className="h-px sm:h-4 w-full sm:w-px bg-gray-200 sm:mx-1 my-1 sm:my-0"></div>
           <select 
             value={selectedRole} 
             onChange={e => setSelectedRole(e.target.value)}
-            className="text-xs border rounded p-1 font-bold text-blue-900 appearance-none bg-white pr-6 min-w-[100px]"
+            className="w-full sm:w-auto text-xs border rounded p-2 sm:p-1 font-bold text-blue-900 appearance-none bg-white pr-6 min-w-[100px]"
             style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23a1a1aa\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundPosition: 'right 0.4rem center', backgroundRepeat: 'no-repeat', backgroundSize: '0.8rem' }}
           >
             <option value="all">TODOS ROLES</option>
@@ -125,11 +153,11 @@ export function Dashboard() {
               <option key={role} value={role}>{role}</option>
             ))}
           </select>
-          <div className="h-4 w-px bg-gray-200 mx-1"></div>
+          <div className="h-px sm:h-4 w-full sm:w-px bg-gray-200 sm:mx-1 my-1 sm:my-0"></div>
           <select 
             value={selectedTag} 
             onChange={e => setSelectedTag(e.target.value)}
-            className="text-xs border rounded p-1 font-bold text-blue-900 appearance-none bg-white pr-6 min-w-[120px]"
+            className="w-full sm:w-auto text-xs border rounded p-2 sm:p-1 font-bold text-blue-900 appearance-none bg-white pr-6 min-w-[120px]"
             style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23a1a1aa\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1rem' }}
           >
             <option value="all">TODOS LOS TAGS</option>
@@ -141,7 +169,7 @@ export function Dashboard() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-1 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex items-center gap-4 group hover:border-blue-200 transition-all justify-center">
           <div className="p-3 bg-blue-50 rounded-xl text-blue-600 group-hover:scale-110 transition-transform">
             <BarChart3 size={24} />
@@ -149,6 +177,26 @@ export function Dashboard() {
           <div>
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Exportaciones</p>
             <p className="text-3xl font-black text-[#1F3864] leading-none mt-1">{totalExports}</p>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex items-center gap-4 group hover:border-emerald-200 transition-all justify-center">
+          <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600 group-hover:scale-110 transition-transform">
+            <Sliders size={24} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Instrumentación</p>
+            <p className="text-3xl font-black text-emerald-600 leading-none mt-1">{exportsByType.instrumentacion}</p>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex items-center gap-4 group hover:border-amber-200 transition-all justify-center">
+          <div className="p-3 bg-amber-50 rounded-xl text-amber-600 group-hover:scale-110 transition-transform">
+            <Zap size={24} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Potencia</p>
+            <p className="text-3xl font-black text-amber-600 leading-none mt-1">{exportsByType.potencia}</p>
           </div>
         </div>
       </div>

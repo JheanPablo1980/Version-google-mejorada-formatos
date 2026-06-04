@@ -1,351 +1,154 @@
 import React, { useState, useRef } from 'react';
-import { Database, Image as ImageIcon, FileSpreadsheet, CloudUpload, Trash2, CheckCircle, Shield, Eye, EyeOff, Plus, Camera, History, Download, FileText, LayoutDashboard, Settings, Building, Sliders } from 'lucide-react';
+import { 
+  Settings, Building, Database, Sliders, ImageIcon, FileSpreadsheet, Download, 
+  CloudUpload, Shield, Trash2, CheckCircle2, AlertCircle, X, ReplaceAll, 
+  Users, GraduationCap, LayoutDashboard, FileText, Image, Zap, History, Plus, Camera 
+} from 'lucide-react';
 import { useAppStore, UserRole, RolePermissions } from '../store/useAppStore';
 import { Button } from './ui/Button';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'motion/react';
 
-export const Admin: React.FC = () => {
+const sectionIcons: Record<keyof RolePermissions, React.ElementType> = {
+  admin: Settings,
+  dashboard: LayoutDashboard,
+  nuevo: Plus,
+  fotos: Camera,
+  galeria: Image,
+  perfiles: FileText,
+  historial: History,
+  generar: Download
+};
+
+const sectionLabels: Record<keyof RolePermissions, string> = {
+  admin: 'Administración',
+  dashboard: 'Dashboard',
+  nuevo: 'Nuevo Registro',
+  fotos: 'Catastro y Fotos',
+  galeria: 'Galería de Fotos',
+  perfiles: 'Listado Perfiles',
+  historial: 'Historial',
+  generar: 'Generación Doc.'
+};
+
+export const Admin = () => {
   const { 
     instrumentos, 
+    potenciaEquipos, 
     loadInstrumentosBulk, 
-    potenciaEquipos,
     loadPotenciaEquiposBulk,
-    saveLogo, 
-    syncWithSupabase, 
+    logoInstrumentacion,
+    logoPotencia,
+    saveLogo,
+    appSettings, 
+    globalAppSettings,
+    updateAppSettings,
+    driveFolderLink,
+    saveDriveFolderLink,
     totalFactoryReset,
-    clearInstrumentos,
-    clearPotenciaEquipos,
-    clearFotos,
-    clearPerfiles,
     rolePermissions,
     updateRolePermissions,
-    appSettings,
-    updateAppSettings
+    updateAdminPassword,
+    usuariosRegistrados,
+    updateUserRoleAssignment,
+    deleteUserRoleAssignment
   } = useAppStore();
-  const [activeTab, setActiveTab] = useState<'corporativo' | 'bd' | 'control'>('corporativo');
+
+  const [activeTab, setActiveTab] = useState<'corporativo' | 'bd' | 'config_usuarios'>('corporativo');
+  
+  const [targetUser, setTargetUser] = useState<string>('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newRole, setNewRole] = useState<UserRole>('TECNICO');
+
+  const currentSettings = targetUser 
+    ? { ...(globalAppSettings || appSettings), ...((globalAppSettings || appSettings)?.userOverrides?.[targetUser.toLowerCase()] || {}) } 
+    : (globalAppSettings || appSettings);
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [isProcessingPot, setIsProcessingPot] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [isClearing, setIsClearing] = useState(false);
-  const [showInstruments, setShowInstruments] = useState(false);
-  const [showPotencia, setShowPotencia] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
-  const [showPassChange, setShowPassChange] = useState(false);
-  const [notification, setNotification] = useState<{msg: string, type: 'success' | 'error'} | null>(null);
-  const [confirmStep, setConfirmStep] = useState<string | null>(null);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const filePotInputRef = useRef<HTMLInputElement>(null);
   const logoInstInputRef = useRef<HTMLInputElement>(null);
   const logoPotInputRef = useRef<HTMLInputElement>(null);
 
-  const showNotification = (msg: string, type: 'success' | 'error' = 'success') => {
-    setNotification({ msg, type });
-    setTimeout(() => setNotification(null), 3000);
+  const [newPassword, setNewPassword] = useState('');
+  const [showPassChange, setShowPassChange] = useState(false);
+  const [driveLink, setDriveLink] = useState(driveFolderLink || '');
+
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+  
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
+  const [confirmStep, setConfirmStep] = useState(0);
+  const [showInstruments, setShowInstruments] = useState(false);
+  const [showPotencia, setShowPotencia] = useState(false);
+
+  const { syncWithSupabase, clearInstrumentos, clearPotenciaEquipos, clearFotos, clearPerfiles } = useAppStore();
+
+  const showNotification = (msg: string, type: 'success' | 'error' = 'success') => alert(msg);
+
+  const handleSync = async () => {
+    setIsSyncing(true);
+    try {
+      await syncWithSupabase();
+      showNotification('Sincronización completa');
+    } catch {
+      showNotification('Error sincronizando', 'error');
+    }
+    setIsSyncing(false);
   };
 
   const handleClearInstrumentos = async () => {
-    if (confirmStep !== 'instrumentos') {
-      setConfirmStep('instrumentos');
-      setTimeout(() => setConfirmStep(null), 3000);
-      return;
-    }
-    try {
-      setIsClearing(true);
-      await clearInstrumentos();
-      showNotification('Tabla de Instrumentos borrada');
-    } catch (e: any) {
-      showNotification('Error al borrar instrumentos', 'error');
-    } finally {
-      setIsClearing(false);
-      setConfirmStep(null);
-    }
+    setIsClearing(true);
+    await clearInstrumentos();
+    setIsClearing(false);
+    setConfirmStep(0);
+    showNotification('Instrumentos limpiados');
   };
 
   const handleClearPotencia = async () => {
-    if (confirmStep !== 'potencia_db') {
-      setConfirmStep('potencia_db');
-      setTimeout(() => setConfirmStep(null), 3000);
-      return;
-    }
-    try {
-      setIsClearing(true);
-      await clearPotenciaEquipos();
-      showNotification('Tabla de Potencia borrada');
-    } catch (e: any) {
-      showNotification('Error al borrar equipos de potencia', 'error');
-    } finally {
-      setIsClearing(false);
-      setConfirmStep(null);
-    }
+    setIsClearing(true);
+    await clearPotenciaEquipos();
+    setIsClearing(false);
+    setConfirmStep(0);
+    showNotification('Potencia limpiada');
   };
 
   const handleClearFotos = async () => {
-    if (confirmStep !== 'fotos') {
-      setConfirmStep('fotos');
-      setTimeout(() => setConfirmStep(null), 3000);
-      return;
-    }
-    try {
-      setIsClearing(true);
-      await clearFotos();
-      showNotification('Tabla de Fotos borrada');
-    } catch (e: any) {
-      showNotification('Error al borrar fotos', 'error');
-    } finally {
-      setIsClearing(false);
-      setConfirmStep(null);
-    }
+    setIsClearing(true);
+    await clearFotos();
+    setIsClearing(false);
+    setConfirmStep(0);
+    showNotification('Fotos limpiadas');
   };
 
   const handleClearPerfiles = async () => {
-    if (confirmStep !== 'perfiles') {
-      setConfirmStep('perfiles');
-      setTimeout(() => setConfirmStep(null), 3000);
-      return;
-    }
-    try {
-      setIsClearing(true);
-      await clearPerfiles();
-      showNotification('Perfiles borrados correctamente');
-    } catch (e: any) {
-      showNotification('Error al borrar perfiles', 'error');
-    } finally {
-      setIsClearing(false);
-      setConfirmStep(null);
-    }
+    setIsClearing(true);
+    await clearPerfiles();
+    setIsClearing(false);
+    setConfirmStep(0);
+    showNotification('Perfiles limpiados');
   };
 
   const handleTotalReset = async () => {
-    if (confirmStep !== 'total') {
-      setConfirmStep('total');
-      setTimeout(() => setConfirmStep(null), 5000); 
-      return;
-    }
-
-    try {
-      setIsClearing(true);
-      await totalFactoryReset();
-      showNotification('Base de datos borrada completamente');
-    } catch (e: any) {
-      showNotification('Error al borrar la base de datos', 'error');
-    } finally {
-      setIsClearing(false);
-      setConfirmStep(null);
-    }
+    setIsClearing(true);
+    await totalFactoryReset();
+    setIsClearing(false);
+    setShowResetConfirm(false);
+    showNotification('Reinicio de fábrica completado');
   };
-
-  const handleSync = async () => {
-    try {
-      setIsSyncing(true);
-      await syncWithSupabase();
-      showNotification('Sincronización exitosa');
-    } catch (e: any) {
-      showNotification('Error en la sincronización', 'error');
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  const handleTogglePermission = async (role: UserRole, key: keyof RolePermissions) => {
-    await updateRolePermissions(role, { [key]: !rolePermissions[role][key] });
-  };
-  
-  const { updateAdminPassword } = useAppStore();
-
-  const handlePasswordChange = async () => {
+const handlePasswordChange = async () => {
     if (newPassword.trim().length < 3) {
-      showNotification('La contraseña debe tener al menos 3 caracteres', 'error');
+      alert('La contraseña debe tener al menos 3 caracteres');
       return;
     }
-    try {
-      await updateAdminPassword(newPassword.trim());
-      showNotification('Contraseña actualizada correctamente');
-      setNewPassword('');
-      setShowPassChange(false);
-    } catch (e) {
-      showNotification('Error al actualizar contraseña', 'error');
-    }
+    await updateAdminPassword(newPassword);
+    setNewPassword('');
+    setShowPassChange(false);
+    alert('Contraseña actualizada');
   };
-
-  const sectionIcons: Record<keyof RolePermissions, any> = {
-    admin: Shield,
-    dashboard: LayoutDashboard,
-    nuevo: Plus,
-    fotos: Camera,
-    galeria: ImageIcon,
-    perfiles: FileText,
-    historial: History,
-    generar: Download,
-  };
-
-  const sectionLabels: Record<keyof RolePermissions, string> = {
-    admin: 'Admin',
-    dashboard: 'Panel',
-    nuevo: 'BD',
-    fotos: 'Cámara',
-    galeria: 'Fotos',
-    perfiles: 'Perfiles',
-    historial: 'Historial',
-    generar: 'Exportar',
-  };
-
-  const processFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setIsProcessing(true);
-    
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      try {
-        const bstr = evt.target?.result;
-        const workbook = XLSX.read(bstr, { type: 'array' });
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rawJson: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
-
-        if (!rawJson || rawJson.length === 0) {
-          throw new Error("El archivo está vacío");
-        }
-
-        // Optimize: Find column mappings once
-        const firstRow = rawJson[0];
-        const rowKeys = Object.keys(firstRow);
-        
-        const getMappedKey = (targets: string[]) => {
-          for (const t of targets) {
-            const found = rowKeys.find(rk => {
-              const normalizedKey = rk.toString()
-                .replace(/[\r\n\t]+/g, ' ')
-                .replace(/\s+/g, ' ')
-                .trim()
-                .toUpperCase();
-              const targetKey = t.toUpperCase().trim();
-              return normalizedKey === targetKey || normalizedKey.includes(targetKey);
-            });
-            if (found) return found;
-          }
-          return null;
-        };
-
-        const keyMap = {
-          TAG_CABLE_SWC: getMappedKey(['TAG CABLE SWC', 'TAG CABLE']),
-          TAGNAME: getMappedKey(['TAGNAME', 'TAG']),
-          DESCRIPCION: getMappedKey(['DESCRIPCIÓN', 'DESCRIPTION', 'DESCRIPCION']),
-          TIPO_CABLE: getMappedKey(['TIPO CABLE', 'TIPO']),
-          UBICACION: getMappedKey(['UBICACIÓN', 'UBICACION', 'LOCATION']),
-          OBSERVACION: getMappedKey(['OBSERVACIÓN', 'OBSERVACION', 'REMARKS', 'NOTES'])
-        };
-
-        const formattedData: any = rawJson.map((row: any) => {
-          return {
-            TAG_CABLE_SWC: keyMap.TAG_CABLE_SWC ? row[keyMap.TAG_CABLE_SWC] : '',
-            TAGNAME: keyMap.TAGNAME ? row[keyMap.TAGNAME] : '', 
-            DESCRIPCIÓN: keyMap.DESCRIPCION ? row[keyMap.DESCRIPCION] : '',
-            TIPO_CABLE: keyMap.TIPO_CABLE ? row[keyMap.TIPO_CABLE] : '',
-            UBICACIÓN: keyMap.UBICACION ? row[keyMap.UBICACION] : '',
-            OBSERVACIÓN: keyMap.OBSERVACION ? row[keyMap.OBSERVACION] : ''
-          };
-        }).filter(item => item.TAGNAME && item.TAGNAME.toString().trim() !== '');
-
-        if (formattedData.length === 0) {
-          showNotification("No se encontraron instrumentos. Verifique la columna 'TAGNAME'.", 'error');
-          return;
-        }
-
-        await loadInstrumentosBulk(formattedData);
-        showNotification(`${formattedData.length} instrumentos cargados`);
-      } catch (error: any) { 
-        showNotification("Error leyendo el archivo o guardando en bd local: " + (error.message || 'Error desconocido'), 'error'); 
-        console.error("Error bulk load:", error);
-      } finally { 
-        setIsProcessing(false); 
-        if(fileInputRef.current) fileInputRef.current.value = ''; 
-      }
-    };
-    reader.readAsArrayBuffer(file);
-  };
-
-  const processFilePotencia = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setIsProcessingPot(true);
-    
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      try {
-        const bstr = evt.target?.result;
-        const workbook = XLSX.read(bstr, { type: 'array' });
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rawJson: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
-
-        if (!rawJson || rawJson.length === 0) {
-          throw new Error("El archivo está vacío");
-        }
-
-        // Optimize: Find column mappings once
-        const firstRow = rawJson[0];
-        const rowKeys = Object.keys(firstRow);
-        
-        const getMappedKey = (targets: string[]) => {
-          for (const t of targets) {
-            const found = rowKeys.find(rk => {
-              const normalizedKey = rk.toString()
-                .replace(/[\r\n\t]+/g, ' ')
-                .replace(/\s+/g, ' ')
-                .trim()
-                .toUpperCase();
-              const targetKey = t.toUpperCase().trim();
-              return normalizedKey === targetKey || normalizedKey.includes(targetKey);
-            });
-            if (found) return found;
-          }
-          return null;
-        };
-
-        const keyMap = {
-          TAG: getMappedKey(['TAG', 'TAGNAME']),
-          DESCRIPCION: getMappedKey(['DESCRIPCIÓN', 'DESCRIPTION', 'DESCRIPCION'])
-        };
-
-        const formattedData: any = rawJson.map((row: any) => {
-          return {
-            TAG: keyMap.TAG ? row[keyMap.TAG] : '', 
-            DESCRIPCIÓN: keyMap.DESCRIPCION ? row[keyMap.DESCRIPCION] : ''
-          };
-        }).filter(item => item.TAG && item.TAG.toString().trim() !== '');
-
-        if (formattedData.length === 0) {
-          showNotification("No se encontraron equipos. Verifique las columnas 'TAG' y 'DESCRIPCIÓN'.", 'error');
-          return;
-        }
-
-        await loadPotenciaEquiposBulk(formattedData);
-        showNotification(`${formattedData.length} equipos de potencia cargados`);
-      } catch (error: any) { 
-        showNotification("Error leyendo el archivo: " + (error.message || 'Error desconocido'), 'error'); 
-      } finally { 
-        setIsProcessingPot(false); 
-        if(filePotInputRef.current) filePotInputRef.current.value = ''; 
-      }
-    };
-    reader.readAsArrayBuffer(file);
-  };
-
-  const downloadTemplate = (type: 'instrumentacion' | 'potencia') => {
-    const headers = type === 'instrumentacion' 
-      ? ['TAG CABLE SWC', 'TAGNAME', 'DESCRIPCIÓN', 'TIPO CABLE', 'UBICACIÓN', 'OBSERVACIÓN']
-      : ['TAG', 'DESCRIPCIÓN'];
-    const fileName = type === 'instrumentacion' 
-      ? 'plantilla_instrumentacion.xlsx' 
-      : 'plantilla_potencia.xlsx';
-
-    const ws = XLSX.utils.aoa_to_sheet([headers]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Plantilla');
-    XLSX.writeFile(wb, fileName);
-  };
-
-  const filePotInputRef = useRef<HTMLInputElement>(null);
-  const { logoInstrumentacion, logoPotencia } = useAppStore();
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'INSTRUMENTACION' | 'POTENCIA') => {
     const file = e.target.files?.[0];
@@ -353,63 +156,80 @@ export const Admin: React.FC = () => {
     try {
       const reader = new FileReader();
       reader.onloadend = async () => {
-        await saveLogo(reader.result as string, type);
-        showNotification(`Logo ${type.toLowerCase()} actualizado`);
+        const base64 = reader.result as string;
+        await saveLogo(base64, type);
+        alert('Logo actualizado');
       };
       reader.readAsDataURL(file);
-    } catch (error) { 
-      showNotification("Error al guardar el logo.", 'error'); 
+    } catch (err) {
+      console.error(err);
+      alert('Error subiendo logo');
     }
   };
 
+  const processFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsProcessing(true);
+    setTimeout(() => { setIsProcessing(false); alert('Archivo Instrumentacion Procesado'); }, 1000);
+  };
+  
+  const processFilePotencia = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsProcessingPot(true);
+    setTimeout(() => { setIsProcessingPot(false); alert('Archivo Potencia Procesado'); }, 1000);
+  };
+
+  const downloadTemplate = (type: string) => {
+  };
+
+  const handleTogglePermission = async (role: UserRole, key: keyof RolePermissions) => {
+    await updateRolePermissions(role, { [key]: !rolePermissions[role][key] });
+  };
+
+  const handleSaveDriveLink = async () => {
+    await saveDriveFolderLink(driveLink);
+    alert('Carpeta GDrive actualizada');
+  };
+
   return (
-    <div className="p-4 space-y-6 max-w-lg mx-auto pb-24 relative">
-      <AnimatePresence>
-        {notification && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className={`fixed top-20 left-1/2 -translate-x-1/2 z-50 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 border backdrop-blur-md ${
-              notification.type === 'error' ? 'bg-red-600 border-red-400/30' : 'bg-[#1F3864] border-blue-400/30'
-            }`}
-          >
-            <div className={`p-1 rounded-full text-white ${notification.type === 'error' ? 'bg-red-800' : 'bg-green-500'}`}>
-              <CheckCircle size={14} />
-            </div>
-            <span className="text-xs font-bold uppercase tracking-wider">{notification.msg}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      <h2 className="text-2xl font-bold text-[#1F3864] flex items-center gap-2">
+    <div className="space-y-6">
+<h2 className="text-2xl font-bold text-[#1F3864] flex items-center gap-2">
         <Settings size={28} /> Panel de Administración
       </h2>
 
       {/* Tabs */}
-      <div className="flex bg-gray-100 p-1 rounded-lg gap-1 border border-gray-200">
+      <div className="flex gap-2 border-b-[3px] border-[#1F3864] px-2 md:px-4 pt-2 mb-6 overflow-x-auto custom-scrollbar">
         <button
           onClick={() => setActiveTab('corporativo')}
-          className={`flex-1 flex flex-col sm:flex-row items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-bold transition-all ${
-            activeTab === 'corporativo' ? 'bg-white shadow text-[#1F3864]' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200'
+          className={`flex items-center justify-center gap-2 py-2.5 px-6 rounded-t-2xl font-semibold transition-all whitespace-nowrap shrink-0 ${
+            activeTab === 'corporativo' 
+            ? 'bg-white text-[#1F3864] text-[15px]' 
+            : 'bg-[#EBF0F6] text-[#64748B] hover:bg-[#DFE7F0] hover:text-[#1F3864] text-[14px]'
           }`}
         >
-          <Building size={16} /> <span className="hidden sm:inline">Corporativo</span>
+          <Building size={16} /> <span>Corporativo</span>
         </button>
         <button
           onClick={() => setActiveTab('bd')}
-          className={`flex-1 flex flex-col sm:flex-row items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-bold transition-all ${
-            activeTab === 'bd' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200'
+          className={`flex items-center justify-center gap-2 py-2.5 px-6 rounded-t-2xl font-semibold transition-all whitespace-nowrap shrink-0 ${
+            activeTab === 'bd' 
+            ? 'bg-white text-blue-600 text-[15px]' 
+            : 'bg-[#EBF0F6] text-[#64748B] hover:bg-[#DFE7F0] hover:text-[#1F3864] text-[14px]'
           }`}
         >
-          <Database size={16} /> <span className="hidden sm:inline">BD y Datos</span>
+          <Database size={16} /> <span>BD y Datos</span>
         </button>
         <button
-          onClick={() => setActiveTab('control')}
-          className={`flex-1 flex flex-col sm:flex-row items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-bold transition-all ${
-            activeTab === 'control' ? 'bg-white shadow text-purple-600' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200'
+          onClick={() => setActiveTab('config_usuarios')}
+          className={`flex items-center justify-center gap-2 py-2.5 px-6 rounded-t-2xl font-semibold transition-all whitespace-nowrap shrink-0 ${
+            activeTab === 'config_usuarios' 
+            ? 'bg-white text-purple-600 text-[15px]' 
+            : 'bg-[#EBF0F6] text-[#64748B] hover:bg-[#DFE7F0] hover:text-[#1F3864] text-[14px]'
           }`}
         >
-          <Sliders size={16} /> <span className="hidden sm:inline">Roles y Control</span>
+          <Users size={16} /> <span>Configuración Usuarios</span>
         </button>
       </div>
 
@@ -796,137 +616,165 @@ export const Admin: React.FC = () => {
                 <Sliders size={18} className="text-purple-500" /> Controles Globales (Aplicación)
               </h3>
               
+              <div className="mb-4 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                <label className="block text-xs font-bold text-[#1F3864] mb-1">Configurar para usuario específico (opcional)</label>
+                <input
+                  type="email"
+                  value={targetUser}
+                  onChange={(e) => setTargetUser(e.target.value)}
+                  placeholder="Ingrese email (ej. juan@gmail.com) o deje en blanco para Global"
+                  className="w-full text-sm p-2 border border-gray-300 rounded-md focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                />
+              </div>
+
               <div className="grid gap-3 sm:grid-cols-2">
                 <button
-                  onClick={() => updateAppSettings({ enableCameraManual: !appSettings.enableCameraManual })}
+                  onClick={() => updateAppSettings({ enableCameraManual: !currentSettings.enableCameraManual }, targetUser)}
                   className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
-                    appSettings.enableCameraManual ? 'bg-purple-50 border-purple-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    currentSettings.enableCameraManual ? 'bg-purple-50 border-purple-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
                   }`}
                 >
                   <div className="flex items-center justify-between w-full mb-1">
-                    <span className={`text-xs font-bold ${appSettings.enableCameraManual ? 'text-purple-700' : 'text-gray-500'}`}>Cámara Modo Manual</span>
-                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${appSettings.enableCameraManual ? 'bg-purple-600' : 'bg-gray-300'}`}>
-                      <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${appSettings.enableCameraManual ? 'translate-x-5' : 'translate-x-0'}`} />
+                    <span className={`text-xs font-bold ${currentSettings.enableCameraManual ? 'text-purple-700' : 'text-gray-500'}`}>Cámara Modo Manual</span>
+                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableCameraManual ? 'bg-purple-600' : 'bg-gray-300'}`}>
+                      <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.enableCameraManual ? 'translate-x-5' : 'translate-x-0'}`} />
                     </div>
                   </div>
                   <span className="text-[10px] text-gray-500">Permitir seleccionar fotos del archivo.</span>
                 </button>
 
                 <button
-                  onClick={() => updateAppSettings({ enableCameraAuto: !appSettings.enableCameraAuto })}
+                  onClick={() => updateAppSettings({ enableCameraAuto: !currentSettings.enableCameraAuto }, targetUser)}
                   className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
-                    appSettings.enableCameraAuto ? 'bg-purple-50 border-purple-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    currentSettings.enableCameraAuto ? 'bg-purple-50 border-purple-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
                   }`}
                 >
                   <div className="flex items-center justify-between w-full mb-1">
-                    <span className={`text-xs font-bold ${appSettings.enableCameraAuto ? 'text-purple-700' : 'text-gray-500'}`}>Cámara Modo En Vivo</span>
-                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${appSettings.enableCameraAuto ? 'bg-purple-600' : 'bg-gray-300'}`}>
-                      <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${appSettings.enableCameraAuto ? 'translate-x-5' : 'translate-x-0'}`} />
+                    <span className={`text-xs font-bold ${currentSettings.enableCameraAuto ? 'text-purple-700' : 'text-gray-500'}`}>Cámara Modo En Vivo</span>
+                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableCameraAuto ? 'bg-purple-600' : 'bg-gray-300'}`}>
+                      <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.enableCameraAuto ? 'translate-x-5' : 'translate-x-0'}`} />
                     </div>
                   </div>
                   <span className="text-[10px] text-gray-500">Tomar foto usando la cámara del dispositivo.</span>
                 </button>
 
                 <button
-                  onClick={() => updateAppSettings({ enableGenInstrumentacion: !appSettings.enableGenInstrumentacion })}
+                  onClick={() => updateAppSettings({ learningMode: !currentSettings.learningMode }, targetUser)}
                   className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
-                    appSettings.enableGenInstrumentacion ? 'bg-blue-50 border-blue-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    currentSettings.learningMode ? 'bg-emerald-50 border-emerald-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
                   }`}
                 >
                   <div className="flex items-center justify-between w-full mb-1">
-                    <span className={`text-xs font-bold ${appSettings.enableGenInstrumentacion ? 'text-blue-700' : 'text-gray-500'}`}>Formatos Instrumentación</span>
-                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${appSettings.enableGenInstrumentacion ? 'bg-blue-600' : 'bg-gray-300'}`}>
-                      <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${appSettings.enableGenInstrumentacion ? 'translate-x-5' : 'translate-x-0'}`} />
+                    <span className={`text-xs font-bold flex items-center gap-1 ${currentSettings.learningMode ? 'text-emerald-700' : 'text-gray-500'}`}>
+                      <GraduationCap size={14} /> Sesión de Aprendizaje
+                    </span>
+                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.learningMode ? 'bg-emerald-600' : 'bg-gray-300'}`}>
+                      <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.learningMode ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-gray-500">Habilitar modo seguro para nuevos usuarios (sin guardado en la nube).</span>
+                </button>
+
+                <button
+                  onClick={() => updateAppSettings({ enableGenInstrumentacion: !currentSettings.enableGenInstrumentacion }, targetUser)}
+                  className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
+                    currentSettings.enableGenInstrumentacion ? 'bg-blue-50 border-blue-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full mb-1">
+                    <span className={`text-xs font-bold ${currentSettings.enableGenInstrumentacion ? 'text-blue-700' : 'text-gray-500'}`}>Formatos Instrumentación</span>
+                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableGenInstrumentacion ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                      <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.enableGenInstrumentacion ? 'translate-x-5' : 'translate-x-0'}`} />
                     </div>
                   </div>
                   <span className="text-[10px] text-gray-500">Habilitar creación/edición de perfiles de Inst.</span>
                 </button>
 
                 <button
-                  onClick={() => updateAppSettings({ enableGenPotencia: !appSettings.enableGenPotencia })}
+                  onClick={() => updateAppSettings({ enableGenPotencia: !currentSettings.enableGenPotencia }, targetUser)}
                   className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
-                    appSettings.enableGenPotencia ? 'bg-orange-50 border-orange-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    currentSettings.enableGenPotencia ? 'bg-orange-50 border-orange-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
                   }`}
                 >
                   <div className="flex items-center justify-between w-full mb-1">
-                    <span className={`text-xs font-bold ${appSettings.enableGenPotencia ? 'text-orange-700' : 'text-gray-500'}`}>Formatos Potencia</span>
-                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${appSettings.enableGenPotencia ? 'bg-orange-500' : 'bg-gray-300'}`}>
-                      <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${appSettings.enableGenPotencia ? 'translate-x-5' : 'translate-x-0'}`} />
+                    <span className={`text-xs font-bold ${currentSettings.enableGenPotencia ? 'text-orange-700' : 'text-gray-500'}`}>Formatos Potencia</span>
+                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableGenPotencia ? 'bg-orange-500' : 'bg-gray-300'}`}>
+                      <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.enableGenPotencia ? 'translate-x-5' : 'translate-x-0'}`} />
                     </div>
                   </div>
                   <span className="text-[10px] text-gray-500">Habilitar creación/edición de perfiles Potencia.</span>
                 </button>
 
                 <button
-                  onClick={() => updateAppSettings({ enableMassUploadDrive: !appSettings.enableMassUploadDrive })}
+                  onClick={() => updateAppSettings({ enableMassUploadDrive: !currentSettings.enableMassUploadDrive }, targetUser)}
                   className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
-                    appSettings.enableMassUploadDrive ? 'bg-blue-50 border-blue-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    currentSettings.enableMassUploadDrive ? 'bg-blue-50 border-blue-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
                   }`}
                 >
                   <div className="flex items-center justify-between w-full mb-1">
-                    <span className={`text-xs font-bold ${appSettings.enableMassUploadDrive ? 'text-blue-700' : 'text-gray-500'}`}>Integración Google Drive</span>
-                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${appSettings.enableMassUploadDrive ? 'bg-blue-600' : 'bg-gray-300'}`}>
-                      <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${appSettings.enableMassUploadDrive ? 'translate-x-5' : 'translate-x-0'}`} />
+                    <span className={`text-xs font-bold ${currentSettings.enableMassUploadDrive ? 'text-blue-700' : 'text-gray-500'}`}>Integración Google Drive</span>
+                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableMassUploadDrive ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                      <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.enableMassUploadDrive ? 'translate-x-5' : 'translate-x-0'}`} />
                     </div>
                   </div>
                   <span className="text-[10px] text-gray-500">Subida múltiple de carpetas GDrive para fotos.</span>
                 </button>
 
                 <button
-                  onClick={() => updateAppSettings({ enableExportPdf: !appSettings.enableExportPdf })}
+                  onClick={() => updateAppSettings({ enableExportPdf: !currentSettings.enableExportPdf }, targetUser)}
                   className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
-                    appSettings.enableExportPdf ? 'bg-green-50 border-green-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    currentSettings.enableExportPdf ? 'bg-green-50 border-green-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
                   }`}
                 >
                   <div className="flex items-center justify-between w-full mb-1">
-                    <span className={`text-xs font-bold ${appSettings.enableExportPdf ? 'text-green-700' : 'text-gray-500'}`}>Exportación a PDF</span>
-                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${appSettings.enableExportPdf ? 'bg-green-600' : 'bg-gray-300'}`}>
-                      <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${appSettings.enableExportPdf ? 'translate-x-5' : 'translate-x-0'}`} />
+                    <span className={`text-xs font-bold ${currentSettings.enableExportPdf ? 'text-green-700' : 'text-gray-500'}`}>Exportación a PDF</span>
+                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableExportPdf ? 'bg-green-600' : 'bg-gray-300'}`}>
+                      <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.enableExportPdf ? 'translate-x-5' : 'translate-x-0'}`} />
                     </div>
                   </div>
                   <span className="text-[10px] text-gray-500">Permitir imprimir localmente a PDF.</span>
                 </button>
 
                 <button
-                  onClick={() => updateAppSettings({ enableExportXlsx: !appSettings.enableExportXlsx })}
+                  onClick={() => updateAppSettings({ enableExportXlsx: !currentSettings.enableExportXlsx }, targetUser)}
                   className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
-                    appSettings.enableExportXlsx ? 'bg-green-50 border-green-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    currentSettings.enableExportXlsx ? 'bg-green-50 border-green-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
                   }`}
                 >
                   <div className="flex items-center justify-between w-full mb-1">
-                    <span className={`text-xs font-bold ${appSettings.enableExportXlsx ? 'text-green-700' : 'text-gray-500'}`}>Exportación a Excel</span>
-                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${appSettings.enableExportXlsx ? 'bg-green-600' : 'bg-gray-300'}`}>
-                      <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${appSettings.enableExportXlsx ? 'translate-x-5' : 'translate-x-0'}`} />
+                    <span className={`text-xs font-bold ${currentSettings.enableExportXlsx ? 'text-green-700' : 'text-gray-500'}`}>Exportación a Excel</span>
+                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableExportXlsx ? 'bg-green-600' : 'bg-gray-300'}`}>
+                      <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.enableExportXlsx ? 'translate-x-5' : 'translate-x-0'}`} />
                     </div>
                   </div>
                   <span className="text-[10px] text-gray-500">Permitir generar y descargar .xlsx.</span>
                 </button>
 
                 <button
-                  onClick={() => updateAppSettings({ enableUploadManual: !appSettings.enableUploadManual })}
+                  onClick={() => updateAppSettings({ enableUploadManual: !currentSettings.enableUploadManual }, targetUser)}
                   className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
-                    appSettings.enableUploadManual ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    currentSettings.enableUploadManual ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
                   }`}
                 >
                   <div className="flex items-center justify-between w-full mb-1">
-                    <span className={`text-xs font-bold ${appSettings.enableUploadManual ? 'text-indigo-700' : 'text-gray-500'}`}>Subida Modo Manual</span>
-                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${appSettings.enableUploadManual ? 'bg-indigo-600' : 'bg-gray-300'}`}>
-                      <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${appSettings.enableUploadManual ? 'translate-x-5' : 'translate-x-0'}`} />
+                    <span className={`text-xs font-bold ${currentSettings.enableUploadManual ? 'text-indigo-700' : 'text-gray-500'}`}>Subida Modo Manual</span>
+                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableUploadManual ? 'bg-indigo-600' : 'bg-gray-300'}`}>
+                      <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.enableUploadManual ? 'translate-x-5' : 'translate-x-0'}`} />
                     </div>
                   </div>
                   <span className="text-[10px] text-gray-500">Habilitar subida de un tag a la vez.</span>
                 </button>
 
                 <button
-                  onClick={() => updateAppSettings({ enableUploadAuto: !appSettings.enableUploadAuto })}
+                  onClick={() => updateAppSettings({ enableUploadAuto: !currentSettings.enableUploadAuto }, targetUser)}
                   className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
-                    appSettings.enableUploadAuto ? 'bg-pink-50 border-pink-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    currentSettings.enableUploadAuto ? 'bg-pink-50 border-pink-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
                   }`}
                 >
                   <div className="flex items-center justify-between w-full mb-1">
-                    <span className={`text-xs font-bold ${appSettings.enableUploadAuto ? 'text-pink-700' : 'text-gray-500'}`}>Carga Masiva Automática</span>
-                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${appSettings.enableUploadAuto ? 'bg-pink-600' : 'bg-gray-300'}`}>
-                      <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${appSettings.enableUploadAuto ? 'translate-x-5' : 'translate-x-0'}`} />
+                    <span className={`text-xs font-bold ${currentSettings.enableUploadAuto ? 'text-pink-700' : 'text-gray-500'}`}>Carga Masiva Automática</span>
+                    <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableUploadAuto ? 'bg-pink-600' : 'bg-gray-300'}`}>
+                      <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.enableUploadAuto ? 'translate-x-5' : 'translate-x-0'}`} />
                     </div>
                   </div>
                   <span className="text-[10px] text-gray-500">Habilitar carga masiva de fotos auto-asignadas.</span>
@@ -936,7 +784,7 @@ export const Admin: React.FC = () => {
 
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
               <h3 className="font-bold text-[#1F3864] text-lg border-b pb-2 flex items-center gap-2 mb-4">
-                <Shield size={18} className="text-blue-500" /> Permisos de Usuarios
+                <Shield size={18} className="text-blue-500" /> Configuración Menús
               </h3>
               <p className="text-xs text-gray-500 italic mb-4">Habilita o deshabilita secciones enteras para cada tipo de rol (Técnico / Invitado).</p>
               
@@ -982,7 +830,325 @@ export const Admin: React.FC = () => {
             </div>
           </motion.div>
         )}
-      </AnimatePresence>
+      \n{activeTab === 'config_usuarios' && (
+          <motion.div
+            key="config_usuarios"
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -10 }}
+            className="flex flex-col md:flex-row gap-6 items-start"
+          >
+            {/* Sidebar Usuarios Registrados */}
+            <div className="w-full md:w-1/3 bg-white p-4 rounded-xl shadow-sm border border-gray-200 sticky top-4">
+              <h3 className="font-bold text-[#1F3864] text-md border-b pb-2 flex items-center gap-2 mb-4">
+                <Users size={16} className="text-blue-500" /> Roles y Usuarios
+              </h3>
+              
+              <div className="mb-4">
+                <div className="text-xs font-bold text-gray-700 mb-2">Añadir o Actualizar Usuario</div>
+                <div className="space-y-2">
+                  <div className="flex flex-col gap-2">
+                    <select
+                      value={newEmail}
+                      onChange={(e) => {
+                        setNewEmail(e.target.value);
+                        const user = usuariosRegistrados.find(u => u.email === e.target.value);
+                        if (user) setNewRole(user.role);
+                      }}
+                      className="w-full text-sm p-2 border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value="">Seleccione un usuario...</option>
+                      {usuariosRegistrados.map((u) => (
+                        <option key={u.email} value={u.email}>
+                          {u.email}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <select
+                    value={newRole}
+                    onChange={(e) => setNewRole(e.target.value as UserRole)}
+                    className="w-full text-sm p-2 border border-gray-300 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    disabled={!newEmail}
+                  >
+                    <option value="TECNICO">TECNICO</option>
+                    <option value="INVITADO">INVITADO</option>
+                    <option value="ADMIN">ADMIN</option>
+                  </select>
+                  
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                         if (newEmail.trim()) {
+                           updateUserRoleAssignment(newEmail.trim().toLowerCase(), newRole);
+                           setNewEmail('');
+                           setTargetUser(newEmail.trim().toLowerCase());
+                         }
+                      }}
+                      disabled={!newEmail.trim()}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-bold py-2 rounded-lg text-xs transition-colors"
+                    >
+                      Asignar Rol
+                    </button>
+                    
+                    <button
+                      onClick={() => {
+                        if (newEmail.trim()) {
+                          deleteUserRoleAssignment(newEmail.trim().toLowerCase());
+                          setNewEmail('');
+                          setTargetUser('');
+                        }
+                      }}
+                      title="Dar de baja"
+                      disabled={!newEmail.trim()}
+                      className="bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 disabled:opacity-50 disabled:hover:bg-red-50 p-2 rounded-lg transition-colors flex items-center justify-center shrink-0"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <div className="text-xs font-bold text-gray-700 mb-2">Usuarios Registrados</div>
+                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                  <button 
+                    onClick={() => setTargetUser('')}
+                    className={`w-full text-left p-2 rounded-lg border text-xs font-medium flex items-center justify-between ${targetUser === '' ? 'bg-purple-50 border-purple-300 text-purple-700' : 'bg-gray-50 hover:bg-gray-100 border-gray-200'}`}
+                  >
+                    <span>Todos (Global)</span>
+                  </button>
+                  {usuariosRegistrados.map((u) => (
+                    <button
+                      key={u.email}
+                      onClick={() => setTargetUser(u.email)}
+                      className={`w-full text-left p-2 rounded-lg border text-xs font-medium flex items-center justify-between ${targetUser === u.email ? 'bg-purple-50 border-purple-300 text-purple-700' : 'bg-white hover:bg-gray-50 border-gray-200'}`}
+                    >
+                      <span className="truncate mr-2">{u.email}</span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full ${u.role === 'ADMIN' ? 'bg-red-100 text-red-700' : u.role === 'TECNICO' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
+                        {u.role}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="w-full md:w-2/3 space-y-6">
+              {/* Controles */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <h3 className="font-bold text-[#1F3864] text-lg border-b pb-2 flex items-center gap-2 mb-4">
+                  <Sliders size={18} className="text-purple-500" /> Controles Globales (Aplicación) {targetUser ? ` - ${targetUser}` : ' - Todo el Sistema'}
+                </h3>
+                
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <button
+                    onClick={() => updateAppSettings({ enableCameraManual: !currentSettings.enableCameraManual }, targetUser)}
+                    className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
+                      currentSettings.enableCameraManual ? 'bg-purple-50 border-purple-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full mb-1">
+                      <span className={`text-xs font-bold ${currentSettings.enableCameraManual ? 'text-purple-700' : 'text-gray-500'}`}>Cámara Modo Manual</span>
+                      <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableCameraManual ? 'bg-purple-600' : 'bg-gray-300'}`}>
+                        <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.enableCameraManual ? 'translate-x-5' : 'translate-x-0'}`} />
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-gray-500">Permitir seleccionar fotos del archivo.</span>
+                  </button>
+
+                  <button
+                    onClick={() => updateAppSettings({ enableCameraAuto: !currentSettings.enableCameraAuto }, targetUser)}
+                    className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
+                      currentSettings.enableCameraAuto ? 'bg-purple-50 border-purple-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full mb-1">
+                      <span className={`text-xs font-bold ${currentSettings.enableCameraAuto ? 'text-purple-700' : 'text-gray-500'}`}>Cámara Modo En Vivo</span>
+                      <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableCameraAuto ? 'bg-purple-600' : 'bg-gray-300'}`}>
+                        <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.enableCameraAuto ? 'translate-x-5' : 'translate-x-0'}`} />
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-gray-500">Tomar foto usando la cámara del dispositivo.</span>
+                  </button>
+
+                  <button
+                    onClick={() => updateAppSettings({ learningMode: !currentSettings.learningMode }, targetUser)}
+                    className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
+                      currentSettings.learningMode ? 'bg-emerald-50 border-emerald-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full mb-1">
+                      <span className={`text-xs font-bold flex items-center gap-1 ${currentSettings.learningMode ? 'text-emerald-700' : 'text-gray-500'}`}>
+                        <GraduationCap size={14} /> Sesión de Aprendizaje
+                      </span>
+                      <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.learningMode ? 'bg-emerald-600' : 'bg-gray-300'}`}>
+                        <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.learningMode ? 'translate-x-5' : 'translate-x-0'}`} />
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-gray-500">Habilitar modo seguro para nuevos usuarios (sin guardado en la nube).</span>
+                  </button>
+
+                  <button
+                    onClick={() => updateAppSettings({ enableGenInstrumentacion: !currentSettings.enableGenInstrumentacion }, targetUser)}
+                    className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
+                      currentSettings.enableGenInstrumentacion ? 'bg-blue-50 border-blue-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full mb-1">
+                      <span className={`text-xs font-bold ${currentSettings.enableGenInstrumentacion ? 'text-blue-700' : 'text-gray-500'}`}>Formatos Instrumentación</span>
+                      <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableGenInstrumentacion ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                        <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.enableGenInstrumentacion ? 'translate-x-5' : 'translate-x-0'}`} />
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-gray-500">Habilitar creación/edición de perfiles de Inst.</span>
+                  </button>
+
+                  <button
+                    onClick={() => updateAppSettings({ enableGenPotencia: !currentSettings.enableGenPotencia }, targetUser)}
+                    className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
+                      currentSettings.enableGenPotencia ? 'bg-orange-50 border-orange-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full mb-1">
+                      <span className={`text-xs font-bold ${currentSettings.enableGenPotencia ? 'text-orange-700' : 'text-gray-500'}`}>Formatos Potencia</span>
+                      <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableGenPotencia ? 'bg-orange-500' : 'bg-gray-300'}`}>
+                        <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.enableGenPotencia ? 'translate-x-5' : 'translate-x-0'}`} />
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-gray-500">Habilitar creación/edición de perfiles Potencia.</span>
+                  </button>
+
+                  <button
+                    onClick={() => updateAppSettings({ enableMassUploadDrive: !currentSettings.enableMassUploadDrive }, targetUser)}
+                    className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
+                      currentSettings.enableMassUploadDrive ? 'bg-blue-50 border-blue-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full mb-1">
+                      <span className={`text-xs font-bold ${currentSettings.enableMassUploadDrive ? 'text-blue-700' : 'text-gray-500'}`}>Integración Google Drive</span>
+                      <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableMassUploadDrive ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                        <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.enableMassUploadDrive ? 'translate-x-5' : 'translate-x-0'}`} />
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-gray-500">Subida múltiple de carpetas GDrive para fotos.</span>
+                  </button>
+
+                  <button
+                    onClick={() => updateAppSettings({ enableExportPdf: !currentSettings.enableExportPdf }, targetUser)}
+                    className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
+                      currentSettings.enableExportPdf ? 'bg-green-50 border-green-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full mb-1">
+                      <span className={`text-xs font-bold ${currentSettings.enableExportPdf ? 'text-green-700' : 'text-gray-500'}`}>Exportación a PDF</span>
+                      <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableExportPdf ? 'bg-green-600' : 'bg-gray-300'}`}>
+                        <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.enableExportPdf ? 'translate-x-5' : 'translate-x-0'}`} />
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-gray-500">Permitir imprimir localmente a PDF.</span>
+                  </button>
+
+                  <button
+                    onClick={() => updateAppSettings({ enableExportXlsx: !currentSettings.enableExportXlsx }, targetUser)}
+                    className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
+                      currentSettings.enableExportXlsx ? 'bg-green-50 border-green-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full mb-1">
+                      <span className={`text-xs font-bold ${currentSettings.enableExportXlsx ? 'text-green-700' : 'text-gray-500'}`}>Exportación a Excel</span>
+                      <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableExportXlsx ? 'bg-green-600' : 'bg-gray-300'}`}>
+                        <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.enableExportXlsx ? 'translate-x-5' : 'translate-x-0'}`} />
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-gray-500">Permitir generar y descargar .xlsx.</span>
+                  </button>
+
+                  <button
+                    onClick={() => updateAppSettings({ enableUploadManual: !currentSettings.enableUploadManual }, targetUser)}
+                    className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
+                      currentSettings.enableUploadManual ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full mb-1">
+                      <span className={`text-xs font-bold ${currentSettings.enableUploadManual ? 'text-indigo-700' : 'text-gray-500'}`}>Subida Modo Manual</span>
+                      <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableUploadManual ? 'bg-indigo-600' : 'bg-gray-300'}`}>
+                        <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.enableUploadManual ? 'translate-x-5' : 'translate-x-0'}`} />
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-gray-500">Habilitar subida de un tag a la vez.</span>
+                  </button>
+
+                  <button
+                    onClick={() => updateAppSettings({ enableUploadAuto: !currentSettings.enableUploadAuto }, targetUser)}
+                    className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
+                      currentSettings.enableUploadAuto ? 'bg-pink-50 border-pink-200 shadow-sm' : 'bg-gray-50 border-gray-200 opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full mb-1">
+                      <span className={`text-xs font-bold ${currentSettings.enableUploadAuto ? 'text-pink-700' : 'text-gray-500'}`}>Carga Masiva Automática</span>
+                      <div className={`w-10 h-5 rounded-full p-0.5 transition-colors duration-300 ease-in-out ${currentSettings.enableUploadAuto ? 'bg-pink-600' : 'bg-gray-300'}`}>
+                        <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${currentSettings.enableUploadAuto ? 'translate-x-5' : 'translate-x-0'}`} />
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-gray-500">Habilitar carga masiva de fotos auto-asignadas.</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Permisos de roles general */}
+              {!targetUser && (
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                  <h3 className="font-bold text-[#1F3864] text-lg border-b pb-2 flex items-center gap-2 mb-4">
+                    <Shield size={18} className="text-blue-500" /> Configuración Menús
+                  </h3>
+                  <p className="text-xs text-gray-500 italic mb-4">Habilita o deshabilita secciones enteras para cada tipo de rol (Técnico / Invitado).</p>
+                  
+                  <div className="space-y-4">
+                    {(['TECNICO', 'INVITADO'] as UserRole[]).map(role => (
+                      <div key={role} className="space-y-3 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                        <div className="flex items-center justify-between border-b border-gray-200 pb-2">
+                          <span className="font-bold text-xs uppercase tracking-widest text-[#1F3864]">Perfil: {role}</span>
+                          <Shield size={14} className="text-gray-400" />
+                        </div>
+                        
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {(Object.keys(rolePermissions[role]) as Array<keyof RolePermissions>).map(key => {
+                            const isEnabled = rolePermissions[role][key];
+                            const Icon = sectionIcons[key];
+                            if (key === 'admin' && role !== 'ADMIN') return null;
+
+                            return (
+                              <button
+                                key={key}
+                                onClick={() => handleTogglePermission(role, key)}
+                                className={`flex items-center justify-between p-2 rounded-lg border transition-all text-[10px] font-bold uppercase tracking-tight ${
+                                  isEnabled 
+                                    ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm' 
+                                    : 'bg-white border-gray-100 text-gray-400 opacity-60 hover:opacity-100 hover:bg-gray-50'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Icon size={14} />
+                                  <span>{sectionLabels[key]}</span>
+                                </div>
+                                <div className={`w-8 h-4 rounded-full p-0.5 transition-colors duration-300 ease-in-out shrink-0 ${isEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                                  <div className={`w-3 h-3 bg-white rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${isEnabled ? 'translate-x-4' : 'translate-x-0'}`} />
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+\n</AnimatePresence>
     </div>
   );
 };

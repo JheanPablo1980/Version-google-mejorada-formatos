@@ -2072,43 +2072,40 @@ export const VistaGenerar: React.FC = () => {
             </div>
 
             {/* Selector de Categoría (Instrumentación / Potencia) */}
-            <div className="grid gap-2 grid-cols-1 sm:grid-cols-2">
+            <div className="flex gap-2 border-b-[3px] border-[#1F3864] px-2 md:px-4 pt-2 mb-6 overflow-x-auto custom-scrollbar">
               {appSettings.enableGenInstrumentacion && (
                 <button
                   onClick={() => { setActiveCategory('INSTRUMENTACION'); setSelectedTags([]); setSelectedProfile(''); }}
-                  className={`py-2 px-3 rounded-xl text-[9px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
+                  className={`py-2.5 px-6 rounded-t-2xl font-semibold transition-all whitespace-nowrap shrink-0 ${
                     activeCategory === 'INSTRUMENTACION' 
-                    ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-200 ring-2 ring-blue-50' 
-                    : 'bg-white border-blue-50 text-blue-400 hover:border-blue-200 hover:text-blue-600'
+                    ? 'bg-white text-[#1F3864] text-[15px]' 
+                    : 'bg-[#EBF0F6] text-[#64748B] hover:bg-[#DFE7F0] hover:text-[#1F3864] text-[14px]'
                   }`}
                 >
-                  <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'INSTRUMENTACION' ? 'bg-white animate-pulse' : 'bg-blue-100'}`} />
-                  Instrumentación
+                  INSTRUMENTACIÓN
                 </button>
               )}
               {appSettings.enableGenPotencia && (
                 <>
                   <button
                     onClick={() => { setActiveCategory('POTENCIA'); setSelectedTags([]); setSelectedProfile(''); }}
-                    className={`py-2 px-3 rounded-xl text-[9px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
+                    className={`py-2.5 px-6 rounded-t-2xl font-semibold transition-all whitespace-nowrap shrink-0 ${
                       activeCategory === 'POTENCIA' 
-                      ? 'bg-orange-600 border-orange-600 text-white shadow-lg shadow-orange-200 ring-2 ring-orange-50' 
-                      : 'bg-white border-orange-50 text-orange-400 hover:border-orange-200 hover:text-orange-600'
+                      ? 'bg-white text-[#1F3864] text-[15px]' 
+                      : 'bg-[#EBF0F6] text-[#64748B] hover:bg-[#DFE7F0] hover:text-[#1F3864] text-[14px]'
                     }`}
                   >
-                    <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'POTENCIA' ? 'bg-white animate-pulse' : 'bg-orange-100'}`} />
-                    Potencia (Precom)
+                    POTENCIA (PRECOM)
                   </button>
                   <button
                     onClick={() => { setActiveCategory('POTENCIA_COM'); setSelectedTags([]); setSelectedProfile(''); }}
-                    className={`py-2 px-3 rounded-xl text-[9px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
+                    className={`py-2.5 px-6 rounded-t-2xl font-semibold transition-all whitespace-nowrap shrink-0 ${
                       activeCategory === 'POTENCIA_COM' 
-                      ? 'bg-red-600 border-red-600 text-white shadow-lg shadow-red-200 ring-2 ring-red-50' 
-                      : 'bg-white border-red-50 text-red-400 hover:border-red-200 hover:text-red-600'
+                      ? 'bg-white text-[#1F3864] text-[15px]' 
+                      : 'bg-[#EBF0F6] text-[#64748B] hover:bg-[#DFE7F0] hover:text-[#1F3864] text-[14px]'
                     }`}
                   >
-                    <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'POTENCIA_COM' ? 'bg-white animate-pulse' : 'bg-red-100'}`} />
-                    Potencia (Com)
+                    POTENCIA (COM)
                   </button>
                 </>
               )}
@@ -2455,7 +2452,7 @@ export const VistaGenerar: React.FC = () => {
                     variant="pdf" 
                     icon={Printer} 
                     disabled={selectedTags.length === 0 || !selectedProfile}
-                    className="w-full py-4 shadow-lg shadow-red-200 active:scale-[0.98] transition-all rounded-xl font-black text-[10px] uppercase tracking-widest"
+                    className="w-full py-4 shadow-lg shadow-slate-200 active:scale-[0.98] transition-all rounded-xl font-black text-[10px] uppercase tracking-widest"
                   >
                     Generar Protocolos (PDF)
                   </Button>
@@ -2467,7 +2464,7 @@ export const VistaGenerar: React.FC = () => {
                     variant="success" 
                     icon={FileSpreadsheet} 
                     disabled={isExporting || selectedTags.length === 0 || !selectedProfile}
-                    className="w-full py-4 shadow-lg shadow-green-200 active:scale-[0.98] transition-all rounded-xl font-black text-[10px] uppercase tracking-widest"
+                    className="w-full py-4 shadow-lg shadow-[#1F3864]/20 active:scale-[0.98] transition-all rounded-xl font-black text-[10px] uppercase tracking-widest"
                   >
                     {isExporting ? 'Procesando...' : 'Descargar Excel (.xlsx)'}
                   </Button>

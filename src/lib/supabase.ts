@@ -12,10 +12,22 @@ const getSanitizedUrl = (url: string) => {
 const supabaseUrl = getSanitizedUrl(import.meta.env.VITE_SUPABASE_URL || '');
 const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
 
-export const isSupabaseConfigured = !!(supabaseUrl && supabaseUrl.startsWith('http') && supabaseAnonKey);
+export const isSupabaseConfigured = !!(
+  supabaseUrl && 
+  supabaseUrl.startsWith('http') && 
+  !supabaseUrl.includes('placeholder') && 
+  supabaseAnonKey
+);
 
 // Inicialización segura
 export const supabase = createClient(
-  isSupabaseConfigured ? supabaseUrl : 'http://localhost:3000/api/mock-supabase', 
-  supabaseAnonKey || 'placeholder-key'
+  isSupabaseConfigured ? supabaseUrl : 'https://placeholder.supabase.co', 
+  supabaseAnonKey || 'placeholder-key',
+  {
+    auth: {
+      persistSession: isSupabaseConfigured,
+      autoRefreshToken: isSupabaseConfigured,
+      detectSessionInUrl: isSupabaseConfigured,
+    }
+  }
 );

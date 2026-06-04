@@ -1,6 +1,148 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  
+  /* Colores */
+  --color-primary: #03224d;
+  --color-primary-container: #1f3864;
+  --color-on-primary-container: #8ba2d5;
+  --color-surface-container-high: #dce9ff;
+  --color-on-secondary-container: #5b6371;
+  --color-error: #ba1a1a;
+  --color-on-secondary-fixed: #141c28;
+  --color-surface-container-highest: #d3e4fe;
+  --color-on-error-container: #93000a;
+  --color-surface: #f8f9ff;
+  --color-outline-variant: #c4c6d0;
+  --color-tertiary-fixed: #dbe1ff;
+  --color-tertiary: #001e5b;
+  --color-surface-dim: #cbdbf5;
+  --color-tertiary-fixed-dim: #b4c5ff;
+  --color-on-tertiary-fixed-variant: #003ea8;
+  --color-on-tertiary: #ffffff;
+  --color-on-surface: #0b1c30;
+  --color-on-primary: #ffffff;
+  --color-primary-fixed: #d8e2ff;
+  --color-background: #f8f9ff;
+  --color-inverse-on-surface: #eaf1ff;
+  --color-on-secondary-fixed-variant: #3f4755;
+  --color-on-primary-fixed: #001a41;
+  --color-on-primary-fixed-variant: #2e4673;
+  --color-on-error: #ffffff;
+  --color-surface-container-lowest: #ffffff;
+  --color-on-background: #0b1c30;
+  --color-inverse-primary: #afc6fb;
+  --color-outline: #747780;
+  --color-surface-bright: #f8f9ff;
+  --color-secondary-fixed: #dbe3f4;
+  --color-on-tertiary-fixed: #00174b;
+  --color-secondary-fixed-dim: #bfc7d7;
+  --color-secondary-container: #d8e0f1;
+  --color-on-secondary: #ffffff;
+  --color-surface-container-low: #eff4ff;
+  --color-surface-variant: #d3e4fe;
+  --color-surface-container: #e5eeff;
+  --color-on-surface-variant: #44474f;
+  --color-inverse-surface: #213145;
+  --color-secondary: #575f6d;
+  --color-primary-fixed-dim: #afc6fb;
+  --color-surface-tint: #475e8c;
+  --color-error-container: #ffdad6;
+  --color-tertiary-container: #003189;
+
+  /* Layout y Espaciado */
+  --spacing-margin-desktop: 32px;
+  --spacing-margin-mobile: 16px;
+  --spacing-gutter: 16px;
+}
+
+/* Tipografía */
+@utility font-display-lg {
+  font-family: 'Inter', sans-serif;
+  font-size: 30px;
+  font-weight: 900;
+  line-height: 36px;
+  letter-spacing: -0.05em;
+}
+@utility font-headline-md {
+  font-family: 'Inter', sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 28px;
+  letter-spacing: -0.02em;
+}
+@utility font-headline-sm {
+  font-family: 'Inter', sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 24px;
+  letter-spacing: 0.02em;
+}
+@utility font-body-base {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+}
+@utility font-body-bold {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+}
+@utility font-label-caps {
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 14px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+@utility font-status-micro {
+  font-family: 'Inter', sans-serif;
+  font-size: 8px;
+  font-weight: 900;
+  line-height: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* Componentes y Componentes visuales adicionales */
+.active-tab-curve {
+  position: relative;
+  background: white;
+  z-index: 10;
+}
+.active-tab-curve::before,
+.active-tab-curve::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  width: 20px;
+  height: 20px;
+  background: transparent;
+}
+.active-tab-curve::before {
+  left: -20px;
+  border-bottom-right-radius: 20px;
+  box-shadow: 10px 0 0 0 white;
+}
+.active-tab-curve::after {
+  right: -20px;
+  border-bottom-left-radius: 20px;
+  box-shadow: -10px 0 0 0 white;
+}
+
+/* Scrollbar personalizado */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
 }

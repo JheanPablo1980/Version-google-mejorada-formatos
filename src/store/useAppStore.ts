@@ -198,6 +198,8 @@ export interface AppSettings {
   enableExportXlsx: boolean;
   enableUploadManual: boolean;
   enableUploadAuto: boolean;
+  learningMode?: boolean;
+  userOverrides?: Record<string, Partial<AppSettings>>;
 }
 
 interface AppState {
@@ -213,9 +215,14 @@ interface AppState {
   driveFolderLink: string | null;
   session: UserSession | null;
   rolePermissions: Record<UserRole, RolePermissions>;
+  globalAppSettings?: AppSettings;
   appSettings: AppSettings;
+  usuariosRegistrados: { email: string; role: UserRole }[];
   adminPassword?: string;
   isInitialized: boolean;
+  loadUsuariosRegistrados: () => Promise<void>;
+  updateUserRoleAssignment: (email: string, role: UserRole) => Promise<void>;
+  deleteUserRoleAssignment: (email: string) => Promise<void>;
   loadData: () => Promise<void>;
   addAuditLog: (actionType: string, details: string) => Promise<void>;
   savePerfil: (perfil: Perfil) => Promise<{ success: boolean; error?: string }>;
@@ -235,7 +242,7 @@ interface AppState {
   saveLogo: (base64: string, type: 'INSTRUMENTACION' | 'POTENCIA') => Promise<void>;
   saveDriveFolderLink: (link: string) => Promise<void>;
   updateRolePermissions: (role: UserRole, permissions: Partial<RolePermissions>) => Promise<void>;
-  updateAppSettings: (settings: Partial<AppSettings>) => Promise<void>;
+  updateAppSettings: (settings: Partial<AppSettings>, targetEmail?: string) => Promise<void>;
   updateAdminPassword: (newPassword: string) => Promise<void>;
   syncWithSupabase: () => Promise<void>;
   clearInstrumentos: () => Promise<void>;
@@ -243,7 +250,6 @@ interface AppState {
   clearFotos: () => Promise<void>;
   clearPerfiles: () => Promise<void>;
   totalFactoryReset: () => Promise<void>;
-  signIn: () => Promise<void>;
   devLogin: (role: UserRole) => void;
   login: (role: UserRole, password?: string) => { success: boolean; error?: string };
   loginWithEmail: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
@@ -281,6 +287,58 @@ export const useAppStore = create<AppState>((set, get) => ({
       enableExportXlsx: true,
       enableUploadManual: true,
       enableUploadAuto: true
+    },
+    usuariosRegistrados: [],
+    
+    loadUsuariosRegistrados: async () => {
+      try {
+        if (!isSupabaseConfigured) return;
+        const { data, error } = await supabase.from('roles_usuarios').select('*');
+        if (error && error.code !== '42P01') {
+           console.error('Error fetching usuarios', error);
+           return;
+        }
+        if (data) {
+           set({ usuariosRegistrados: data.map(d => ({ email: d.email, role: d.role as UserRole })) });
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    },
+    
+    updateUserRoleAssignment: async (email: string, role: UserRole) => {
+      try {
+        const { usuariosRegistrados } = get();
+        const currentArr = usuariosRegistrados.filter(u => u.email !== email);
+        const newArr = [...currentArr, { email, role }];
+        set({ usuariosRegistrados: newArr });
+        
+        if (isSupabaseConfigured) {
+          const { error } = await supabase.from('roles_usuarios').upsert({ email, role, updated_at: new Date().toISOString() });
+          if (error && error.code === '42P01') {
+            console.warn('roles_usuarios table does not exist. Update schema on supabase.');
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    },
+
+    deleteUserRoleAssignment: async (email: string) => {
+      try {
+        const { usuariosRegistrados } = get();
+        const newArr = usuariosRegistrados.filter(u => u.email !== email);
+        set({ usuariosRegistrados: newArr });
+        
+        if (isSupabaseConfigured) {
+          const { error } = await supabase.from('roles_usuarios').delete().eq('email', email);
+          if (error && error.code !== '42P01') {
+             console.error('Error deleting user', error);
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
     },
     adminPassword: '123',
 
@@ -327,9 +385,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
 
       if (data.session) {
-        // Asignar el rol basado en el email
-        // Por defecto: ADMIN si es email de ADMIN, si no TECNICO
-        const role: UserRole = email === ADMIN_EMAIL ? 'ADMIN' : 'TECNICO';
+        const isRegistered = get().usuariosRegistrados.some(u => u.email.toLowerCase() === email.toLowerCase());
+        const assignedRole = get().usuariosRegistrados.find(u => u.email.toLowerCase() === email.toLowerCase())?.role || (email === ADMIN_EMAIL ? 'ADMIN' : 'TECNICO');
+        const role: UserRole = assignedRole;
+        if (!isRegistered && email) {
+           get().updateUserRoleAssignment(email.toLowerCase(), role);
+        }
         const userSession: UserSession = {
           user: {
             id: data.user.id,
@@ -362,7 +423,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
 
       if (data.session) {
-        const role: UserRole = email === ADMIN_EMAIL ? 'ADMIN' : 'TECNICO';
+        const isRegistered = get().usuariosRegistrados.some(u => u.email.toLowerCase() === email.toLowerCase());
+        const assignedRole = get().usuariosRegistrados.find(u => u.email.toLowerCase() === email.toLowerCase())?.role || (email === ADMIN_EMAIL ? 'ADMIN' : 'TECNICO');
+        const role: UserRole = assignedRole;
+        if (!isRegistered && email) {
+           get().updateUserRoleAssignment(email.toLowerCase(), role);
+        }
         const userSession: UserSession = {
           user: {
             id: data.user!.id,
@@ -381,23 +447,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
     } catch (err: any) {
       return { success: false, error: err.message || 'Error inesperado al registrar usuario' };
-    }
-  },
-
-  signIn: async () => {
-    if (isSupabaseConfigured) {
-      try {
-        const { error } = await supabase.auth.signInWithOAuth({
-          provider: 'google',
-        });
-        if (error) {
-          console.error('Error signing in with Google:', error.message);
-        }
-      } catch (err) {
-        console.error('Error during Google sign-in:', err);
-      }
-    } else {
-      console.warn('Supabase no está configurado para inicio de sesión con Google.');
     }
   },
 
@@ -579,7 +628,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       supabase.auth.onAuthStateChange((event, session) => {
         if (session) {
           const email = session.user.email || '';
-          const role: UserRole = email === ADMIN_EMAIL ? 'ADMIN' : 'TECNICO';
+          const isRegistered = get().usuariosRegistrados.some(u => u.email.toLowerCase() === email.toLowerCase());
+          const assignedRole = get().usuariosRegistrados.find(u => u.email.toLowerCase() === email.toLowerCase())?.role || (email === ADMIN_EMAIL ? 'ADMIN' : 'TECNICO');
+          const role: UserRole = assignedRole;
+          
+          if (!isRegistered && email) {
+            get().updateUserRoleAssignment(email.toLowerCase(), role);
+          }
           const newSession: UserSession = {
             user: {
               id: session.user.id,
@@ -588,10 +643,15 @@ export const useAppStore = create<AppState>((set, get) => ({
             },
             role
           };
-          set({ session: newSession });
+          const globalSettings = get().globalAppSettings || get().appSettings;
+          const effective = email && globalSettings?.userOverrides?.[email.toLowerCase()]
+            ? { ...globalSettings, ...globalSettings.userOverrides[email.toLowerCase()] }
+            : globalSettings;
+          set({ session: newSession, appSettings: effective });
           localStorage.setItem('user_session', JSON.stringify(newSession));
         } else if (event === 'SIGNED_OUT') {
-          set({ session: null });
+          const globalSettings = get().globalAppSettings || get().appSettings;
+          set({ session: null, appSettings: globalSettings });
           localStorage.removeItem('user_session');
         }
       });
@@ -601,7 +661,13 @@ export const useAppStore = create<AppState>((set, get) => ({
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
           const email = session.user.email || '';
-          const role: UserRole = email === ADMIN_EMAIL ? 'ADMIN' : 'TECNICO';
+          const isRegistered = get().usuariosRegistrados.some(u => u.email.toLowerCase() === email.toLowerCase());
+          const assignedRole = get().usuariosRegistrados.find(u => u.email.toLowerCase() === email.toLowerCase())?.role || (email === ADMIN_EMAIL ? 'ADMIN' : 'TECNICO');
+          const role: UserRole = assignedRole;
+          
+          if (!isRegistered && email) {
+            get().updateUserRoleAssignment(email.toLowerCase(), role);
+          }
           initialSession = {
             user: {
               id: session.user.id,
@@ -652,10 +718,17 @@ export const useAppStore = create<AppState>((set, get) => ({
       enableExportPdf: true,
       enableExportXlsx: true,
       enableUploadManual: true,
-      enableUploadAuto: true
+      enableUploadAuto: true,
+      learningMode: false
     };
     
-    const finalSettings = { ...defaultSettings, ...(configSettings?.value || {}) };
+    const finalSettingsGlobal = { ...defaultSettings, ...(configSettings?.value || {}) };
+    const currentEmailLoaded = initialSession?.user?.email?.toLowerCase();
+    const effectiveFinalSettings = currentEmailLoaded && finalSettingsGlobal.userOverrides?.[currentEmailLoaded]
+      ? { ...finalSettingsGlobal, ...finalSettingsGlobal.userOverrides[currentEmailLoaded] }
+      : finalSettingsGlobal;
+
+    await get().loadUsuariosRegistrados();
 
     set({ 
       perfiles, 
@@ -669,7 +742,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       logoPotencia: configLogoPot?.value || null,
       driveFolderLink: configDrive?.value || null,
       rolePermissions: finalPermissions,
-      appSettings: finalSettings,
+      globalAppSettings: finalSettingsGlobal,
+      appSettings: effectiveFinalSettings,
       adminPassword: configPassword?.value || '123',
       session: initialSession,
       isInitialized: true
@@ -932,7 +1006,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   syncWithSupabase: async () => {
-    if (!isSupabaseConfigured) return;
+    if (!isSupabaseConfigured || get().appSettings.learningMode) return;
     const { perfiles, fotos, instrumentos, potenciaEquipos } = get();
     
     // 1. Sincronizar perfiles
@@ -1157,9 +1231,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     
     let supabaseError = null;
 
-    // Intentar sincronizar con Supabase
-    try {
-      const payload: any = {
+    if (isSupabaseConfigured && !get().appSettings.learningMode) {
+      // Intentar sincronizar con Supabase
+      try {
+        const payload: any = {
         id_perfil: perfil.ID_PERFIL,
         tipo: perfil.TIPO || 'INSTRUMENTACION',
         nombre_perfil: perfil.NOMBRE_PERFIL || '',
@@ -1325,6 +1400,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (e: any) {
       supabaseError = e.message;
     }
+  }
 
     set((state) => ({ 
       perfiles: [...state.perfiles.filter(p => p.ID_PERFIL !== perfil.ID_PERFIL), profileToSave] 
@@ -1350,11 +1426,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((state) => ({ perfiles: state.perfiles.filter(p => p.ID_PERFIL !== id) }));
 
     // Intento de borrar en Supabase (no bloqueante)
-    try {
-      const { error } = await supabase.from('perfiles').delete().eq('id_perfil', id);
-      if (error) console.error('Error al borrar perfil en Supabase:', error);
-    } catch (e) {
-      console.warn('Error de red al borrar en Supabase:', e);
+    if (isSupabaseConfigured && !get().appSettings.learningMode) {
+      try {
+        const { error } = await supabase.from('perfiles').delete().eq('id_perfil', id);
+        if (error) console.error('Error al borrar perfil en Supabase:', error);
+      } catch (e) {
+        console.warn('Error de red al borrar en Supabase:', e);
+      }
     }
   },
 
@@ -1366,18 +1444,20 @@ export const useAppStore = create<AppState>((set, get) => ({
       fotos: [...state.fotos.filter(f => f.id !== fotoData.id), fotoData] 
     }));
 
-    try {
-      const { error } = await supabase.from('fotos').upsert({
-        id: fotoData.id,
-        tagname: fotoData.TAGNAME,
-        blob_data: fotoData.blobData,
-        nombre_archivo: fotoData.nombre_archivo,
-        observacion: fotoData.observacion,
-        estado: fotoData.estado
-      });
-      if (error) console.error('Error al guardar foto en Supabase:', error);
-    } catch (e) {
-      console.warn('Error de red al guardar foto en Supabase:', e);
+    if (isSupabaseConfigured && !get().appSettings.learningMode) {
+      try {
+        const { error } = await supabase.from('fotos').upsert({
+          id: fotoData.id,
+          tagname: fotoData.TAGNAME,
+          blob_data: fotoData.blobData,
+          nombre_archivo: fotoData.nombre_archivo,
+          observacion: fotoData.observacion,
+          estado: fotoData.estado
+        });
+        if (error) console.error('Error al guardar foto en Supabase:', error);
+      } catch (e) {
+        console.warn('Error de red al guardar foto en Supabase:', e);
+      }
     }
   },
 
@@ -1388,11 +1468,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     // Actualizar estado local inmediatamente
     set((state) => ({ fotos: state.fotos.filter(p => p.id !== id) }));
 
-    try {
-      const { error } = await supabase.from('fotos').delete().eq('id', id);
-      if (error) console.error('Error al borrar foto en Supabase:', error);
-    } catch (e) {
-      console.warn('Error de red al borrar foto en Supabase:', e);
+    if (isSupabaseConfigured && !get().appSettings.learningMode) {
+      try {
+        const { error } = await supabase.from('fotos').delete().eq('id', id);
+        if (error) console.error('Error al borrar foto en Supabase:', error);
+      } catch (e) {
+        console.warn('Error de red al borrar foto en Supabase:', e);
+      }
     }
   },
 
@@ -1414,29 +1496,35 @@ export const useAppStore = create<AppState>((set, get) => ({
     await tx.done;
 
     // Sync remote
-    const remoteData = deduplicatedArray.map(i => ({
-      tag_cable_swc: i.TAG_CABLE_SWC,
-      tagname: i.TAGNAME.toString().trim(),
-      descripcion: i.DESCRIPCIÓN,
-      tipo_cable: i.TIPO_CABLE,
-      ubicacion: i.UBICACIÓN,
-      observacion: i.OBSERVACIÓN
-    }));
-    
-    // Process in chunks of 500 to avoid payload size errors
-    const chunkSize = 500;
-    const promises = [];
-    for (let i = 0; i < remoteData.length; i += chunkSize) {
-      const chunk = remoteData.slice(i, i + chunkSize);
-      promises.push(supabase.from('instrumentos').upsert(chunk, { onConflict: 'tagname' }));
-    }
-    
-    const results = await Promise.all(promises);
-    const errors = results.filter(r => r.error);
-    if (errors.length > 0) {
-      console.error('Some chunks failed to sync to Supabase:', errors);
-    } else {
-      console.log('Bulk data synced successfully to Supabase');
+    if (isSupabaseConfigured && !get().appSettings.learningMode) {
+      const remoteData = deduplicatedArray.map(i => ({
+        tag_cable_swc: i.TAG_CABLE_SWC,
+        tagname: i.TAGNAME.toString().trim(),
+        descripcion: i.DESCRIPCIÓN,
+        tipo_cable: i.TIPO_CABLE,
+        ubicacion: i.UBICACIÓN,
+        observacion: i.OBSERVACIÓN
+      }));
+      
+      // Process in chunks of 500 to avoid payload size errors
+      const chunkSize = 500;
+      const promises = [];
+      for (let i = 0; i < remoteData.length; i += chunkSize) {
+        const chunk = remoteData.slice(i, i + chunkSize);
+        promises.push(supabase.from('instrumentos').upsert(chunk, { onConflict: 'tagname' }));
+      }
+      
+      try {
+        const results = await Promise.all(promises);
+        const errors = results.filter(r => r.error);
+        if (errors.length > 0) {
+          console.error('Some chunks failed to sync to Supabase:', errors);
+        } else {
+          console.log('Bulk data synced successfully to Supabase');
+        }
+      } catch (e) {
+        console.warn('Error syncing bulk to Supabase', e);
+      }
     }
 
     set({ instrumentos: deduplicatedArray });
@@ -1462,19 +1550,21 @@ export const useAppStore = create<AppState>((set, get) => ({
     }));
 
     // Sincronizar log con Supabase (intentar)
-    try {
-      await supabase.from('export_logs').insert({
-        id: newLog.id,
-        user_email: newLog.user_email,
-        user_role: newLog.user_role,
-        tagname: newLog.tagname,
-        tipo_perfil: newLog.tipo_perfil,
-        tipo_formato: newLog.tipo_formato,
-        id_perfil: newLog.id_perfil,
-        timestamp: newLog.timestamp
-      });
-    } catch (e) {
-      console.warn('No se pudo respaldar el log en la nube (Supabase table export_logs might not exist)', e);
+    if (isSupabaseConfigured && !get().appSettings.learningMode) {
+      try {
+        await supabase.from('export_logs').insert({
+          id: newLog.id,
+          user_email: newLog.user_email,
+          user_role: newLog.user_role,
+          tagname: newLog.tagname,
+          tipo_perfil: newLog.tipo_perfil,
+          tipo_formato: newLog.tipo_formato,
+          id_perfil: newLog.id_perfil,
+          timestamp: newLog.timestamp
+        });
+      } catch (e) {
+        console.warn('No se pudo respaldar el log en la nube (Supabase table export_logs might not exist)', e);
+      }
     }
   },
 
@@ -1499,17 +1589,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     }));
 
     // Sincronizar con Supabase
-    try {
-      await supabase.from('conteo_exportacion').insert({
-        id: newRecord.id,
-        tag: newRecord.tag,
-        conteo: newRecord.conteo,
-        fecha_hora: newRecord.fecha_hora,
-        user_role: newRecord.user_role,
-        user_email: newRecord.user_email
-      });
-    } catch (e) {
-      console.warn('No se pudo respaldar conteo en la nube:', e);
+    if (isSupabaseConfigured && !get().appSettings.learningMode) {
+      try {
+        await supabase.from('conteo_exportacion').insert({
+          id: newRecord.id,
+          tag: newRecord.tag,
+          conteo: newRecord.conteo,
+          fecha_hora: newRecord.fecha_hora,
+          user_role: newRecord.user_role,
+          user_email: newRecord.user_email
+        });
+      } catch (e) {
+        console.warn('No se pudo respaldar conteo en la nube:', e);
+      }
     }
   },
 
@@ -1528,10 +1620,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       set((state) => ({ instrumentos: state.instrumentos.filter(i => !tagnames.includes(i.TAGNAME)) }));
 
       // 3. Cloud (Supabase) Delete
-      try {
-        await supabase.from('instrumentos').delete().in('tagname', tagnames);
-      } catch (e) {
-        console.warn('Error deleting from supabase: ', e);
+      if (isSupabaseConfigured && !get().appSettings.learningMode) {
+        try {
+          await supabase.from('instrumentos').delete().in('tagname', tagnames);
+        } catch (e) {
+          console.warn('Error deleting from supabase: ', e);
+        }
       }
 
       // 4. Log in exportLog with tipo_formato as 'DELETED'
@@ -1564,29 +1658,31 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     
     // 3. Sincronización con la nube (Supabase)
-    try {
-      const { error } = await supabase.from('instrumentos').insert([{
-        tag_cable_swc: inst.TAG_CABLE_SWC || '',
-        tagname: inst.TAGNAME,
-        descripcion: inst.DESCRIPCIÓN || '',
-        tipo_cable: inst.TIPO_CABLE || '',
-        ubicacion: inst.UBICACIÓN || '',
-        observacion: inst.OBSERVACIÓN || ''
-      }]);
+    if (isSupabaseConfigured && !get().appSettings.learningMode) {
+      try {
+        const { error } = await supabase.from('instrumentos').insert([{
+          tag_cable_swc: inst.TAG_CABLE_SWC || '',
+          tagname: inst.TAGNAME,
+          descripcion: inst.DESCRIPCIÓN || '',
+          tipo_cable: inst.TIPO_CABLE || '',
+          ubicacion: inst.UBICACIÓN || '',
+          observacion: inst.OBSERVACIÓN || ''
+        }]);
 
-      if (error) {
-        console.error('Error de Supabase (Sincronización diferida):', error);
+        if (error) {
+          console.error('Error de Supabase (Sincronización diferida):', error);
+          return { 
+            success: true, 
+            error: `Guardado local: OK. Sincronización nube: FALLÓ (${error.message})` 
+          };
+        }
+      } catch (e: any) {
+        console.error('Excepción en Supabase:', e);
         return { 
           success: true, 
-          error: `Guardado local: OK. Sincronización nube: FALLÓ (${error.message})` 
+          error: `Guardado local: OK. Error de red nube: ${e.message}` 
         };
       }
-    } catch (e: any) {
-      console.error('Excepción en Supabase:', e);
-      return { 
-        success: true, 
-        error: `Guardado local: OK. Error de red nube: ${e.message}` 
-      };
     }
 
     return { success: true };
@@ -1617,7 +1713,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
 
     try {
-      if (isSupabaseConfigured) {
+      if (isSupabaseConfigured && !get().appSettings.learningMode) {
         if (oldTag !== inst.TAGNAME) {
           await supabase.from('instrumentos').delete().eq('tagname', oldTag);
           await supabase.from('instrumentos').insert([{
@@ -1657,10 +1753,12 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       set((state) => ({ potenciaEquipos: state.potenciaEquipos.filter(i => !tagnames.includes(i.TAG)) }));
 
-      try {
-        await supabase.from('potencia_equipos').delete().in('tag', tagnames);
-      } catch (e) {
-        console.warn('Error deleting from supabase: ', e);
+      if (isSupabaseConfigured && !get().appSettings.learningMode) {
+        try {
+          await supabase.from('potencia_equipos').delete().in('tag', tagnames);
+        } catch (e) {
+          console.warn('Error deleting from supabase: ', e);
+        }
       }
 
       if (session) {
@@ -1691,22 +1789,28 @@ export const useAppStore = create<AppState>((set, get) => ({
     for (const item of deduplicatedArray) tx.store.put(item);
     await tx.done;
 
-    const remoteData = deduplicatedArray.map(i => ({
-      tag: i.TAG.toString().trim(),
-      descripcion: i.DESCRIPCIÓN
-    }));
-    
-    const chunkSize = 500;
-    const promises = [];
-    for (let i = 0; i < remoteData.length; i += chunkSize) {
-      const chunk = remoteData.slice(i, i + chunkSize);
-      promises.push(supabase.from('potencia_equipos').upsert(chunk, { onConflict: 'tag' }));
-    }
-    
-    const results = await Promise.all(promises);
-    const errors = results.filter(r => r.error);
-    if (errors.length > 0) {
-      console.error('Some chunks failed to sync to Supabase:', errors);
+    if (isSupabaseConfigured && !get().appSettings.learningMode) {
+      const remoteData = deduplicatedArray.map(i => ({
+        tag: i.TAG.toString().trim(),
+        descripcion: i.DESCRIPCIÓN
+      }));
+      
+      const chunkSize = 500;
+      const promises = [];
+      for (let i = 0; i < remoteData.length; i += chunkSize) {
+        const chunk = remoteData.slice(i, i + chunkSize);
+        promises.push(supabase.from('potencia_equipos').upsert(chunk, { onConflict: 'tag' }));
+      }
+      
+      try {
+        const results = await Promise.all(promises);
+        const errors = results.filter(r => r.error);
+        if (errors.length > 0) {
+          console.error('Some chunks failed to sync to Supabase:', errors);
+        }
+      } catch (e) {
+        console.warn('Error bulk insert to Supabase', e);
+      }
     }
 
     set({ potenciaEquipos: deduplicatedArray });
@@ -1724,23 +1828,25 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { success: false, error: 'Error al guardar localmente: ' + e.message };
     }
     
-    try {
-      const { error } = await supabase.from('potencia_equipos').insert([{
-        tag: inst.TAG,
-        descripcion: inst.DESCRIPCIÓN || ''
-      }]);
+    if (isSupabaseConfigured && !get().appSettings.learningMode) {
+      try {
+        const { error } = await supabase.from('potencia_equipos').insert([{
+          tag: inst.TAG,
+          descripcion: inst.DESCRIPCIÓN || ''
+        }]);
 
-      if (error) {
+        if (error) {
+          return { 
+            success: true, 
+            error: `Guardado local: OK. Sincronización nube: FALLÓ (${error.message})` 
+          };
+        }
+      } catch (e: any) {
         return { 
           success: true, 
-          error: `Guardado local: OK. Sincronización nube: FALLÓ (${error.message})` 
+          error: `Guardado local: OK. Error de red nube: ${e.message}` 
         };
       }
-    } catch (e: any) {
-      return { 
-        success: true, 
-        error: `Guardado local: OK. Error de red nube: ${e.message}` 
-      };
     }
 
     return { success: true };
@@ -1770,7 +1876,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
 
     try {
-      if (isSupabaseConfigured) {
+      if (isSupabaseConfigured && !get().appSettings.learningMode) {
         if (oldTag !== inst.TAG) {
           await supabase.from('potencia_equipos').delete().eq('tag', oldTag);
           await supabase.from('potencia_equipos').insert([{
@@ -1826,18 +1932,38 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  updateAppSettings: async (settings) => {
-    const { appSettings, addAuditLog } = get();
-    const updatedSettings = { ...appSettings, ...settings };
+  updateAppSettings: async (settings, targetEmail?: string) => {
+    const { globalAppSettings, appSettings, addAuditLog } = get();
+    let newGlobal = { ...(globalAppSettings || appSettings) };
+    
+    if (targetEmail) {
+      newGlobal.userOverrides = {
+        ...(newGlobal.userOverrides || {}),
+        [targetEmail.toLowerCase()]: {
+          ...(newGlobal.userOverrides?.[targetEmail.toLowerCase()] || {}),
+          ...settings
+        }
+      };
+    } else {
+      newGlobal = { ...newGlobal, ...settings };
+    }
+    
+    // Compute effective for current session
+    const currentUserEmail = get().session?.user?.email?.toLowerCase();
+    const effective = currentUserEmail && newGlobal.userOverrides?.[currentUserEmail]
+      ? { ...newGlobal, ...newGlobal.userOverrides[currentUserEmail] }
+      : newGlobal;
     
     const db = await initDB();
-    await db.put('config', { id: 'appSettings', value: updatedSettings });
-    set({ appSettings: updatedSettings });
+    await db.put('config', { id: 'appSettings', value: newGlobal });
+    set({ globalAppSettings: newGlobal, appSettings: effective });
     
-    addAuditLog('UPDATE_SETTINGS', `Se actualizó la configuración de la aplicación: ${JSON.stringify(settings)}`);
+    addAuditLog('UPDATE_SETTINGS', `Se actualizó la configuración ${targetEmail ? 'para ' + targetEmail : 'global'}: ${JSON.stringify(settings)}`);
 
     try {
-      await supabase.from('app_config').upsert({ id: 'app_settings', value: updatedSettings });
+      if (isSupabaseConfigured) {
+        await supabase.from('app_config').upsert({ id: 'app_settings', value: newGlobal });
+      }
     } catch (e) {
       console.warn('No se pudo respaldar app settings en la nube:', e);
     }

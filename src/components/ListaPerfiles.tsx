@@ -10,6 +10,16 @@ export const ListaPerfiles: React.FC = () => {
   const { perfiles, deletePerfil, savePerfil, appSettings } = useAppStore();
   const [view, setView] = useState<'list' | 'form'>('list');
   const [selectedCategory, setSelectedCategory] = useState<'INSTRUMENTACION' | 'POTENCIA' | 'POTENCIA_COM' | null>(null);
+
+  useEffect(() => {
+    if (!selectedCategory) {
+      if (appSettings.enableGenInstrumentacion) {
+        setSelectedCategory('INSTRUMENTACION');
+      } else if (appSettings.enableGenPotencia) {
+        setSelectedCategory('POTENCIA');
+      }
+    }
+  }, [appSettings.enableGenInstrumentacion, appSettings.enableGenPotencia, selectedCategory]);
   const [editingPerfil, setEditingPerfil] = useState<Perfil | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -120,126 +130,87 @@ export const ListaPerfiles: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {!selectedCategory ? (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="text-center space-y-2">
-            <h2 className="text-3xl font-black text-[#1F3864] uppercase tracking-tighter italic">Gestión de Perfiles</h2>
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Selecciona una categoría para gestionar protocolos</p>
-          </div>
-          
-          <div className="grid grid-cols-1 gap-4">
-            {appSettings.enableGenInstrumentacion && (
-              <button
-                onClick={() => setSelectedCategory('INSTRUMENTACION')}
-                className="group p-6 bg-white border-2 border-blue-100 hover:border-blue-600 rounded-3xl shadow-xl shadow-blue-900/5 hover:shadow-blue-900/10 transition-all flex items-center gap-6 text-left active:scale-[0.98]"
-              >
-                <div className="p-4 bg-blue-50 rounded-2xl group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
-                  <Activity size={40} />
-                </div>
-                <div className="flex-1">
-                  <span className="block font-black text-[#1F3864] text-xl uppercase tracking-tighter group-hover:text-blue-700 transition-colors">Instrumentación</span>
-                  <span className="block text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1 opacity-70">Calibración, lazos e inspección</span>
-                </div>
-                <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-blue-300 group-hover:bg-blue-50 group-hover:text-blue-600 transition-all">
-                  <CheckCircle size={20} />
-                </div>
-              </button>
-            )}
-
-            {appSettings.enableGenPotencia && (
-              <>
-                <button
-                  onClick={() => setSelectedCategory('POTENCIA')}
-                  className="group p-6 bg-white border-2 border-orange-100 hover:border-orange-600 rounded-3xl shadow-xl shadow-orange-900/5 hover:shadow-orange-900/10 transition-all flex items-center gap-6 text-left active:scale-[0.98]"
-                >
-                  <div className="p-4 bg-orange-50 rounded-2xl group-hover:bg-orange-600 group-hover:text-white transition-all duration-300">
-                    <Zap size={40} />
-                  </div>
-                  <div className="flex-1">
-                    <span className="block font-black text-[#1F3864] text-xl uppercase tracking-tighter group-hover:text-orange-700 transition-colors">Potencia (Precom)</span>
-                    <span className="block text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1 opacity-70">Transformadores, motores y tableros</span>
-                  </div>
-                  <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-orange-300 group-hover:bg-orange-50 group-hover:text-orange-600 transition-all">
-                    <CheckCircle size={20} />
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => setSelectedCategory('POTENCIA_COM')}
-                  className="group p-6 bg-white border-2 border-red-100 hover:border-red-600 rounded-3xl shadow-xl shadow-red-900/5 hover:shadow-red-900/10 transition-all flex items-center gap-6 text-left active:scale-[0.98]"
-                >
-                  <div className="p-4 bg-red-50 rounded-2xl group-hover:bg-red-600 group-hover:text-white transition-all duration-300">
-                    <CheckCircle size={40} />
-                  </div>
-                  <div className="flex-1">
-                    <span className="block font-black text-[#1F3864] text-sm uppercase tracking-tighter group-hover:text-red-700 transition-colors whitespace-nowrap">Potencia (Comisionamiento)</span>
-                    <span className="block text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1 opacity-70">Motor Eléctrico Bajo Voltaje</span>
-                  </div>
-                  <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-red-300 group-hover:bg-red-50 group-hover:text-red-600 transition-all">
-                    <CheckCircle size={20} />
-                  </div>
-                </button>
-              </>
-            )}
-          </div>
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="text-center space-y-2 mb-4">
+          <h2 className="text-3xl font-black text-[#1F3864] uppercase tracking-tighter italic">Gestión de Perfiles</h2>
+          <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Selecciona una categoría para gestionar protocolos</p>
         </div>
-      ) : (
-        <div className="space-y-6 animate-in fade-in side-in-from-right-4 duration-300">
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={() => setSelectedCategory(null)}
-              className="p-2 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-700 transition-all active:scale-90"
-              title="Volver"
-            >
-              <ArrowLeft size={24} />
-            </button>
-            <div>
-              <h2 className="text-xl font-black text-[#1F3864] uppercase tracking-tighter">{categoryTitle}</h2>
-              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Gestión de formatos y firmas</p>
-            </div>
-          </div>
 
-          <div className="flex gap-2">
-            {selectedCategory === 'POTENCIA' ? (
-              <>
-                <Button 
-                  onClick={() => {
-                    setEditingPerfil({ ...PERFIL_POTENCIA_CABLE_MOTOR_INICIAL, ID_PERFIL: crypto.randomUUID() } as Perfil);
-                    setView('form');
-                  }} 
-                  className="flex-1 bg-orange-600 hover:bg-orange-700 shadow-md font-black uppercase tracking-widest text-[9px] py-2" 
-                  icon={Plus}
-                >
-                  Cable-Motor
-                </Button>
-                <Button 
-                  onClick={() => {
-                    setEditingPerfil({ ...PERFIL_POTENCIA_MOTOR_INICIAL, ID_PERFIL: crypto.randomUUID() } as Perfil);
-                    setView('form');
-                  }} 
-                  className="flex-1 bg-blue-900 hover:bg-blue-955 shadow-md font-black uppercase tracking-widest text-[10px] py-2" 
-                  icon={Plus}
-                >
-                  Motor
-                </Button>
-              </>
-            ) : (
-              <Button 
-                onClick={handleCreateNew} 
-                className={`flex-[2] shadow-md font-black uppercase tracking-widest ${selectedCategory === 'INSTRUMENTACION' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'}`} 
-                icon={Plus}
-              >
-                Nuevo Perfil
-              </Button>
-            )}
-            <Button
-              onClick={() => setSelectedCategory(null)}
-              variant="secondary"
-              className="flex-1 text-[10px] uppercase font-black tracking-widest py-2"
-              icon={ArrowLeft}
+        {/* Tabs style selector */}
+        <div className="flex gap-2 border-b-[3px] border-[#1F3864] px-2 md:px-4 pt-2 mb-6 overflow-x-auto custom-scrollbar">
+          {appSettings.enableGenInstrumentacion && (
+            <button
+              onClick={() => setSelectedCategory('INSTRUMENTACION')}
+              className={`py-2.5 px-6 rounded-t-2xl font-semibold transition-all whitespace-nowrap shrink-0 ${
+                selectedCategory === 'INSTRUMENTACION' 
+                ? 'bg-white text-[#1F3864] text-[15px]' 
+                : 'bg-[#EBF0F6] text-[#64748B] hover:bg-[#DFE7F0] hover:text-[#1F3864] text-[14px]'
+              }`}
             >
-              Regresar
-            </Button>
+              INSTRUMENTACIÓN
+            </button>
+          )}
+          {appSettings.enableGenPotencia && (
+            <>
+              <button
+                onClick={() => setSelectedCategory('POTENCIA')}
+                className={`py-2.5 px-6 rounded-t-2xl font-semibold transition-all whitespace-nowrap shrink-0 ${
+                  selectedCategory === 'POTENCIA' 
+                  ? 'bg-white text-[#1F3864] text-[15px]' 
+                  : 'bg-[#EBF0F6] text-[#64748B] hover:bg-[#DFE7F0] hover:text-[#1F3864] text-[14px]'
+                }`}
+              >
+                POTENCIA (PRECOM)
+              </button>
+              <button
+                onClick={() => setSelectedCategory('POTENCIA_COM')}
+                className={`py-2.5 px-6 rounded-t-2xl font-semibold transition-all whitespace-nowrap shrink-0 ${
+                  selectedCategory === 'POTENCIA_COM' 
+                  ? 'bg-white text-[#1F3864] text-[15px]' 
+                  : 'bg-[#EBF0F6] text-[#64748B] hover:bg-[#DFE7F0] hover:text-[#1F3864] text-[14px]'
+                }`}
+              >
+                POTENCIA (COM)
+              </button>
+            </>
+          )}
+        </div>
+
+        {selectedCategory && (
+          <div className="space-y-6">
+            <div className="flex gap-2">
+              {selectedCategory === 'POTENCIA' ? (
+                <>
+                  <Button 
+                    onClick={() => {
+                      setEditingPerfil({ ...PERFIL_POTENCIA_CABLE_MOTOR_INICIAL, ID_PERFIL: crypto.randomUUID() } as Perfil);
+                      setView('form');
+                    }} 
+                    className="flex-1 bg-[#1F3864] hover:bg-[#152a4d] text-white shadow-md font-black uppercase tracking-widest text-[9px] py-2" 
+                    icon={Plus}
+                  >
+                    Cable-Motor
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      setEditingPerfil({ ...PERFIL_POTENCIA_MOTOR_INICIAL, ID_PERFIL: crypto.randomUUID() } as Perfil);
+                      setView('form');
+                    }} 
+                    className="flex-1 bg-[#1F3864] hover:bg-[#152a4d] text-white shadow-md font-black uppercase tracking-widest text-[10px] py-2" 
+                    icon={Plus}
+                  >
+                    Motor
+                  </Button>
+                </>
+              ) : (
+                <Button 
+                  onClick={handleCreateNew} 
+                  className="flex-[2] bg-[#1F3864] hover:bg-[#152a4d] text-white shadow-md font-black uppercase tracking-widest" 
+                  icon={Plus}
+                >
+                  Nuevo Perfil
+                </Button>
+              )}
           </div>
 
           {/* Campo de búsqueda */}
@@ -381,6 +352,7 @@ export const ListaPerfiles: React.FC = () => {
           )}
         </div>
       )}
+      </div>
 
       {/* Delete Confirmation Modal */}
       <AnimatePresence>

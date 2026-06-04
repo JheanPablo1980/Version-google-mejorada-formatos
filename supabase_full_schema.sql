@@ -6,6 +6,13 @@
 -- 1. CREACIÓN DE TABLAS
 -- ----------------------------------------------------
 
+CREATE TABLE IF NOT EXISTS roles_usuarios (
+  email TEXT PRIMARY KEY,
+  role TEXT NOT NULL DEFAULT 'TECNICO',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS instrumentos (
   tagname TEXT PRIMARY KEY,
   -- Agrega más columnas según tu interfaz Instrumento
@@ -85,6 +92,7 @@ ALTER TABLE export_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE conteo_exportacion ENABLE ROW LEVEL SECURITY;
 ALTER TABLE app_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE roles_usuarios ENABLE ROW LEVEL SECURITY;
 
 -- ----------------------------------------------------
 -- 3. POLÍTICAS DE ACCESO (Permitir acceso anónimo por ahora para no romper la app)
@@ -101,3 +109,4 @@ CREATE POLICY "Permitir todo acceso remoto a export_logs" ON export_logs FOR ALL
 CREATE POLICY "Permitir todo acceso remoto a conteo_exportacion" ON conteo_exportacion FOR ALL USING (true);
 CREATE POLICY "Permitir todo acceso remoto a app_config" ON app_config FOR ALL USING (true);
 CREATE POLICY "Permitir todo acceso remoto a audit_logs" ON audit_logs FOR ALL USING (true);
+CREATE POLICY "Permitir todo acceso remoto a roles_usuarios" ON roles_usuarios FOR ALL USING (true);

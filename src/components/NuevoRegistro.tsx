@@ -243,21 +243,29 @@ export const NuevoRegistro: React.FC = () => {
         <h2 className="text-2xl font-bold text-[#1F3864] flex items-center gap-2">
           <Database size={24} className="text-blue-600" /> Gestionar Bases de Datos
         </h2>
-        <div className="flex bg-gray-100 p-1 rounded-lg">
+        <div className="flex gap-2 border-b-[3px] border-[#1F3864] px-2 md:px-4 pt-2 mb-6 overflow-x-auto custom-scrollbar">
           {appSettings.enableGenInstrumentacion && (
             <button
               onClick={() => { setActiveTab('INSTRUMENTACION'); setSelectedTags([]); handleCancelEdit(); }}
-              className={`px-4 py-2 rounded-md text-xs font-bold transition-all ${activeTab === 'INSTRUMENTACION' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`py-2.5 px-6 rounded-t-2xl font-semibold transition-all whitespace-nowrap shrink-0 ${
+                activeTab === 'INSTRUMENTACION' 
+                ? 'bg-white text-[#1F3864] text-[15px]' 
+                : 'bg-[#EBF0F6] text-[#64748B] hover:bg-[#DFE7F0] hover:text-[#1F3864] text-[14px]'
+              }`}
             >
-              INSTRUMENTOS
+              INSTRUMENTACIÓN
             </button>
           )}
           {appSettings.enableGenPotencia && (
             <button
               onClick={() => { setActiveTab('POTENCIA'); setSelectedTags([]); handleCancelEdit(); }}
-              className={`px-4 py-2 rounded-md text-xs font-bold transition-all ${activeTab === 'POTENCIA' ? 'bg-white text-orange-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`py-2.5 px-6 rounded-t-2xl font-semibold transition-all whitespace-nowrap shrink-0 ${
+                activeTab === 'POTENCIA' 
+                ? 'bg-white text-[#1F3864] text-[15px]' 
+                : 'bg-[#EBF0F6] text-[#64748B] hover:bg-[#DFE7F0] hover:text-[#1F3864] text-[14px]'
+              }`}
             >
-              POTENCIA
+              POTENCIA EQUIPOS
             </button>
           )}
         </div>
