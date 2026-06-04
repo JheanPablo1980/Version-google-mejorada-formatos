@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { PERFIL_INICIAL, PERFIL_POTENCIA_INICIAL, PERFIL_POTENCIA_COM_INICIAL, PERFIL_POTENCIA_CABLE_MOTOR_INICIAL, PERFIL_POTENCIA_MOTOR_INICIAL } from '../constants';
 
 export const ListaPerfiles: React.FC = () => {
-  const { perfiles, deletePerfil, savePerfil } = useAppStore();
+  const { perfiles, deletePerfil, savePerfil, appSettings } = useAppStore();
   const [view, setView] = useState<'list' | 'form'>('list');
   const [selectedCategory, setSelectedCategory] = useState<'INSTRUMENTACION' | 'POTENCIA' | 'POTENCIA_COM' | null>(null);
   const [editingPerfil, setEditingPerfil] = useState<Perfil | null>(null);
@@ -128,53 +128,59 @@ export const ListaPerfiles: React.FC = () => {
           </div>
           
           <div className="grid grid-cols-1 gap-4">
-            <button
-              onClick={() => setSelectedCategory('INSTRUMENTACION')}
-              className="group p-6 bg-white border-2 border-blue-100 hover:border-blue-600 rounded-3xl shadow-xl shadow-blue-900/5 hover:shadow-blue-900/10 transition-all flex items-center gap-6 text-left active:scale-[0.98]"
-            >
-              <div className="p-4 bg-blue-50 rounded-2xl group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
-                <Activity size={40} />
-              </div>
-              <div className="flex-1">
-                <span className="block font-black text-[#1F3864] text-xl uppercase tracking-tighter group-hover:text-blue-700 transition-colors">Instrumentación</span>
-                <span className="block text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1 opacity-70">Calibración, lazos e inspección</span>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-blue-300 group-hover:bg-blue-50 group-hover:text-blue-600 transition-all">
-                <CheckCircle size={20} />
-              </div>
-            </button>
+            {appSettings.enableGenInstrumentacion && (
+              <button
+                onClick={() => setSelectedCategory('INSTRUMENTACION')}
+                className="group p-6 bg-white border-2 border-blue-100 hover:border-blue-600 rounded-3xl shadow-xl shadow-blue-900/5 hover:shadow-blue-900/10 transition-all flex items-center gap-6 text-left active:scale-[0.98]"
+              >
+                <div className="p-4 bg-blue-50 rounded-2xl group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
+                  <Activity size={40} />
+                </div>
+                <div className="flex-1">
+                  <span className="block font-black text-[#1F3864] text-xl uppercase tracking-tighter group-hover:text-blue-700 transition-colors">Instrumentación</span>
+                  <span className="block text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1 opacity-70">Calibración, lazos e inspección</span>
+                </div>
+                <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-blue-300 group-hover:bg-blue-50 group-hover:text-blue-600 transition-all">
+                  <CheckCircle size={20} />
+                </div>
+              </button>
+            )}
 
-            <button
-              onClick={() => setSelectedCategory('POTENCIA')}
-              className="group p-6 bg-white border-2 border-orange-100 hover:border-orange-600 rounded-3xl shadow-xl shadow-orange-900/5 hover:shadow-orange-900/10 transition-all flex items-center gap-6 text-left active:scale-[0.98]"
-            >
-              <div className="p-4 bg-orange-50 rounded-2xl group-hover:bg-orange-600 group-hover:text-white transition-all duration-300">
-                <Zap size={40} />
-              </div>
-              <div className="flex-1">
-                <span className="block font-black text-[#1F3864] text-xl uppercase tracking-tighter group-hover:text-orange-700 transition-colors">Potencia (Precom)</span>
-                <span className="block text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1 opacity-70">Transformadores, motores y tableros</span>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-orange-300 group-hover:bg-orange-50 group-hover:text-orange-600 transition-all">
-                <CheckCircle size={20} />
-              </div>
-            </button>
+            {appSettings.enableGenPotencia && (
+              <>
+                <button
+                  onClick={() => setSelectedCategory('POTENCIA')}
+                  className="group p-6 bg-white border-2 border-orange-100 hover:border-orange-600 rounded-3xl shadow-xl shadow-orange-900/5 hover:shadow-orange-900/10 transition-all flex items-center gap-6 text-left active:scale-[0.98]"
+                >
+                  <div className="p-4 bg-orange-50 rounded-2xl group-hover:bg-orange-600 group-hover:text-white transition-all duration-300">
+                    <Zap size={40} />
+                  </div>
+                  <div className="flex-1">
+                    <span className="block font-black text-[#1F3864] text-xl uppercase tracking-tighter group-hover:text-orange-700 transition-colors">Potencia (Precom)</span>
+                    <span className="block text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1 opacity-70">Transformadores, motores y tableros</span>
+                  </div>
+                  <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-orange-300 group-hover:bg-orange-50 group-hover:text-orange-600 transition-all">
+                    <CheckCircle size={20} />
+                  </div>
+                </button>
 
-            <button
-              onClick={() => setSelectedCategory('POTENCIA_COM')}
-              className="group p-6 bg-white border-2 border-red-100 hover:border-red-600 rounded-3xl shadow-xl shadow-red-900/5 hover:shadow-red-900/10 transition-all flex items-center gap-6 text-left active:scale-[0.98]"
-            >
-              <div className="p-4 bg-red-50 rounded-2xl group-hover:bg-red-600 group-hover:text-white transition-all duration-300">
-                <CheckCircle size={40} />
-              </div>
-              <div className="flex-1">
-                <span className="block font-black text-[#1F3864] text-sm uppercase tracking-tighter group-hover:text-red-700 transition-colors whitespace-nowrap">Potencia (Comisionamiento)</span>
-                <span className="block text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1 opacity-70">Motor Eléctrico Bajo Voltaje</span>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-red-300 group-hover:bg-red-50 group-hover:text-red-600 transition-all">
-                <CheckCircle size={20} />
-              </div>
-            </button>
+                <button
+                  onClick={() => setSelectedCategory('POTENCIA_COM')}
+                  className="group p-6 bg-white border-2 border-red-100 hover:border-red-600 rounded-3xl shadow-xl shadow-red-900/5 hover:shadow-red-900/10 transition-all flex items-center gap-6 text-left active:scale-[0.98]"
+                >
+                  <div className="p-4 bg-red-50 rounded-2xl group-hover:bg-red-600 group-hover:text-white transition-all duration-300">
+                    <CheckCircle size={40} />
+                  </div>
+                  <div className="flex-1">
+                    <span className="block font-black text-[#1F3864] text-sm uppercase tracking-tighter group-hover:text-red-700 transition-colors whitespace-nowrap">Potencia (Comisionamiento)</span>
+                    <span className="block text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1 opacity-70">Motor Eléctrico Bajo Voltaje</span>
+                  </div>
+                  <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-red-300 group-hover:bg-red-50 group-hover:text-red-600 transition-all">
+                    <CheckCircle size={20} />
+                  </div>
+                </button>
+              </>
+            )}
           </div>
         </div>
       ) : (

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Database, Plus, Camera, FileText, Download, History, LogOut, User as UserIcon, Image, LayoutDashboard, Zap } from 'lucide-react';
+import { Database, Plus, Camera, FileText, Download, History, LogOut, User as UserIcon, Image, LayoutDashboard, Zap, HelpCircle, Settings, Shield } from 'lucide-react';
 import { useAppStore, UserRole } from './store/useAppStore';
 import { Admin } from './components/Admin';
 import { NuevoRegistro } from './components/NuevoRegistro';
@@ -11,8 +11,10 @@ import { GaleriaFotos } from './components/GaleriaFotos';
 import { Dashboard } from './components/Dashboard';
 import { Login } from './components/Login';
 import { motion, AnimatePresence } from 'motion/react';
+import { InteractiveTour } from './components/InteractiveTour';
+import { Auditoria } from './components/Auditoria';
 
-type Tab = 'admin' | 'nuevo' | 'fotos' | 'galeria' | 'perfiles' | 'generar' | 'historial' | 'dashboard';
+type Tab = 'admin' | 'nuevo' | 'fotos' | 'galeria' | 'perfiles' | 'generar' | 'historial' | 'dashboard' | 'auditoria';
 
 export default function App() {
   const { session, signOut, loadData, rolePermissions, isInitialized } = useAppStore();
@@ -40,8 +42,9 @@ export default function App() {
 
   const navigation: { id: Tab; icon: any; label: string; roles: string[] }[] = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Panel', roles: ['ADMIN'] },
-    { id: 'admin', icon: Database, label: 'Admin', roles: ['ADMIN'] },
-    { id: 'nuevo', icon: Database, label: 'BD', roles: ['ADMIN', 'TECNICO', 'INVITADO'] },
+    { id: 'admin', icon: Settings, label: 'Config', roles: ['ADMIN'] },
+    { id: 'auditoria', icon: Shield, label: 'Auditoría', roles: ['ADMIN'] },
+    { id: 'nuevo', icon: Database, label: 'Registros', roles: ['ADMIN', 'TECNICO', 'INVITADO'] },
     { id: 'fotos', icon: Camera, label: 'Cámara', roles: ['ADMIN', 'TECNICO', 'INVITADO'] },
     { id: 'galeria', icon: Image, label: 'Fotos', roles: ['ADMIN', 'TECNICO', 'INVITADO'] },
     { id: 'perfiles', icon: FileText, label: 'Perfiles', roles: ['ADMIN', 'TECNICO', 'INVITADO'] },
@@ -86,6 +89,17 @@ export default function App() {
             <span className="text-[8px] text-white/60 truncate max-w-[80px] sm:max-w-[150px]">{session.user.email}</span>
           </div>
           <button 
+            id="btn-interactive-tour"
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent('start-interactive-tour'));
+            }}
+            className="py-1.5 px-3 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-200 hover:text-yellow-100 rounded-full transition-all border border-yellow-400/20 active:scale-95 flex items-center justify-center gap-1.5 focus:outline-none cursor-pointer"
+            title="Iniciar Guía Interactiva"
+          >
+            <Zap size={13} className="animate-pulse text-yellow-300" />
+            <span className="text-[9px] leading-none font-black uppercase tracking-wider">Guía</span>
+          </button>
+          <button 
             onClick={signOut}
             className="p-2 bg-white/10 hover:bg-red-500/20 hover:text-red-300 rounded-full transition-all border border-white/5 active:scale-95"
             title="Cerrar Sesión"
@@ -104,6 +118,7 @@ export default function App() {
             transition={{ duration: 0.2, ease: "easeOut" }}
           >
             {activeTab === 'admin' && <Admin />}
+            {activeTab === 'auditoria' && <Auditoria />}
             {activeTab === 'dashboard' && <Dashboard />}
             {activeTab === 'nuevo' && <NuevoRegistro />}
             {activeTab === 'fotos' && <RegistroFotos />}
@@ -132,6 +147,7 @@ export default function App() {
             const isActive = activeTab === id;
             return (
               <button 
+                id={`nav-${id}`}
                 key={id}
                 onClick={() => setActiveTab(id)}
                 className={`group flex-1 py-2 sm:py-3 flex flex-col items-center justify-center gap-1 transition-all relative min-w-0 ${
@@ -156,6 +172,9 @@ export default function App() {
         </div>
         <div className="h-[env(safe-area-inset-bottom,0px)] bg-white/95"></div>
       </nav>
+
+      {/* Guía Interactiva encima de todo */}
+      <InteractiveTour activeTab={activeTab} setActiveTab={setActiveTab} />
     </div>
   );
 }

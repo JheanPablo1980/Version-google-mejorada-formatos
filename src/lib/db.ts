@@ -1,7 +1,7 @@
 import { openDB, type IDBPDatabase } from 'idb';
 
 const DB_NAME = 'protocolos_ic_db';
-const DB_VERSION = 10;
+const DB_VERSION = 11;
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
@@ -37,6 +37,9 @@ export const initDB = async (): Promise<IDBPDatabase> => {
         }
         if (!db.objectStoreNames.contains('conteo_exportacion')) {
           db.createObjectStore('conteo_exportacion', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('audit_logs')) {
+          db.createObjectStore('audit_logs', { keyPath: 'id' });
         }
       },
     });

@@ -41,7 +41,8 @@ export const VistaGenerar: React.FC = () => {
     saveExportLog, 
     saveConteoExportacion, 
     driveFolderLink,
-    deleteFoto
+    deleteFoto,
+    appSettings
   } = useAppStore();
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedProfile, setSelectedProfile] = useState('');
@@ -50,7 +51,9 @@ export const VistaGenerar: React.FC = () => {
   const [exportStartTime, setExportStartTime] = useState<number | null>(null);
   const [exportElapsedTime, setExportElapsedTime] = useState(0);
   const [modoExportacion, setModoExportacion] = useState<'LOCAL' | 'DRIVE'>('LOCAL');
-  const [activeCategory, setActiveCategory] = useState<'INSTRUMENTACION' | 'POTENCIA' | 'POTENCIA_COM'>('INSTRUMENTACION');
+  const [activeCategory, setActiveCategory] = useState<'INSTRUMENTACION' | 'POTENCIA' | 'POTENCIA_COM'>(
+    appSettings.enableGenInstrumentacion ? 'INSTRUMENTACION' : 'POTENCIA'
+  );
   
   const [driveFiles, setDriveFiles] = useState<{name: string, id: string, mimeType: string}[]>([]);
   const [isFetchingDrive, setIsFetchingDrive] = useState(false);
@@ -61,9 +64,25 @@ export const VistaGenerar: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [filtroUbicacion, setFiltroUbicacion] = useState('');
   const [filtroTipoCable, setFiltroTipoCable] = useState('');
+  const [filtroFechaFoto, setFiltroFechaFoto] = useState('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
-  const tagsConFotos = [...new Set(fotos.map(f => f.TAGNAME))];
+  useEffect(() => {
+    if (!appSettings.enableMassUploadDrive && modoExportacion === 'DRIVE') {
+      setModoExportacion('LOCAL');
+    }
+  }, [appSettings.enableMassUploadDrive, modoExportacion]);
+
+  const tagsConFotos = useMemo(() => {
+    let filteredFotos = fotos;
+    if (filtroFechaFoto) {
+      filteredFotos = fotos.filter(f => {
+        if (!f.timestamp) return false;
+        return f.timestamp.substring(0, 10) === filtroFechaFoto;
+      });
+    }
+    return [...new Set(filteredFotos.map(f => f.TAGNAME))];
+  }, [fotos, filtroFechaFoto]);
   const tagsInstrumentos = instrumentos.map(i => i.TAGNAME);
   const tagsPotencia = potenciaEquipos.map(e => e.TAG);
   const todosLosTags = [...tagsInstrumentos, ...tagsPotencia];
@@ -514,8 +533,8 @@ export const VistaGenerar: React.FC = () => {
               extension: extension as any
             });
             ws1.addImage(imageId, { 
-              tl: { col: col + 0.3, row: row - 1 + 0.8 } as any, 
-              br: { col: col + colMaxOffset - 0.3, row: row - 1 + 2.8 } as any,
+              tl: { col: col + 0.25, row: row - 1 + 0.4 } as any, 
+              br: { col: col + colMaxOffset - 0.25, row: row - 1 + 2.6 } as any,
               editAs: 'oneCell'
             });
           } catch (e) {
@@ -705,7 +724,7 @@ export const VistaGenerar: React.FC = () => {
           ws1.mergeCells(`D${rIdx+2}:F${rIdx+2}`); ws1.getCell(`D${rIdx+2}`).value = `NOMBRE: ${activeProfile.POT_NOMBRE_2 || ''}`; applyStyle(ws1.getCell(`D${rIdx+2}`)); ws1.getCell(`D${rIdx+2}`).alignment = {horizontal:'left'};
           ws1.mergeCells(`G${rIdx+2}:H${rIdx+2}`); ws1.getCell(`G${rIdx+2}`).value = `NOMBRE: ${activeProfile.POT_NOMBRE_3 || ''}`; applyStyle(ws1.getCell(`G${rIdx+2}`)); ws1.getCell(`G${rIdx+2}`).alignment = {horizontal:'left'};
 
-          ws1.mergeCells(`A${rIdx+3}:C${rIdx+3}`); ws1.getCell(`A${rIdx+3}`).value = `FECHA: ${activeProfile.POT_FECHA_1 || ''}`; applyStyle(ws1.getCell(`A${rIdx+3}`)); ws1.getCell(`A${rIdx+3}`).alignment = {horizontal:'left'};
+          ws1.mergeCells(`A${rIdx+3}:C${rIdx+3}`); ws1.getCell(`A${rIdx+3}`).value = `FECHA: ${format(new Date(), 'dd.MM.yyyy')}`; applyStyle(ws1.getCell(`A${rIdx+3}`)); ws1.getCell(`A${rIdx+3}`).alignment = {horizontal:'left'};
           ws1.mergeCells(`D${rIdx+3}:F${rIdx+3}`); ws1.getCell(`D${rIdx+3}`).value = `FECHA: ${activeProfile.POT_FECHA_2 || ''}`; applyStyle(ws1.getCell(`D${rIdx+3}`)); ws1.getCell(`D${rIdx+3}`).alignment = {horizontal:'left'};
           ws1.mergeCells(`G${rIdx+3}:H${rIdx+3}`); ws1.getCell(`G${rIdx+3}`).value = `FECHA: ${activeProfile.POT_FECHA_3 || ''}`; applyStyle(ws1.getCell(`G${rIdx+3}`)); ws1.getCell(`G${rIdx+3}`).alignment = {horizontal:'left'};
 
@@ -1005,7 +1024,7 @@ export const VistaGenerar: React.FC = () => {
           ws1.mergeCells(`D${currRow+2}:H${currRow+2}`); ws1.getCell(`D${currRow+2}`).value = `NOMBRE: ${activeProfile.POT_NOMBRE_2 || ''}`; applyStyle(ws1.getCell(`D${currRow+2}`)); ws1.getCell(`D${currRow+2}`).alignment = {horizontal:'left'};
           ws1.mergeCells(`I${currRow+2}:L${currRow+2}`); ws1.getCell(`I${currRow+2}`).value = `NOMBRE: ${activeProfile.POT_NOMBRE_3 || ''}`; applyStyle(ws1.getCell(`I${currRow+2}`)); ws1.getCell(`I${currRow+2}`).alignment = {horizontal:'left'};
 
-          ws1.mergeCells(`A${currRow+3}:C${currRow+3}`); ws1.getCell(`A${currRow+3}`).value = `FECHA: ${activeProfile.POT_FECHA_1 || ''}`; applyStyle(ws1.getCell(`A${currRow+3}`)); ws1.getCell(`A${currRow+3}`).alignment = {horizontal:'left'};
+          ws1.mergeCells(`A${currRow+3}:C${currRow+3}`); ws1.getCell(`A${currRow+3}`).value = `FECHA: ${format(new Date(), 'dd.MM.yyyy')}`; applyStyle(ws1.getCell(`A${currRow+3}`)); ws1.getCell(`A${currRow+3}`).alignment = {horizontal:'left'};
           ws1.mergeCells(`D${currRow+3}:H${currRow+3}`); ws1.getCell(`D${currRow+3}`).value = `FECHA: ${activeProfile.POT_FECHA_2 || ''}`; applyStyle(ws1.getCell(`D${currRow+3}`)); ws1.getCell(`D${currRow+3}`).alignment = {horizontal:'left'};
           ws1.mergeCells(`I${currRow+3}:L${currRow+3}`); ws1.getCell(`I${currRow+3}`).value = `FECHA: ${activeProfile.POT_FECHA_3 || ''}`; applyStyle(ws1.getCell(`I${currRow+3}`)); ws1.getCell(`I${currRow+3}`).alignment = {horizontal:'left'};
 
@@ -1074,7 +1093,7 @@ export const VistaGenerar: React.FC = () => {
           ws1.mergeCells('C8:H8'); 
           ws1.getCell('C8').value = activeProfile.TIPO.startsWith('POTENCIA') 
             ? (activeItem as any).DESCRIPCIÓN || ''
-            : `${activeProfile.TIPO_CABLE || (activeItem as any).TIPO_CABLE || ''} / ${(activeItem as any).DESCRIPCIÓN || ''}`;
+            : `${(activeItem as any).TIPO_CABLE || activeProfile.TIPO_CABLE || ''} / ${(activeItem as any).DESCRIPCIÓN || ''}`;
           applyStyle(ws1.getCell('C8')); ws1.getCell('C8').alignment = {horizontal:'left'};
           
           if (!activeProfile.TIPO.startsWith('POTENCIA')) {
@@ -1225,7 +1244,7 @@ export const VistaGenerar: React.FC = () => {
             ws1.mergeCells(`D${currentRow+2}:E${currentRow+2}`); ws1.getCell(`D${currentRow+2}`).value = `NOMBRE: ${activeProfile.POT_NOMBRE_2 || ''}`; applyStyle(ws1.getCell(`D${currentRow+2}`)); ws1.getCell('D' + (currentRow+2)).alignment = {horizontal:'left'};
             ws1.mergeCells(`F${currentRow+2}:H${currentRow+2}`); ws1.getCell(`F${currentRow+2}`).value = `NOMBRE: ${activeProfile.POT_NOMBRE_3 || ''}`; applyStyle(ws1.getCell(`F${currentRow+2}`)); ws1.getCell('F' + (currentRow+2)).alignment = {horizontal:'left'};
             
-            ws1.mergeCells(`A${currentRow+6}:C${currentRow+6}`); ws1.getCell(`A${currentRow+6}`).value = `FECHA: ${activeProfile.POT_FECHA_1 || ''}`; applyStyle(ws1.getCell(`A${currentRow+6}`)); ws1.getCell('A' + (currentRow+6)).alignment = {horizontal:'left'};
+            ws1.mergeCells(`A${currentRow+6}:C${currentRow+6}`); ws1.getCell(`A${currentRow+6}`).value = `FECHA: ${format(new Date(), 'dd.MM.yyyy')}`; applyStyle(ws1.getCell(`A${currentRow+6}`)); ws1.getCell('A' + (currentRow+6)).alignment = {horizontal:'left'};
             ws1.mergeCells(`D${currentRow+6}:E${currentRow+6}`); ws1.getCell(`D${currentRow+6}`).value = `FECHA: ${activeProfile.POT_FECHA_2 || ''}`; applyStyle(ws1.getCell(`D${currentRow+6}`)); ws1.getCell('D' + (currentRow+6)).alignment = {horizontal:'left'};
             ws1.mergeCells(`F${currentRow+6}:H${currentRow+6}`); ws1.getCell(`F${currentRow+6}`).value = `FECHA: ${activeProfile.POT_FECHA_3 || ''}`; applyStyle(ws1.getCell(`F${currentRow+6}`)); ws1.getCell('F' + (currentRow+6)).alignment = {horizontal:'left'};
           } else {
@@ -1237,23 +1256,27 @@ export const VistaGenerar: React.FC = () => {
             ws1.mergeCells(`D${currentRow+2}:E${currentRow+2}`); ws1.getCell(`D${currentRow+2}`).value = `CARGO: ${activeProfile.REVISO_CARGO}`; applyStyle(ws1.getCell(`D${currentRow+2}`)); ws1.getCell('D' + (currentRow+2)).alignment = {horizontal:'left'};
             ws1.mergeCells(`F${currentRow+2}:H${currentRow+2}`); ws1.getCell(`F${currentRow+2}`).value = `CARGO: ${activeProfile.APROBO_CARGO}`; applyStyle(ws1.getCell(`F${currentRow+2}`)); ws1.getCell('F' + (currentRow+2)).alignment = {horizontal:'left'};
             
-            ws1.mergeCells(`A${currentRow+6}:C${currentRow+6}`); ws1.getCell(`A${currentRow+6}`).value = `FECHA: ${activeProfile.FECHA}`; applyStyle(ws1.getCell(`A${currentRow+6}`)); ws1.getCell('A' + (currentRow+6)).alignment = {horizontal:'left'};
+            ws1.mergeCells(`A${currentRow+6}:C${currentRow+6}`); ws1.getCell(`A${currentRow+6}`).value = `FECHA: ${format(new Date(), 'dd.MM.yyyy')}`; applyStyle(ws1.getCell(`A${currentRow+6}`)); ws1.getCell('A' + (currentRow+6)).alignment = {horizontal:'left'};
             ws1.mergeCells(`D${currentRow+6}:E${currentRow+6}`); ws1.getCell(`D${currentRow+6}`).value = `FECHA: `; applyStyle(ws1.getCell(`D${currentRow+6}`)); ws1.getCell('D' + (currentRow+6)).alignment = {horizontal:'left'};
             ws1.mergeCells(`F${currentRow+6}:H${currentRow+6}`); ws1.getCell(`F${currentRow+6}`).value = `FECHA: `; applyStyle(ws1.getCell(`F${currentRow+6}`)); ws1.getCell('F' + (currentRow+6)).alignment = {horizontal:'left'};
           }
+
+          ws1.getRow(currentRow+3).height = 18;
+          ws1.getRow(currentRow+4).height = 18;
+          ws1.getRow(currentRow+5).height = 18;
 
           ws1.mergeCells(`A${currentRow+3}:C${currentRow+5}`); ws1.getCell(`A${currentRow+3}`).value = 'FIRMA:'; applyStyle(ws1.getCell(`A${currentRow+3}`)); ws1.getCell(`A${currentRow+3}`).font = { bold: true }; ws1.getCell(`A${currentRow+3}`).alignment = {vertical:'top', horizontal:'left'};
           ws1.mergeCells(`D${currentRow+3}:E${currentRow+5}`); ws1.getCell(`D${currentRow+3}`).value = 'FIRMA:'; applyStyle(ws1.getCell(`D${currentRow+3}`)); ws1.getCell(`D${currentRow+3}`).font = { bold: true }; ws1.getCell(`D${currentRow+3}`).alignment = {vertical:'top', horizontal:'left'};
           ws1.mergeCells(`F${currentRow+3}:H${currentRow+5}`); ws1.getCell(`F${currentRow+3}`).value = 'FIRMA:'; applyStyle(ws1.getCell(`F${currentRow+3}`)); ws1.getCell(`F${currentRow+3}`).font = { bold: true }; ws1.getCell(`F${currentRow+3}`).alignment = {vertical:'top', horizontal:'left'};
 
           if (isPotencia) {
-            embedSig(activeProfile.POT_FIRMA_1, 0, 3, currentRow+4);
-            embedSig(activeProfile.POT_FIRMA_2, 3, 2, currentRow+4);
-            embedSig(activeProfile.POT_FIRMA_3, 5, 3, currentRow+4);
+            embedSig(activeProfile.POT_FIRMA_1, 0, 3, currentRow+3);
+            embedSig(activeProfile.POT_FIRMA_2, 3, 2, currentRow+3);
+            embedSig(activeProfile.POT_FIRMA_3, 5, 3, currentRow+3);
           } else {
-            embedSig(activeProfile.ELABORO_FIRMA, 0, 3, currentRow+4);
-            embedSig(activeProfile.REVISO_FIRMA, 3, 2, currentRow+4);
-            embedSig(activeProfile.APROBO_FIRMA, 5, 3, currentRow+4);
+            embedSig(activeProfile.ELABORO_FIRMA, 0, 3, currentRow+3);
+            embedSig(activeProfile.REVISO_FIRMA, 3, 2, currentRow+3);
+            embedSig(activeProfile.APROBO_FIRMA, 5, 3, currentRow+3);
           }
         }
       }
@@ -1441,7 +1464,7 @@ export const VistaGenerar: React.FC = () => {
               </tr>
               <tr>
                 <td class="text-left font-bold">FECHA</td>
-                <td colspan="2" class="text-left">${activeProfile.POT_FECHA_1 || ''}</td>
+                <td colspan="2" class="text-left">${format(new Date(), 'dd.MM.yyyy')}</td>
                 <td colspan="3" class="text-left">${activeProfile.POT_FECHA_2 || ''}</td>
                 <td colspan="2" class="text-left">${activeProfile.POT_FECHA_3 || ''}</td>
               </tr>
@@ -1731,7 +1754,7 @@ export const VistaGenerar: React.FC = () => {
             </tr>
             <tr>
               <td colspan="2" class="bg-blue text-left">TIPO CABLE / DESC:</td>
-              <td colspan="6" class="uppercase">${activeProfile.TIPO_CABLE || (activeItem as any).TIPO_CABLE || ''} / ${(activeItem as any).DESCRIPCIÓN || ''}</td>
+              <td colspan="6" class="uppercase">${(activeItem as any).TIPO_CABLE || activeProfile.TIPO_CABLE || ''} / ${(activeItem as any).DESCRIPCIÓN || ''}</td>
             </tr>
             <tr>
               <td colspan="2" class="bg-blue text-left">RANGO OPERACIÓN:</td>
@@ -1887,7 +1910,7 @@ export const VistaGenerar: React.FC = () => {
               </td>
             </tr>
             <tr>
-              <td colspan="3" class="text-left">FECHA: ${activeProfile.FECHA}</td>
+              <td colspan="3" class="text-left">FECHA: ${format(new Date(), 'dd.MM.yyyy')}</td>
               <td colspan="2" class="text-left">FECHA: </td>
               <td colspan="3" class="text-left">FECHA: </td>
             </tr>
@@ -2038,49 +2061,57 @@ export const VistaGenerar: React.FC = () => {
               >
                 App (Locales)
               </button>
-              <button 
-                className={`flex-1 py-1.5 px-3 rounded-lg text-[10px] font-bold transition-all ${modoExportacion === 'DRIVE' ? 'bg-white text-blue-700 shadow-sm' : 'bg-transparent text-gray-400 hover:text-gray-600'}`}
-                onClick={() => { setModoExportacion('DRIVE'); setSelectedTags([]); }}
-              >
-                Google Drive (Masiva)
-              </button>
+              {appSettings.enableMassUploadDrive && (
+                <button 
+                  className={`flex-1 py-1.5 px-3 rounded-lg text-[10px] font-bold transition-all ${modoExportacion === 'DRIVE' ? 'bg-white text-blue-700 shadow-sm' : 'bg-transparent text-gray-400 hover:text-gray-600'}`}
+                  onClick={() => { setModoExportacion('DRIVE'); setSelectedTags([]); }}
+                >
+                  Google Drive (Masiva)
+                </button>
+              )}
             </div>
 
             {/* Selector de Categoría (Instrumentación / Potencia) */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <button
-                onClick={() => { setActiveCategory('INSTRUMENTACION'); setSelectedTags([]); setSelectedProfile(''); }}
-                className={`py-2 px-3 rounded-xl text-[9px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
-                  activeCategory === 'INSTRUMENTACION' 
-                  ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-200 ring-2 ring-blue-50' 
-                  : 'bg-white border-blue-50 text-blue-400 hover:border-blue-200 hover:text-blue-600'
-                }`}
-              >
-                <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'INSTRUMENTACION' ? 'bg-white animate-pulse' : 'bg-blue-100'}`} />
-                Instrumentación
-              </button>
-              <button
-                onClick={() => { setActiveCategory('POTENCIA'); setSelectedTags([]); setSelectedProfile(''); }}
-                className={`py-2 px-3 rounded-xl text-[9px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
-                  activeCategory === 'POTENCIA' 
-                  ? 'bg-orange-600 border-orange-600 text-white shadow-lg shadow-orange-200 ring-2 ring-orange-50' 
-                  : 'bg-white border-orange-50 text-orange-400 hover:border-orange-200 hover:text-orange-600'
-                }`}
-              >
-                <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'POTENCIA' ? 'bg-white animate-pulse' : 'bg-orange-100'}`} />
-                Potencia (Precom)
-              </button>
-              <button
-                onClick={() => { setActiveCategory('POTENCIA_COM'); setSelectedTags([]); setSelectedProfile(''); }}
-                className={`py-2 px-3 rounded-xl text-[9px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
-                  activeCategory === 'POTENCIA_COM' 
-                  ? 'bg-red-600 border-red-600 text-white shadow-lg shadow-red-200 ring-2 ring-red-50' 
-                  : 'bg-white border-red-50 text-red-400 hover:border-red-200 hover:text-red-600'
-                }`}
-              >
-                <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'POTENCIA_COM' ? 'bg-white animate-pulse' : 'bg-red-100'}`} />
-                Potencia (Com)
-              </button>
+            <div className="grid gap-2 grid-cols-1 sm:grid-cols-2">
+              {appSettings.enableGenInstrumentacion && (
+                <button
+                  onClick={() => { setActiveCategory('INSTRUMENTACION'); setSelectedTags([]); setSelectedProfile(''); }}
+                  className={`py-2 px-3 rounded-xl text-[9px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
+                    activeCategory === 'INSTRUMENTACION' 
+                    ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-200 ring-2 ring-blue-50' 
+                    : 'bg-white border-blue-50 text-blue-400 hover:border-blue-200 hover:text-blue-600'
+                  }`}
+                >
+                  <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'INSTRUMENTACION' ? 'bg-white animate-pulse' : 'bg-blue-100'}`} />
+                  Instrumentación
+                </button>
+              )}
+              {appSettings.enableGenPotencia && (
+                <>
+                  <button
+                    onClick={() => { setActiveCategory('POTENCIA'); setSelectedTags([]); setSelectedProfile(''); }}
+                    className={`py-2 px-3 rounded-xl text-[9px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
+                      activeCategory === 'POTENCIA' 
+                      ? 'bg-orange-600 border-orange-600 text-white shadow-lg shadow-orange-200 ring-2 ring-orange-50' 
+                      : 'bg-white border-orange-50 text-orange-400 hover:border-orange-200 hover:text-orange-600'
+                    }`}
+                  >
+                    <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'POTENCIA' ? 'bg-white animate-pulse' : 'bg-orange-100'}`} />
+                    Potencia (Precom)
+                  </button>
+                  <button
+                    onClick={() => { setActiveCategory('POTENCIA_COM'); setSelectedTags([]); setSelectedProfile(''); }}
+                    className={`py-2 px-3 rounded-xl text-[9px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
+                      activeCategory === 'POTENCIA_COM' 
+                      ? 'bg-red-600 border-red-600 text-white shadow-lg shadow-red-200 ring-2 ring-red-50' 
+                      : 'bg-white border-red-50 text-red-400 hover:border-red-200 hover:text-red-600'
+                    }`}
+                  >
+                    <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'POTENCIA_COM' ? 'bg-white animate-pulse' : 'bg-red-100'}`} />
+                    Potencia (Com)
+                  </button>
+                </>
+              )}
             </div>
 
             <div className="flex flex-col md:flex-row gap-3">
@@ -2116,7 +2147,7 @@ export const VistaGenerar: React.FC = () => {
                 </button>
                 <button 
                   onClick={() => setShowFilters(!showFilters)}
-                  className={`px-3 py-2 border rounded-lg transition-colors flex items-center justify-center flex-1 md:flex-none ${showFilters || filtroUbicacion || filtroTipoCable ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'}`}
+                  className={`px-3 py-2 border rounded-lg transition-colors flex items-center justify-center flex-1 md:flex-none ${showFilters || filtroUbicacion || filtroTipoCable || filtroFechaFoto ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'}`}
                 >
                   <Filter size={18} className="mr-2 md:mr-0" />
                   <span className="md:hidden text-xs font-bold uppercase">Filtros</span>
@@ -2182,13 +2213,14 @@ export const VistaGenerar: React.FC = () => {
             )}
 
             {showFilters && (
-              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 grid grid-cols-1 md:grid-cols-4 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
                 <div>
                   <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1.5 tracking-wider">Ubicación</label>
                   <select 
                     value={filtroUbicacion} 
                     onChange={(e) => setFiltroUbicacion(e.target.value)}
-                    className="w-full p-2 text-xs border border-gray-200 rounded-lg bg-white focus:ring-[#1F3864] focus:outline-none font-medium"
+                    disabled={activeCategory !== 'INSTRUMENTACION'}
+                    className="w-full p-2 text-xs border border-gray-200 rounded-lg bg-white disabled:bg-gray-100 disabled:text-gray-405 focus:ring-[#1F3864] focus:outline-none font-medium text-gray-800"
                   >
                     <option value="">Todas</option>
                     {ubicacionesUnicas.map(u => (
@@ -2201,7 +2233,8 @@ export const VistaGenerar: React.FC = () => {
                   <select 
                     value={filtroTipoCable} 
                     onChange={(e) => setFiltroTipoCable(e.target.value)}
-                    className="w-full p-2 text-xs border border-gray-200 rounded-lg bg-white focus:ring-[#1F3864] focus:outline-none font-medium"
+                    disabled={activeCategory !== 'INSTRUMENTACION'}
+                    className="w-full p-2 text-xs border border-gray-200 rounded-lg bg-white disabled:bg-gray-100 disabled:text-gray-405 focus:ring-[#1F3864] focus:outline-none font-medium text-gray-800"
                   >
                     <option value="">Todos</option>
                     {tiposCableUnicos.map(t => (
@@ -2209,14 +2242,24 @@ export const VistaGenerar: React.FC = () => {
                     ))}
                   </select>
                 </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1.5 tracking-wider">Fecha Asociación</label>
+                  <input 
+                    type="date"
+                    value={filtroFechaFoto} 
+                    onChange={(e) => setFiltroFechaFoto(e.target.value)}
+                    className="w-full p-2 text-xs border border-gray-200 rounded-lg bg-white focus:ring-[#1F3864] focus:outline-none font-medium text-gray-800"
+                  />
+                </div>
                 <div className="flex items-end">
                   <button 
                     onClick={() => {
                       setFiltroUbicacion('');
                       setFiltroTipoCable('');
+                      setFiltroFechaFoto('');
                       setSearchQuery('');
                     }}
-                    className="w-full py-2 px-3 text-[10px] font-bold uppercase bg-gray-200 text-gray-600 rounded-lg hover:bg-gray-300 transition-colors"
+                    className="w-full py-2.5 px-3 text-[10px] font-bold uppercase bg-gray-200 text-gray-650 rounded-lg hover:bg-gray-300 transition-colors cursor-pointer"
                   >
                     Limpiar Filtros
                   </button>
@@ -2406,25 +2449,29 @@ export const VistaGenerar: React.FC = () => {
                   </div>
                 )}
                 
-                <Button 
-                  onClick={() => exportarPDF('UNIDO')} 
-                  variant="pdf" 
-                  icon={Printer} 
-                  disabled={selectedTags.length === 0 || !selectedProfile}
-                  className="w-full py-4 shadow-lg shadow-red-200 active:scale-[0.98] transition-all rounded-xl font-black text-[10px] uppercase tracking-widest"
-                >
-                  Generar Protocolos (PDF)
-                </Button>
+                {appSettings.enableExportPdf && (
+                  <Button 
+                    onClick={() => exportarPDF('UNIDO')} 
+                    variant="pdf" 
+                    icon={Printer} 
+                    disabled={selectedTags.length === 0 || !selectedProfile}
+                    className="w-full py-4 shadow-lg shadow-red-200 active:scale-[0.98] transition-all rounded-xl font-black text-[10px] uppercase tracking-widest"
+                  >
+                    Generar Protocolos (PDF)
+                  </Button>
+                )}
                 
-                <Button 
-                  onClick={exportarExcel} 
-                  variant="success" 
-                  icon={FileSpreadsheet} 
-                  disabled={isExporting || selectedTags.length === 0 || !selectedProfile}
-                  className="w-full py-4 shadow-lg shadow-green-200 active:scale-[0.98] transition-all rounded-xl font-black text-[10px] uppercase tracking-widest"
-                >
-                  {isExporting ? 'Procesando...' : 'Descargar Excel (.xlsx)'}
-                </Button>
+                {appSettings.enableExportXlsx && (
+                  <Button 
+                    onClick={exportarExcel} 
+                    variant="success" 
+                    icon={FileSpreadsheet} 
+                    disabled={isExporting || selectedTags.length === 0 || !selectedProfile}
+                    className="w-full py-4 shadow-lg shadow-green-200 active:scale-[0.98] transition-all rounded-xl font-black text-[10px] uppercase tracking-widest"
+                  >
+                    {isExporting ? 'Procesando...' : 'Descargar Excel (.xlsx)'}
+                  </Button>
+                )}
                 
                 <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 flex items-start gap-2">
                   <AlertCircle size={14} className="text-amber-500 shrink-0 mt-0.5" />

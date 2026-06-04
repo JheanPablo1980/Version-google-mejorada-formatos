@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Camera, ImagePlus, Search, Check, X, Trash2, AlertTriangle, Cloud, Loader2, Filter, ArrowDownAZ, ArrowUpZA, Upload, Sparkles, AlertCircle, FileImage, Folder, FolderOpen, ChevronRight, ChevronDown, Layers, MapPin } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { Button } from './ui/Button';
@@ -6,8 +6,10 @@ import { compressImage } from '../lib/imageUtils';
 import { motion, AnimatePresence } from 'motion/react';
 
 export const RegistroFotos: React.FC = () => {
-  const { instrumentos, potenciaEquipos, fotos, saveFoto, deleteFoto, driveFolderLink } = useAppStore();
-  const [activeCategory, setActiveCategory] = useState<'INSTRUMENTACION' | 'POTENCIA'>('INSTRUMENTACION');
+  const { instrumentos, potenciaEquipos, fotos, saveFoto, deleteFoto, driveFolderLink, appSettings } = useAppStore();
+  const [activeCategory, setActiveCategory] = useState<'INSTRUMENTACION' | 'POTENCIA'>(
+    appSettings.enableGenInstrumentacion ? 'INSTRUMENTACION' : 'POTENCIA'
+  );
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [lastCapturedTags, setLastCapturedTags] = useState<string[]>([]); 
   const [searchTerm, setSearchTerm] = useState('');
@@ -18,15 +20,36 @@ export const RegistroFotos: React.FC = () => {
   const [observacion, setObservacion] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [fotoFilter, setFotoFilter] = useState<'all' | 'with' | 'without'>('all');
+  const [confirmClearData, setConfirmClearData] = useState<{
+    message: string;
+    tagsToClear: string[];
+    fotosToClear: any[];
+  } | null>(null);
 
   // Estados para Modo Automático
-  const [uploadMode, setUploadMode] = useState<'manual' | 'auto'>('manual');
+  const [uploadMode, setUploadMode] = useState<'manual' | 'auto'>(
+    appSettings.enableUploadManual ? 'manual' : (appSettings.enableUploadAuto ? 'auto' : 'manual')
+  );
+
+  useEffect(() => {
+    if (!appSettings.enableUploadManual && uploadMode === 'manual') {
+      if (appSettings.enableUploadAuto) {
+        setUploadMode('auto');
+      }
+    } else if (!appSettings.enableUploadAuto && uploadMode === 'auto') {
+      if (appSettings.enableUploadManual) {
+        setUploadMode('manual');
+      }
+    }
+  }, [appSettings.enableUploadManual, appSettings.enableUploadAuto, uploadMode]);
+
   const [autoPreviews, setAutoPreviews] = useState<any[]>([]);
   const [autoIsDragging, setAutoIsDragging] = useState(false);
   const [isProcessingAuto, setIsProcessingAuto] = useState(false);
   const fileInputAutoRef = useRef<HTMLInputElement>(null);
   const [isHoveringDropzone, setIsHoveringDropzone] = useState(false);
   const [selectedAutoTagFilter, setSelectedAutoTagFilter] = useState<string | null>(null);
+  const [autoStatusFilter, setAutoStatusFilter] = useState<'all' | 'success' | 'warning' | 'error'>('all');
 
   const [isDriveModalOpen, setIsDriveModalOpen] = useState(false);
   const [driveFiles, setDriveFiles] = useState<{id: string, name: string, mimeType: string, thumbnailLink?: string}[]>([]);
@@ -147,6 +170,55 @@ export const RegistroFotos: React.FC = () => {
     const fotosDelTag = fotos.filter(f => f.TAGNAME === tag);
     fotosDelTag.forEach(f => deleteFoto(f.id));
     showNotification(`Se han borrado las fotos del TAG ${tag}.`, 'info');
+  };
+
+  const handleBatchClearPhotos = () => {
+    const tagsToClear = selectedTags.length > 0
+      ? selectedTags
+      : filteredInstruments.map((i: any) => i[tagKey]);
+
+    if (tagsToClear.length === 0) {
+      showNotification("No hay TAGs para limpiar.", "error");
+      return;
+    }
+
+    const fotosToClear = fotos.filter(f => tagsToClear.includes(f.TAGNAME));
+    if (fotosToClear.length === 0) {
+      showNotification("No hay fotos asociadas para limpiar en los TAGs indicados.", "info");
+      return;
+    }
+
+    const confirmMsg = selectedTags.length > 0
+      ? `¿Estás seguro de que deseas eliminar todas las fotos de los ${selectedTags.length} TAGs seleccionados? (${fotosToClear.length} fotos de forma permanente)`
+      : `¿Estás seguro de que deseas eliminar todas las fotos de los ${filteredInstruments.length} TAGs mostrados en la lista? (${fotosToClear.length} fotos de forma permanente)`;
+
+    setConfirmClearData({
+      message: confirmMsg,
+      tagsToClear,
+      fotosToClear
+    });
+  };
+
+  const executeBatchClear = async () => {
+    if (!confirmClearData) return;
+    setIsProcessing(true);
+    try {
+      let count = 0;
+      for (const f of confirmClearData.fotosToClear) {
+        await deleteFoto(f.id);
+        count++;
+      }
+      showNotification(`Se han eliminado ${count} fotos con éxito.`, "info");
+      if (selectedTags.length > 0) {
+        setSelectedTags([]);
+      }
+    } catch (err) {
+      console.error(err);
+      showNotification("Error al eliminar algunas fotos.", "error");
+    } finally {
+      setIsProcessing(false);
+      setConfirmClearData(null);
+    }
   };
 
   const handleImageCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -459,6 +531,14 @@ export const RegistroFotos: React.FC = () => {
     );
   };
 
+  const handleUpdateItemFileName = (tempId: string, newFileName: string) => {
+    setAutoPreviews(prev => 
+      prev.map(item => 
+        item.tempId === tempId ? { ...item, fileName: newFileName } : item
+      )
+    );
+  };
+
   const handleDeleteItem = (tempId: string) => {
     setAutoPreviews(prev => {
       const updated = prev.filter(item => item.tempId !== tempId);
@@ -537,59 +617,75 @@ export const RegistroFotos: React.FC = () => {
       <h2 className="text-2xl font-bold text-[#1F3864] flex items-center gap-2"><Camera size={24} /> Registro Fotográfico</h2>
       
       {/* Selector de Modo (Manual / Automático) */}
-      <div className="bg-gray-100 p-1 rounded-xl grid grid-cols-2 gap-1 mb-4 shrink-0 shadow-inner">
-        <button
-          onClick={() => setUploadMode('manual')}
-          className={`py-2 px-3 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-2 ${
-            uploadMode === 'manual'
-            ? 'bg-[#1F3864] text-white shadow-sm ring-1 ring-black/5'
-            : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50/50'
-          }`}
-        >
-          <Camera size={14} />
-          Modo Manual
-        </button>
-        <button
-          onClick={() => setUploadMode('auto')}
-          className={`py-2 px-3 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-2 ${
-            uploadMode === 'auto'
-            ? 'bg-[#1F3864] text-white shadow-sm ring-1 ring-black/5'
-            : 'text-gray-550 hover:text-gray-800 hover:bg-gray-50/50'
-          }`}
-        >
-          <Sparkles size={14} className={uploadMode === 'auto' ? 'text-yellow-400 fill-yellow-400 animate-pulse' : 'text-gray-400'} />
-          Carga Masiva Automática
-        </button>
-      </div>
+      {(appSettings.enableUploadManual || appSettings.enableUploadAuto) && (
+        <div className={`bg-gray-100 p-1 rounded-xl grid ${appSettings.enableUploadManual && appSettings.enableUploadAuto ? 'grid-cols-2' : 'grid-cols-1'} gap-1 mb-4 shrink-0 shadow-inner`}>
+          {appSettings.enableUploadManual && (
+            <button
+              onClick={() => setUploadMode('manual')}
+              className={`py-2 px-3 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-2 ${
+                uploadMode === 'manual'
+                ? 'bg-[#1F3864] text-white shadow-sm ring-1 ring-black/5'
+                : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50/50'
+              }`}
+            >
+              <Camera size={14} />
+              Modo Manual
+            </button>
+          )}
+          {appSettings.enableUploadAuto && (
+            <button
+              onClick={() => setUploadMode('auto')}
+              className={`py-2 px-3 rounded-lg text-xs font-black transition-all flex items-center justify-center gap-2 ${
+                uploadMode === 'auto'
+                ? 'bg-[#1F3864] text-white shadow-sm ring-1 ring-black/5'
+                : 'text-gray-550 hover:text-gray-800 hover:bg-gray-50/50'
+              }`}
+            >
+              <Sparkles size={14} className={uploadMode === 'auto' ? 'text-yellow-400 fill-yellow-400 animate-pulse' : 'text-gray-400'} />
+              Carga Masiva Automática
+            </button>
+          )}
+        </div>
+      )}
 
-      {uploadMode === 'manual' ? (
+      {!appSettings.enableUploadManual && !appSettings.enableUploadAuto && (
+        <div className="bg-red-50 text-red-500 p-4 rounded-xl text-center shadow-sm">
+          No hay modos de subida habilitados. Habilítalos en el menú de administrador.
+        </div>
+      )}
+
+      {uploadMode === 'manual' && appSettings.enableUploadManual ? (
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
           {/* Columna Izquierda: Listado de Tags Planos */}
           <div className="md:col-span-5 bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col min-h-[500px] md:h-[620px]">
             {/* Selector de Categoría (Instrumentación / Potencia) */}
-            <div className="grid grid-cols-2 gap-3 mb-4 shrink-0">
-              <button
-                onClick={() => { setActiveCategory('INSTRUMENTACION'); setSelectedTags([]); setFotoFilter('all'); }}
-                className={`py-3 px-4 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
-                  activeCategory === 'INSTRUMENTACION' 
-                  ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-100 ring-2 ring-blue-50' 
-                  : 'bg-white border-blue-50 text-blue-400 hover:border-blue-200 hover:text-blue-600'
-                }`}
-              >
-                <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'INSTRUMENTACION' ? 'bg-white animate-pulse' : 'bg-blue-100'}`} />
-                Instrumentación
-              </button>
-              <button
-                onClick={() => { setActiveCategory('POTENCIA'); setSelectedTags([]); setFotoFilter('all'); }}
-                className={`py-3 px-4 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
-                  activeCategory === 'POTENCIA' 
-                  ? 'bg-orange-600 border-orange-600 text-white shadow-lg shadow-orange-100 ring-2 ring-orange-50' 
-                  : 'bg-white border-orange-50 text-orange-400 hover:border-orange-200 hover:text-orange-600'
-                }`}
-              >
-                <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'POTENCIA' ? 'bg-white animate-pulse' : 'bg-orange-100'}`} />
-                Potencia
-              </button>
+            <div className="grid gap-3 mb-4 shrink-0 grid-cols-1 sm:grid-cols-2">
+              {appSettings.enableGenInstrumentacion && (
+                <button
+                  onClick={() => { setActiveCategory('INSTRUMENTACION'); setSelectedTags([]); setFotoFilter('all'); }}
+                  className={`py-3 px-4 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
+                    activeCategory === 'INSTRUMENTACION' 
+                    ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-100 ring-2 ring-blue-50' 
+                    : 'bg-white border-blue-50 text-blue-400 hover:border-blue-200 hover:text-blue-600'
+                  }`}
+                >
+                  <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'INSTRUMENTACION' ? 'bg-white animate-pulse' : 'bg-blue-100'}`} />
+                  Instrumentación
+                </button>
+              )}
+              {appSettings.enableGenPotencia && (
+                <button
+                  onClick={() => { setActiveCategory('POTENCIA'); setSelectedTags([]); setFotoFilter('all'); }}
+                  className={`py-3 px-4 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
+                    activeCategory === 'POTENCIA' 
+                    ? 'bg-orange-600 border-orange-600 text-white shadow-lg shadow-orange-100 ring-2 ring-orange-50' 
+                    : 'bg-white border-orange-50 text-orange-400 hover:border-orange-200 hover:text-orange-600'
+                  }`}
+                >
+                  <div className={`w-1.5 h-1.5 rounded-full ${activeCategory === 'POTENCIA' ? 'bg-white animate-pulse' : 'bg-orange-100'}`} />
+                  Potencia
+                </button>
+              )}
             </div>
 
             <label className="block text-sm font-semibold text-gray-750 mb-2.5">1. Seleccionar {activeCategory === 'POTENCIA' ? 'Equipo' : 'Instrumento'}</label>
@@ -675,6 +771,15 @@ export const RegistroFotos: React.FC = () => {
               >
                 <X size={11} className="stroke-[3]" />
                 Sin Foto
+              </button>
+              <button
+                type="button"
+                onClick={handleBatchClearPhotos}
+                className="flex-1 py-1.5 px-2 rounded-lg text-[10px] font-black transition-all uppercase tracking-wider text-center cursor-pointer flex items-center justify-center gap-1 text-red-600 hover:text-red-700 hover:bg-red-50/80 hover:scale-[1.02] active:scale-95 duration-100"
+                title="Eliminar fotos de los TAGs seleccionados o filtrados para dejarlos en limpio"
+              >
+                <Trash2 size={11} />
+                Limpiar
               </button>
             </div>
 
@@ -803,19 +908,25 @@ export const RegistroFotos: React.FC = () => {
                     onChange={(e) => setObservacion(e.target.value)} 
                   />
                   
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="flex gap-2">
                     <input type="file" accept="image/*" capture="environment" className="hidden" ref={cameraInputRef} onChange={handleImageCapture} />
                     <input type="file" accept="image/*" multiple className="hidden" ref={fileInputRef} onChange={handleImageCapture} />
                     
-                    <Button onClick={() => cameraInputRef.current?.click()} variant="primary" icon={Camera} disabled={isProcessing} className="text-xs px-2 font-bold py-2.5">
-                      {isProcessing ? 'Proc...' : 'Cámara'}
-                    </Button>
-                    <Button onClick={() => fileInputRef.current?.click()} variant="secondary" icon={ImagePlus} disabled={isProcessing} className="text-xs px-2 font-bold py-2.5">
-                      Galería
-                    </Button>
-                    <Button onClick={openDriveModal} variant="secondary" icon={Cloud} disabled={isProcessing} className="text-xs px-2 font-bold py-2.5 bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200">
-                      Drive
-                    </Button>
+                    {appSettings.enableCameraAuto && (
+                      <Button onClick={() => cameraInputRef.current?.click()} variant="primary" icon={Camera} disabled={isProcessing} className="flex-1 text-xs px-2 font-bold py-2.5">
+                        {isProcessing ? 'Proc...' : 'Cámara'}
+                      </Button>
+                    )}
+                    {appSettings.enableCameraManual && (
+                      <Button onClick={() => fileInputRef.current?.click()} variant="secondary" icon={ImagePlus} disabled={isProcessing} className="flex-1 text-xs px-2 font-bold py-2.5">
+                        Galería
+                      </Button>
+                    )}
+                    {appSettings.enableMassUploadDrive && (
+                      <Button onClick={openDriveModal} variant="secondary" icon={Cloud} disabled={isProcessing} className="flex-1 text-xs px-2 font-bold py-2.5 bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200">
+                        Drive
+                      </Button>
+                    )}
                   </div>
                 </div>
 
@@ -868,7 +979,7 @@ export const RegistroFotos: React.FC = () => {
             )}
           </div>
         </div>
-      ) : (
+      ) : uploadMode === 'auto' && appSettings.enableUploadAuto ? (
         /* VISTA DE MODO AUTOMÁTICO DE CARGA */
         <div className="space-y-6">
           {/* Selector de Categoría (Instrumentación / Potencia) */}
@@ -876,7 +987,7 @@ export const RegistroFotos: React.FC = () => {
             <label className="block text-xs font-bold text-gray-500 uppercase mb-3">1. Seleccionar Categoría a buscar</label>
             <div className="grid grid-cols-2 gap-3 shrink-0">
               <button
-                onClick={() => { setActiveCategory('INSTRUMENTACION'); setAutoPreviews([]); setSelectedAutoTagFilter(null); }}
+                onClick={() => { setActiveCategory('INSTRUMENTACION'); setAutoPreviews([]); setSelectedAutoTagFilter(null); setAutoStatusFilter('all'); }}
                 className={`py-3 px-4 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
                   activeCategory === 'INSTRUMENTACION' 
                   ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-100 ring-2 ring-blue-50' 
@@ -887,7 +998,7 @@ export const RegistroFotos: React.FC = () => {
                 Instrumentación
               </button>
               <button
-                onClick={() => { setActiveCategory('POTENCIA'); setAutoPreviews([]); setSelectedAutoTagFilter(null); }}
+                onClick={() => { setActiveCategory('POTENCIA'); setAutoPreviews([]); setSelectedAutoTagFilter(null); setAutoStatusFilter('all'); }}
                 className={`py-3 px-4 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
                   activeCategory === 'POTENCIA' 
                   ? 'bg-orange-600 border-orange-600 text-white shadow-lg shadow-orange-100 ring-2 ring-orange-50' 
@@ -1050,117 +1161,193 @@ export const RegistroFotos: React.FC = () => {
                     )}
                   </div>
                   <button 
-                    onClick={() => { setAutoPreviews([]); setSelectedAutoTagFilter(null); }} 
+                    onClick={() => { setAutoPreviews([]); setSelectedAutoTagFilter(null); setAutoStatusFilter('all'); }} 
                     className="text-xs font-bold text-red-500 hover:text-red-700 uppercase"
                   >
                     Limpiar lote
                   </button>
                 </div>
 
+                {/* Filtro por estado para fotos del lote */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1.5 bg-gray-50 border border-gray-150 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setAutoStatusFilter('all')}
+                    className={`py-1.5 px-2 rounded-lg text-[10px] font-black transition-all uppercase tracking-wider text-center cursor-pointer flex items-center justify-center gap-1 min-h-[32px] ${
+                      autoStatusFilter === 'all'
+                        ? `${activeCategory === 'POTENCIA' ? 'bg-orange-600' : 'bg-[#1F3864]'} text-white shadow-sm`
+                        : 'text-gray-500 hover:text-gray-800 hover:bg-white/50'
+                    }`}
+                  >
+                    <span>Todos ({autoPreviews.length})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAutoStatusFilter('success')}
+                    className={`py-1.5 px-2 rounded-lg text-[10px] font-black transition-all uppercase tracking-wider text-center cursor-pointer flex items-center justify-center gap-1 min-h-[32px] ${
+                      autoStatusFilter === 'success'
+                        ? 'bg-green-600 text-white shadow-sm'
+                        : 'text-green-600 bg-white border border-green-150 hover:bg-green-50/40'
+                    }`}
+                  >
+                    <Check size={11} className="stroke-[3]" />
+                    <span>Match ({autoPreviews.filter(p => p.status === 'success').length})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAutoStatusFilter('warning')}
+                    className={`py-1.5 px-2 rounded-lg text-[10px] font-black transition-all uppercase tracking-wider text-center cursor-pointer flex items-center justify-center gap-1 min-h-[32px] ${
+                      autoStatusFilter === 'warning'
+                        ? 'bg-yellow-600 text-white shadow-sm'
+                        : 'text-yellow-600 bg-white border border-yellow-150 hover:bg-yellow-50/40'
+                    }`}
+                  >
+                    <AlertCircle size={11} />
+                    <span>Sin Match ({autoPreviews.filter(p => p.status === 'warning').length})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAutoStatusFilter('error')}
+                    className={`py-1.5 px-2 rounded-lg text-[10px] font-black transition-all uppercase tracking-wider text-center cursor-pointer flex items-center justify-center gap-1 min-h-[32px] ${
+                      autoStatusFilter === 'error'
+                        ? 'bg-red-650 text-white shadow-sm bg-red-600'
+                        : 'text-red-500 bg-white border border-red-150 hover:bg-red-50/40'
+                    }`}
+                  >
+                    <AlertCircle size={11} />
+                    <span>Límite ({autoPreviews.filter(p => p.status === 'error').length})</span>
+                  </button>
+                </div>
+
                 <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
-                  {(selectedAutoTagFilter 
-                    ? autoPreviews.filter(p => p.matchedTag === selectedAutoTagFilter) 
-                    : autoPreviews
-                  ).map((item) => {
-                    const isSuccess = item.status === 'success';
-                    const isError = item.status === 'error';
-                    const isWarning = item.status === 'warning';
+                  {autoPreviews
+                    .filter(p => !selectedAutoTagFilter || p.matchedTag === selectedAutoTagFilter)
+                    .filter(p => autoStatusFilter === 'all' || p.status === autoStatusFilter)
+                    .map((item) => {
+                      const isSuccess = item.status === 'success';
+                      const isError = item.status === 'error';
+                      const isWarning = item.status === 'warning';
 
-                    return (
-                      <div 
-                        key={item.tempId} 
-                        className={`flex flex-col gap-3 p-3 rounded-lg border transition-all ${
-                          isSuccess ? 'border-green-100 bg-green-50/20' : 
-                          isError ? 'border-red-100 bg-red-50/20' : 
-                          'border-yellow-100 bg-yellow-50/20'
-                        }`}
-                      >
-                        <div className="flex gap-3 items-start flex-1 min-w-0">
-                          {/* Thumbnail */}
-                          <div className="w-16 h-16 rounded overflow-hidden border border-gray-200 bg-gray-50 shrink-0 relative flex items-center justify-center">
-                            <img src={item.blobData} alt="Miniatura" className="w-full h-full object-cover" />
+                      return (
+                        <div 
+                          key={item.tempId} 
+                          className={`flex flex-col gap-3 p-3 rounded-lg border transition-all ${
+                            isSuccess ? 'border-green-100 bg-green-50/20' : 
+                            isError ? 'border-red-100 bg-red-50/20' : 
+                            'border-yellow-100 bg-yellow-50/20'
+                          }`}
+                        >
+                          <div className="flex gap-3 items-start flex-1 min-w-0">
+                            {/* Thumbnail */}
+                            <div className="w-16 h-16 rounded overflow-hidden border border-gray-200 bg-gray-50 shrink-0 relative flex items-center justify-center">
+                              <img src={item.blobData} alt="Miniatura" className="w-full h-full object-cover" />
+                            </div>
+
+                            {/* Detalles de Match o Dropdown */}
+                            <div className="flex-1 min-w-0 space-y-1.5">
+                              {/* Nombre del archivo JPG */}
+                              <div className="space-y-0.5">
+                                <span className="text-[9px] font-bold text-gray-400 uppercase">Nombre archivo JPG:</span>
+                                <input 
+                                  type="text"
+                                  value={item.fileName}
+                                  onChange={(e) => handleUpdateItemFileName(item.tempId, e.target.value)}
+                                  className="w-full p-1 border border-gray-200 rounded text-xs font-bold focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white font-mono text-gray-700"
+                                />
+                              </div>
+
+                              {/* Badge de estado */}
+                              <div className="flex flex-wrap items-center gap-1">
+                                {isSuccess && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-green-700 uppercase">
+                                    <Check size={12} className="stroke-[3]" /> Asignado
+                                  </span>
+                                )}
+                                {isWarning && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-yellow-600 uppercase">
+                                    <AlertCircle size={11} /> Sin coincidencia
+                                  </span>
+                                )}
+                                {isError && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 uppercase">
+                                    <AlertCircle size={11} /> Fuera de límite
+                                  </span>
+                                )}
+                                <span className="text-[9px] text-gray-500 italic">
+                                  ({item.message})
+                                </span>
+                              </div>
+
+                              {/* Selector de Tag Manual */}
+                              <div className="space-y-0.5">
+                                <span className="text-[9px] font-bold text-gray-400 uppercase">Asignar TAG:</span>
+                                <select
+                                  value={item.matchedTag || ''}
+                                  onChange={(e) => handleUpdateItemTag(item.tempId, e.target.value)}
+                                  className="w-full text-xs font-medium border border-gray-200 rounded p-1 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                                >
+                                  <option value="">-- Selecciona el TAG --</option>
+                                  {sortedAllTagsForDropdown.map(tOption => (
+                                    <option key={tOption} value={tOption}>{tOption}</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              {/* Observación Individual */}
+                              <div className="space-y-0.5">
+                                <span className="text-[9px] font-bold text-gray-400 uppercase">Comentario para esta foto:</span>
+                                <input 
+                                  type="text" 
+                                  placeholder="Frente del equipo, calibrador..." 
+                                  value={item.observacion}
+                                  onChange={(e) => handleUpdateItemObs(item.tempId, e.target.value)}
+                                  className="w-full p-1 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                                />
+                              </div>
+                            </div>
                           </div>
 
-                          {/* Detalles de Match o Dropdown */}
-                          <div className="flex-1 min-w-0 space-y-1.5">
-                            <div className="text-xs font-bold text-gray-700 truncate" title={item.fileName}>
-                              {item.fileName}
-                            </div>
-
-                            {/* Badge de estado */}
-                            <div className="flex flex-wrap items-center gap-1">
-                              {isSuccess && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-green-700 uppercase">
-                                  <Check size={12} className="stroke-[3]" /> Asignado
-                                </span>
-                              )}
-                              {isWarning && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-yellow-600 uppercase">
-                                  <AlertCircle size={11} /> Sin coincidencia
-                                </span>
-                              )}
-                              {isError && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 uppercase">
-                                  <AlertCircle size={11} /> Fuera de límite
-                                </span>
-                              )}
-                              <span className="text-[9px] text-gray-500 italic">
-                                ({item.message})
-                              </span>
-                            </div>
-
-                            {/* Selector de Tag Manual */}
-                            <div className="space-y-0.5">
-                              <span className="text-[9px] font-bold text-gray-400 uppercase">Asignar TAG:</span>
-                              <select
-                                value={item.matchedTag || ''}
-                                onChange={(e) => handleUpdateItemTag(item.tempId, e.target.value)}
-                                className="w-full text-xs font-medium border border-gray-200 rounded p-1 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
-                              >
-                                <option value="">-- Selecciona el TAG --</option>
-                                {sortedAllTagsForDropdown.map(tOption => (
-                                  <option key={tOption} value={tOption}>{tOption}</option>
-                                ))}
-                              </select>
-                            </div>
-
-                            {/* Observación Individual */}
-                            <div className="space-y-0.5">
-                              <span className="text-[9px] font-bold text-gray-400 uppercase">Comentario para esta foto:</span>
-                              <input 
-                                type="text" 
-                                placeholder="Frente del equipo, calibrador..." 
-                                value={item.observacion}
-                                onChange={(e) => handleUpdateItemObs(item.tempId, e.target.value)}
-                                className="w-full p-1 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
-                              />
-                            </div>
+                          {/* Botón descartar foto del lote */}
+                          <div className="flex justify-end items-start p-1 shrink-0">
+                            <button
+                              onClick={() => handleDeleteItem(item.tempId)}
+                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-gray-100 rounded transition-colors"
+                              title="Quitar foto de la lista"
+                            >
+                              <Trash2 size={16} />
+                            </button>
                           </div>
                         </div>
+                      );
+                    })}
 
-                        {/* Botón descartar foto del lote */}
-                        <div className="flex justify-end items-start p-1 shrink-0">
-                          <button
-                            onClick={() => handleDeleteItem(item.tempId)}
-                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-gray-100 rounded transition-colors"
-                            title="Quitar foto de la lista"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {selectedAutoTagFilter && autoPreviews.filter(p => p.matchedTag === selectedAutoTagFilter).length === 0 && (
+                  {autoPreviews
+                    .filter(p => !selectedAutoTagFilter || p.matchedTag === selectedAutoTagFilter)
+                    .filter(p => autoStatusFilter === 'all' || p.status === autoStatusFilter).length === 0 && (
                     <div className="text-center py-10 bg-gray-50/50 border border-dashed border-gray-200 rounded-lg p-6">
-                      <p className="text-xs font-semibold text-gray-500 uppercase">No quedan fotos asignadas para {selectedAutoTagFilter}</p>
-                      <button 
-                        onClick={() => setSelectedAutoTagFilter(null)}
-                        className="text-xs font-black text-blue-600 hover:underline mt-2 uppercase tracking-wide"
-                      >
-                        Ver todas las fotos
-                      </button>
+                      <p className="text-xs font-semibold text-gray-500 uppercase">
+                        No hay fotos coincidentes con los filtros seleccionados
+                      </p>
+                      <div className="flex justify-center gap-4 mt-3">
+                        {selectedAutoTagFilter && (
+                          <button 
+                            type="button"
+                            onClick={() => setSelectedAutoTagFilter(null)}
+                            className="text-[11px] font-extrabold text-blue-600 hover:text-blue-800 transition-colors uppercase tracking-wider"
+                          >
+                            Quitar filtro de TAG
+                          </button>
+                        )}
+                        {autoStatusFilter !== 'all' && (
+                          <button 
+                            type="button"
+                            onClick={() => setAutoStatusFilter('all')}
+                            className="text-[11px] font-extrabold text-[#1F3864] hover:underline transition-colors uppercase tracking-wider"
+                          >
+                            Mostrar todos los estados
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1270,7 +1457,7 @@ export const RegistroFotos: React.FC = () => {
             </div>
           )}
         </div>
-      )}
+      ) : null}
 
       {/* Drive Modal */}
       <AnimatePresence>
@@ -1348,6 +1535,69 @@ export const RegistroFotos: React.FC = () => {
                 >
                   {isProcessing ? <Loader2 className="animate-spin" size={18} /> : `Importar (${selectedDriveFileIds.length})`}
                 </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {confirmClearData && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl max-w-sm w-full shadow-2xl border border-red-55 overflow-hidden"
+            >
+              <div className="bg-red-50 p-5 text-red-700 flex items-center gap-3 border-b border-red-100">
+                <div className="p-2 bg-red-100 rounded-full text-red-600 shrink-0">
+                  <Trash2 size={20} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-xs uppercase tracking-tight">Confirmar Limpieza</h3>
+                  <p className="text-[9px] text-red-600/80 font-bold font-sans">Esta acción eliminará fotos permanentemente</p>
+                </div>
+              </div>
+              <div className="p-5">
+                <p className="text-xs text-gray-700 leading-relaxed font-bold">
+                  {confirmClearData.message}
+                </p>
+                <div className="mt-3 bg-gray-50 border border-gray-100 rounded-xl p-3 max-h-32 overflow-y-auto">
+                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block mb-1">TAGs a limpiar:</span>
+                  <div className="flex flex-wrap gap-1">
+                    {confirmClearData.tagsToClear.map(t => (
+                      <span key={t} className="text-[10px] font-black bg-white border border-gray-200 px-1.5 py-0.5 rounded text-gray-700 shadow-xs">
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setConfirmClearData(null)}
+                  className="flex-1 py-2 px-3 text-[10px] font-bold text-gray-650 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors uppercase tracking-wider cursor-pointer font-sans"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={executeBatchClear}
+                  disabled={isProcessing}
+                  className="flex-1 py-2 px-3 text-[10px] font-black text-white bg-red-650 rounded-lg hover:bg-red-700 transition-colors uppercase tracking-wider shadow-sm cursor-pointer flex items-center justify-center gap-1 font-sans"
+                >
+                  {isProcessing ? (
+                    <>
+                      <Loader2 size={12} className="animate-spin" />
+                      Procesando...
+                    </>
+                  ) : (
+                    <>
+                      <Check size={12} className="stroke-[3]" />
+                      Confirmar
+                    </>
+                  )}
+                </button>
               </div>
             </motion.div>
           </div>

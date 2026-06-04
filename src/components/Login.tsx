@@ -1,19 +1,56 @@
 import React, { useState } from 'react';
-import { User, Lock, Shield, UserCog, LogIn } from 'lucide-react';
-import { useAppStore, UserRole } from '../store/useAppStore';
+import { Mail, Lock, Shield, LogIn, UserPlus } from 'lucide-react';
+import { useAppStore } from '../store/useAppStore';
 import { motion, AnimatePresence } from 'motion/react';
 
 export const Login: React.FC = () => {
-  const [role, setRole] = useState<UserRole>('TECNICO');
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const login = useAppStore((state) => state.login);
+  const [loading, setLoading] = useState(false);
+  const { loginWithEmail, signUpWithEmail, signIn } = useAppStore();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleGoogleSignIn = async () => {
+    try {
+      setLoading(true);
+      await signIn();
+    } catch (err: any) {
+      setError(err.message || 'Error con Google Sign In');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const result = login(role, role === 'ADMIN' ? password : undefined);
-    if (!result.success) {
-      setError(result.error || 'Acceso denegado');
+    if (!email || !password) {
+      setError('Por favor ingrese correo y clave');
+      return;
+    }
+    
+    setError('');
+    setLoading(true);
+
+    try {
+      if (isSignUp) {
+        const result = await signUpWithEmail(email, password);
+        if (!result.success) {
+          setError(result.error || 'Error al registrar tu cuenta.');
+        } else if (result.error) {
+          // This means "Success" but potentially needs email confirmation
+          setError(result.error);
+        }
+      } else {
+        const result = await loginWithEmail(email, password);
+        if (!result.success) {
+          setError(result.error || 'Correo o contraseña incorrectos.');
+        }
+      }
+    } catch (err: any) {
+      setError(err.message || 'Error inesperado');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -28,82 +65,100 @@ export const Login: React.FC = () => {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white/10 mb-4 backdrop-blur-sm">
             <Shield className="text-blue-300" size={32} />
           </div>
-          <h1 className="text-2xl font-bold text-white uppercase tracking-tight">Acceso al Sistema</h1>
+          <h1 className="text-2xl font-bold text-white uppercase tracking-tight">
+            {isSignUp ? 'Crear Cuenta' : 'Acceso al Sistema'}
+          </h1>
           <p className="text-blue-200 text-sm mt-2 opacity-80">Protocolos I&C - Smurfit Westrock</p>
         </div>
 
         <form onSubmit={handleSubmit} className="p-8 space-y-6">
           <div className="space-y-4">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block">Seleccionar Rol</label>
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                type="button"
-                onClick={() => { setRole('TECNICO'); setError(''); }}
-                className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all gap-2 ${
-                  role === 'TECNICO' 
-                    ? 'border-blue-600 bg-blue-50 text-blue-700' 
-                    : 'border-slate-100 bg-slate-50 text-slate-400 hover:border-slate-200'
-                }`}
-              >
-                <User size={24} />
-                <span className="text-xs font-bold uppercase tracking-tighter">Técnico</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => { setRole('ADMIN'); setError(''); }}
-                className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all gap-2 ${
-                  role === 'ADMIN' 
-                    ? 'border-blue-600 bg-blue-50 text-blue-700' 
-                    : 'border-slate-100 bg-slate-50 text-slate-400 hover:border-slate-200'
-                }`}
-              >
-                <UserCog size={24} />
-                <span className="text-xs font-bold uppercase tracking-tighter">Administrador</span>
-              </button>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block">Correo Electrónico</label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => { setEmail(e.target.value); setError(''); }}
+                  placeholder="usuario@ejemplo.com"
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block">Contraseña</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => { setPassword(e.target.value); setError(''); }}
+                  placeholder={isSignUp ? "Al menos 6 caracteres" : "Ingrese su clave"}
+                  minLength={6}
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm"
+                  required
+                />
+              </div>
             </div>
           </div>
 
           <AnimatePresence mode="wait">
-            {role === 'ADMIN' && (
-              <motion.div 
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                className="space-y-2 overflow-hidden"
+            {error && (
+              <motion.p 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="text-red-500 text-[10px] font-bold uppercase bg-red-50 p-2 rounded-lg border border-red-100"
               >
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block">Contraseña</label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                    placeholder="Ingrese la clave"
-                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm"
-                    autoFocus
-                  />
-                </div>
-              </motion.div>
+                {error}
+              </motion.p>
             )}
           </AnimatePresence>
 
-          {error && (
-            <motion.p 
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="text-red-500 text-[10px] font-bold uppercase bg-red-50 p-2 rounded-lg border border-red-100"
-            >
-              {error}
-            </motion.p>
-          )}
-
           <button
             type="submit"
-            className="w-full bg-[#1F3864] hover:bg-blue-800 text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-900/10 active:scale-95"
+            disabled={loading}
+            className={`w-full bg-[#1F3864] hover:bg-blue-800 text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-900/10 active:scale-95 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
           >
-            <LogIn size={20} />
-            <span className="uppercase tracking-widest text-sm">Entrar</span>
+            {isSignUp ? <UserPlus size={20} /> : <LogIn size={20} />}
+            <span className="uppercase tracking-widest text-sm">
+              {loading ? 'Procesando...' : (isSignUp ? 'Registrarse' : 'Entrar')}
+            </span>
           </button>
+
+          <div className="relative flex items-center py-4">
+            <div className="flex-grow border-t border-slate-200"></div>
+            <span className="flex-shrink-0 mx-4 text-xs text-slate-400 font-medium uppercase tracking-widest">O</span>
+            <div className="flex-grow border-t border-slate-200"></div>
+          </div>
+
+          <button
+            type="button"
+            disabled={loading}
+            onClick={handleGoogleSignIn}
+            className="w-full bg-white hover:bg-slate-50 text-slate-700 font-bold py-3.5 rounded-xl border border-slate-200 transition-all flex items-center justify-center gap-3 shadow-sm active:scale-95"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+            <span className="uppercase tracking-wide text-sm">Continuar con Google</span>
+          </button>
+          
+          <div className="text-center mt-6">
+            <button
+              type="button"
+              onClick={() => { setIsSignUp(!isSignUp); setError(''); }}
+              className="text-xs font-bold text-blue-600 hover:text-blue-800 uppercase tracking-wide transition-colors"
+            >
+              {isSignUp ? "¿Ya tienes cuenta? Inicia sesión" : "¿No tienes cuenta? Regístrate aquí"}
+            </button>
+          </div>
         </form>
 
         <div className="p-6 bg-slate-50 border-t border-slate-100 text-center">

@@ -20,45 +20,38 @@ import {
 import { format, isWithinInterval, parseISO, startOfDay, endOfDay } from 'date-fns';
 
 export function Dashboard() {
-  const { exportLogs, instrumentos } = useAppStore();
+  const { conteoExportacion } = useAppStore();
   const [startDate, setStartDate] = useState(format(new Date(new Date().setDate(new Date().getDate() - 30)), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [selectedTag, setSelectedTag] = useState<string>('all');
   const [selectedRole, setSelectedRole] = useState<string>('all');
-  const [selectedType, setSelectedType] = useState<string>('all');
 
-  // Filtrar logs según fecha, tag, rol y tipo
-  const filteredLogs = useMemo(() => {
-    return exportLogs.filter(log => {
-      const logDate = parseISO(log.timestamp);
+  // Filtrar conteos según fecha, tag, rol
+  const filteredConteos = useMemo(() => {
+    return conteoExportacion.filter(log => {
+      const logDate = parseISO(log.fecha_hora);
       const isWithinDates = isWithinInterval(logDate, {
         start: startOfDay(parseISO(startDate)),
         end: endOfDay(parseISO(endDate))
       });
-      const matchesTag = selectedTag === 'all' || log.tagname === selectedTag;
-      
-      // Filtro de rol (considerando logs antiguos que podrían no tener rol)
+      const matchesTag = selectedTag === 'all' || log.tag === selectedTag;
       const matchesRole = selectedRole === 'all' || log.user_role === selectedRole;
-
-      // Filtro de tipo de perfil
-      const matchesType = selectedType === 'all' || log.tipo_perfil === selectedType;
       
-      return isWithinDates && matchesTag && matchesRole && matchesType;
+      return isWithinDates && matchesTag && matchesRole;
     });
-  }, [exportLogs, startDate, endDate, selectedTag, selectedRole, selectedType]);
+  }, [conteoExportacion, startDate, endDate, selectedTag, selectedRole]);
 
   // Lista de tags únicos que han sido exportados
   const uniqueTags = useMemo(() => {
-    const tags = new Set(exportLogs.map(l => l.tagname));
+    const tags = new Set(conteoExportacion.map(l => l.tag));
     return Array.from(tags).filter(Boolean).sort();
-  }, [exportLogs]);
+  }, [conteoExportacion]);
 
-  // Lista de usuarios/emails únicos para referencia (opcional, pero el usuario pidió Admin o Técnico)
   const roles = ['ADMIN', 'TECNICO', 'INVITADO'];
 
-  // Datos para gráfico de barras por día
+  // Datos para gráfico de líneas por día
   const dailyData = useMemo(() => {
-    const map = new Map<string, { date: string, total: number, excel: number, pdf: number }>();
+    const map = new Map<string, { date: string, total: number }>();
     
     // Inicializar días en el rango
     let current = startOfDay(parseISO(startDate));
@@ -66,37 +59,33 @@ export function Dashboard() {
     
     while (current <= end) {
       const d = format(current, 'yyyy-MM-dd');
-      map.set(d, { date: d, total: 0, excel: 0, pdf: 0 });
+      map.set(d, { date: d, total: 0 });
       current.setDate(current.getDate() + 1);
     }
 
-    filteredLogs.forEach(log => {
-      const d = format(parseISO(log.timestamp), 'yyyy-MM-dd');
+    filteredConteos.forEach(log => {
+      const d = format(parseISO(log.fecha_hora), 'yyyy-MM-dd');
       if (map.has(d)) {
         const entry = map.get(d)!;
-        entry.total++;
-        if (log.tipo_formato === 'EXCEL') entry.excel++;
-        if (log.tipo_formato === 'PDF') entry.pdf++;
+        entry.total += log.conteo;
       }
     });
 
     return Array.from(map.values());
-  }, [filteredLogs, startDate, endDate]);
+  }, [filteredConteos, startDate, endDate]);
 
   // Totales por Tag
   const tagStats = useMemo(() => {
     const stats = new Map<string, number>();
-    filteredLogs.forEach(log => {
-      stats.set(log.tagname, (stats.get(log.tagname) || 0) + 1);
+    filteredConteos.forEach(log => {
+      stats.set(log.tag, (stats.get(log.tag) || 0) + log.conteo);
     });
     return Array.from(stats.entries())
       .map(([tag, count]) => ({ tag, count }))
       .sort((a, b) => b.count - a.count);
-  }, [filteredLogs]);
+  }, [filteredConteos]);
 
-  const totalExports = filteredLogs.length;
-  const excelExports = filteredLogs.filter(l => l.tipo_formato === 'EXCEL').length;
-  const pdfExports = filteredLogs.filter(l => l.tipo_formato === 'PDF').length;
+  const totalExports = filteredConteos.reduce((acc, curr) => acc + curr.conteo, 0);
 
   const COLORS = ['#1F3864', '#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
 
@@ -138,18 +127,6 @@ export function Dashboard() {
           </select>
           <div className="h-4 w-px bg-gray-200 mx-1"></div>
           <select 
-            value={selectedType} 
-            onChange={e => setSelectedType(e.target.value)}
-            className="text-xs border rounded p-1 font-bold text-blue-900 appearance-none bg-white pr-6 min-w-[120px]"
-            style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%23a1a1aa\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\'%3E%3C/path%3E%3C/svg%3E")', backgroundPosition: 'right 0.4rem center', backgroundRepeat: 'no-repeat', backgroundSize: '0.8rem' }}
-          >
-            <option value="all">TODOS LOS TIPOS</option>
-            <option value="INSTRUMENTACION">INSTRUMENTACIÓN</option>
-            <option value="POTENCIA">POTENCIA (PRECOM)</option>
-            <option value="POTENCIA_COM">POTENCIA (COM)</option>
-          </select>
-          <div className="h-4 w-px bg-gray-200 mx-1"></div>
-          <select 
             value={selectedTag} 
             onChange={e => setSelectedTag(e.target.value)}
             className="text-xs border rounded p-1 font-bold text-blue-900 appearance-none bg-white pr-6 min-w-[120px]"
@@ -164,32 +141,14 @@ export function Dashboard() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex items-center gap-4 group hover:border-blue-200 transition-all">
+      <div className="grid grid-cols-1 sm:grid-cols-1 gap-4">
+        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex items-center gap-4 group hover:border-blue-200 transition-all justify-center">
           <div className="p-3 bg-blue-50 rounded-xl text-blue-600 group-hover:scale-110 transition-transform">
             <BarChart3 size={24} />
           </div>
           <div>
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Exportaciones</p>
-            <p className="text-2xl font-black text-[#1F3864] leading-none mt-1">{totalExports}</p>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex items-center gap-4 group hover:border-green-200 transition-all">
-          <div className="p-3 bg-green-50 rounded-xl text-green-600 group-hover:scale-110 transition-transform">
-            <FileSpreadsheet size={24} />
-          </div>
-          <div>
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Excel Generados</p>
-            <p className="text-2xl font-black text-green-700 leading-none mt-1">{excelExports}</p>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex items-center gap-4 group hover:border-red-200 transition-all">
-          <div className="p-3 bg-red-50 rounded-xl text-red-600 group-hover:scale-110 transition-transform">
-            <FileText size={24} />
-          </div>
-          <div>
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">PDF Generados</p>
-            <p className="text-2xl font-black text-red-700 leading-none mt-1">{pdfExports}</p>
+            <p className="text-3xl font-black text-[#1F3864] leading-none mt-1">{totalExports}</p>
           </div>
         </div>
       </div>
@@ -223,8 +182,7 @@ export function Dashboard() {
                   cursor={{ fill: '#f8fafc' }}
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', paddingTop: '15px' }} />
-                <Bar name="Excel" dataKey="excel" stackId="a" fill="#22c55e" radius={[0, 0, 0, 0]} />
-                <Bar name="PDF" dataKey="pdf" stackId="a" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                <Bar name="Exportaciones" dataKey="total" fill="#1F3864" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

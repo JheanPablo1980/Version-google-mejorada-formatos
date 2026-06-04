@@ -179,6 +179,27 @@ export interface ConteoExportacion {
   user_email: string;
 }
 
+export interface AuditLog {
+  id: string;
+  fecha_hora: string;
+  user_email: string;
+  user_role: string;
+  action_type: string;
+  details: string;
+}
+
+export interface AppSettings {
+  enableCameraManual: boolean;
+  enableCameraAuto: boolean;
+  enableGenInstrumentacion: boolean;
+  enableGenPotencia: boolean;
+  enableMassUploadDrive: boolean;
+  enableExportPdf: boolean;
+  enableExportXlsx: boolean;
+  enableUploadManual: boolean;
+  enableUploadAuto: boolean;
+}
+
 interface AppState {
   perfiles: Perfil[];
   fotos: Foto[];
@@ -186,14 +207,17 @@ interface AppState {
   potenciaEquipos: PotenciaEquipo[];
   exportLogs: ExportLog[];
   conteoExportacion: ConteoExportacion[];
+  auditLogs: AuditLog[];
   logoInstrumentacion: string | null;
   logoPotencia: string | null;
   driveFolderLink: string | null;
   session: UserSession | null;
   rolePermissions: Record<UserRole, RolePermissions>;
+  appSettings: AppSettings;
   adminPassword?: string;
   isInitialized: boolean;
   loadData: () => Promise<void>;
+  addAuditLog: (actionType: string, details: string) => Promise<void>;
   savePerfil: (perfil: Perfil) => Promise<{ success: boolean; error?: string }>;
   deletePerfil: (id: string) => Promise<void>;
   saveFoto: (fotoData: Foto) => Promise<void>;
@@ -203,12 +227,15 @@ interface AppState {
   deleteInstrumentos: (tagnames: string[]) => Promise<{ success: boolean; error?: string }>;
   loadInstrumentosBulk: (dataArray: Instrumento[]) => Promise<void>;
   addInstrumento: (inst: Instrumento) => Promise<{ success: boolean; error?: string }>;
+  updateInstrumento: (oldTag: string, inst: Instrumento) => Promise<{ success: boolean; error?: string }>;
   deletePotenciaEquipos: (tagnames: string[]) => Promise<{ success: boolean; error?: string }>;
   loadPotenciaEquiposBulk: (dataArray: PotenciaEquipo[]) => Promise<void>;
   addPotenciaEquipo: (inst: PotenciaEquipo) => Promise<{ success: boolean; error?: string }>;
+  updatePotenciaEquipo: (oldTag: string, inst: PotenciaEquipo) => Promise<{ success: boolean; error?: string }>;
   saveLogo: (base64: string, type: 'INSTRUMENTACION' | 'POTENCIA') => Promise<void>;
   saveDriveFolderLink: (link: string) => Promise<void>;
   updateRolePermissions: (role: UserRole, permissions: Partial<RolePermissions>) => Promise<void>;
+  updateAppSettings: (settings: Partial<AppSettings>) => Promise<void>;
   updateAdminPassword: (newPassword: string) => Promise<void>;
   syncWithSupabase: () => Promise<void>;
   clearInstrumentos: () => Promise<void>;
@@ -219,6 +246,8 @@ interface AppState {
   signIn: () => Promise<void>;
   devLogin: (role: UserRole) => void;
   login: (role: UserRole, password?: string) => { success: boolean; error?: string };
+  loginWithEmail: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  signUpWithEmail: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
 }
 
@@ -231,6 +260,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     potenciaEquipos: [],
     exportLogs: [],
     conteoExportacion: [],
+    auditLogs: [],
     logoInstrumentacion: null,
     logoPotencia: null,
     driveFolderLink: null,
@@ -240,6 +270,17 @@ export const useAppStore = create<AppState>((set, get) => ({
       ADMIN: { admin: true, dashboard: true, nuevo: true, fotos: true, galeria: true, perfiles: true, historial: true, generar: true },
       TECNICO: { admin: false, dashboard: false, nuevo: true, fotos: true, galeria: true, perfiles: true, historial: true, generar: true },
       INVITADO: { admin: false, dashboard: false, nuevo: false, fotos: false, galeria: true, perfiles: true, historial: false, generar: true }
+    },
+    appSettings: {
+      enableCameraManual: true,
+      enableCameraAuto: true,
+      enableGenInstrumentacion: true,
+      enableGenPotencia: true,
+      enableMassUploadDrive: true,
+      enableExportPdf: true,
+      enableExportXlsx: true,
+      enableUploadManual: true,
+      enableUploadAuto: true
     },
     adminPassword: '123',
 
@@ -274,14 +315,99 @@ export const useAppStore = create<AppState>((set, get) => ({
     return { success: false, error: 'Rol no válido' };
   },
 
+  loginWithEmail: async (email, password) => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      if (data.session) {
+        // Asignar el rol basado en el email
+        // Por defecto: ADMIN si es email de ADMIN, si no TECNICO
+        const role: UserRole = email === ADMIN_EMAIL ? 'ADMIN' : 'TECNICO';
+        const userSession: UserSession = {
+          user: {
+            id: data.user.id,
+            email: data.user.email || email,
+            user_metadata: data.user.user_metadata,
+          },
+          role
+        };
+        
+        set({ session: userSession });
+        localStorage.setItem('user_session', JSON.stringify(userSession));
+        return { success: true };
+      }
+      
+      return { success: false, error: 'Respuesta inválida del servidor.' };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Error inesperado al iniciar sesión' };
+    }
+  },
+
+  signUpWithEmail: async (email, password) => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      if (data.session) {
+        const role: UserRole = email === ADMIN_EMAIL ? 'ADMIN' : 'TECNICO';
+        const userSession: UserSession = {
+          user: {
+            id: data.user!.id,
+            email: data.user!.email || email,
+            user_metadata: data.user!.user_metadata,
+          },
+          role
+        };
+        
+        set({ session: userSession });
+        localStorage.setItem('user_session', JSON.stringify(userSession));
+        return { success: true };
+      } else {
+        // En caso de que se requiera confirmación de email (Supabase Auth default behavior sometimes)
+        return { success: true, error: 'Por favor, revise su correo para confirmar el registro si es necesario.' };
+      }
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Error inesperado al registrar usuario' };
+    }
+  },
+
   signIn: async () => {
-    // El acceso con Google ha sido deshabilitado a petición
-    console.log('SignIn deshabilitado - Usando modo de acceso directo');
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+        });
+        if (error) {
+          console.error('Error signing in with Google:', error.message);
+        }
+      } catch (err) {
+        console.error('Error during Google sign-in:', err);
+      }
+    } else {
+      console.warn('Supabase no está configurado para inicio de sesión con Google.');
+    }
   },
 
   signOut: async () => {
     localStorage.removeItem('user_session');
     set({ session: null });
+    
+    if (isSupabaseConfigured) {
+      await supabase.auth.signOut();
+    }
   },
 
   clearInstrumentos: async () => {
@@ -298,6 +424,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     // 2. Actualizar estado de la UI inmediatamente
     set({ instrumentos: [] });
+    get().addAuditLog('DELETE_DB_INSTRUMENTOS', 'Se eliminó la base de datos de Instrumentos de forma manual.');
 
     // 3. Intentar borrar en la nube (Supabase)
     try {
@@ -326,6 +453,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       console.error('Error clearing local IndexedDB:', dbError);
     }
     set({ potenciaEquipos: [] });
+    get().addAuditLog('DELETE_DB_POTENCIA', 'Se eliminó la base de datos de Potencia de forma manual.');
     try {
       const { error } = await supabase.from('potencia_equipos').delete().neq('tag', '_borrado_manual_');
       if (error) throw error;
@@ -345,6 +473,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
 
     set({ fotos: [] });
+    get().addAuditLog('DELETE_DB_FOTOS', 'Se eliminó la base de datos de Fotos de forma manual.');
 
     try {
       const { error } = await supabase.from('fotos').delete().neq('id', '00000000-0000-0000-0000-000000000000');
@@ -365,6 +494,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
 
     set({ perfiles: [] });
+    get().addAuditLog('DELETE_DB_PERFILES', 'Se eliminó la base de datos de Perfiles de forma manual.');
 
     try {
       const { error } = await supabase.from('perfiles').delete().neq('id_perfil', '_borrado_manual_');
@@ -379,14 +509,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     
     // 1. Limpiar IndexedDB (Tablas locales)
     try {
-      const tx = db.transaction(['perfiles', 'fotos', 'instrumentos', 'potencia_equipos', 'config', 'conteo_exportacion'], 'readwrite');
+      const tx = db.transaction(['perfiles', 'fotos', 'instrumentos', 'potencia_equipos', 'config', 'conteo_exportacion', 'audit_logs'], 'readwrite');
       await tx.objectStore('perfiles').clear();
       await tx.objectStore('fotos').clear();
       await tx.objectStore('instrumentos').clear();
       await tx.objectStore('potencia_equipos').clear();
       await tx.objectStore('config').clear();
       await tx.objectStore('conteo_exportacion').clear();
+      await tx.objectStore('audit_logs').clear();
       await tx.done;
+      get().addAuditLog('TOTAL_FACTORY_RESET', 'Se restableció de fábrica la aplicación manualmente.');
     } catch (e) {
       console.error('Local clear error:', e);
     }
@@ -399,7 +531,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         supabase.from('fotos').delete().neq('id', '00000000-0000-0000-0000-000000000000'),
         supabase.from('perfiles').delete().neq('id_perfil', '_reset_'),
         supabase.from('export_logs').delete().neq('id', '_reset_'),
-        supabase.from('conteo_exportacion').delete().neq('id', '_reset_')
+        supabase.from('conteo_exportacion').delete().neq('id', '_reset_'),
+        supabase.from('audit_logs').delete().neq('id', '_reset_')
       ]);
 
       const errors = results.map(r => r.error).filter(Boolean);
@@ -430,20 +563,68 @@ export const useAppStore = create<AppState>((set, get) => ({
     const potenciaEquiposLocal = await db.getAll('potencia_equipos');
     const exportLogs = await db.getAll('export_logs');
     const conteoExportacion = await db.getAll('conteo_exportacion');
+    const auditLogs = await db.getAll('audit_logs');
     const configLogoInst = await db.get('config', 'logo_instrumentacion');
     const configLogoPot = await db.get('config', 'logo_potencia');
     const configDrive = await db.get('config', 'driveFolderLink');
     const configPermissions = await db.get('config', 'rolePermissions');
+    const configSettings = await db.get('config', 'appSettings');
     const configPassword = await db.get('config', 'adminPassword');
     
     // Cargar sesión guardada si existe
-    const savedSession = localStorage.getItem('user_session');
     let initialSession = null;
-    try {
-      initialSession = savedSession ? JSON.parse(savedSession) : null;
-    } catch (e) {
-      console.error('Error al parsear la sesión guardada:', e);
-      localStorage.removeItem('user_session');
+    
+    if (isSupabaseConfigured) {
+      // 1. Configurar listener global de estado de autenticación de forma asíncrona
+      supabase.auth.onAuthStateChange((event, session) => {
+        if (session) {
+          const email = session.user.email || '';
+          const role: UserRole = email === ADMIN_EMAIL ? 'ADMIN' : 'TECNICO';
+          const newSession: UserSession = {
+            user: {
+              id: session.user.id,
+              email: email,
+              user_metadata: session.user.user_metadata,
+            },
+            role
+          };
+          set({ session: newSession });
+          localStorage.setItem('user_session', JSON.stringify(newSession));
+        } else if (event === 'SIGNED_OUT') {
+          set({ session: null });
+          localStorage.removeItem('user_session');
+        }
+      });
+
+      // 2. Obtener la sesión inicial
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          const email = session.user.email || '';
+          const role: UserRole = email === ADMIN_EMAIL ? 'ADMIN' : 'TECNICO';
+          initialSession = {
+            user: {
+              id: session.user.id,
+              email: email,
+              user_metadata: session.user.user_metadata,
+            },
+            role
+          };
+          localStorage.setItem('user_session', JSON.stringify(initialSession));
+        } else {
+          localStorage.removeItem('user_session');
+        }
+      } catch (e) {
+        console.warn('Error verifying Supabase session:', e);
+      }
+    } else {
+      const savedSession = localStorage.getItem('user_session');
+      try {
+        initialSession = savedSession ? JSON.parse(savedSession) : null;
+      } catch (e) {
+        console.error('Error al parsear la sesión guardada:', e);
+        localStorage.removeItem('user_session');
+      }
     }
 
     // Valores por defecto
@@ -462,6 +643,20 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
     }
 
+    const defaultSettings: AppSettings = {
+      enableCameraManual: true,
+      enableCameraAuto: true,
+      enableGenInstrumentacion: true,
+      enableGenPotencia: true,
+      enableMassUploadDrive: true,
+      enableExportPdf: true,
+      enableExportXlsx: true,
+      enableUploadManual: true,
+      enableUploadAuto: true
+    };
+    
+    const finalSettings = { ...defaultSettings, ...(configSettings?.value || {}) };
+
     set({ 
       perfiles, 
       fotos, 
@@ -469,10 +664,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       potenciaEquipos: potenciaEquiposLocal,
       exportLogs: exportLogs || [],
       conteoExportacion: conteoExportacion || [],
+      auditLogs: auditLogs || [],
       logoInstrumentacion: configLogoInst?.value || null,
       logoPotencia: configLogoPot?.value || null,
       driveFolderLink: configDrive?.value || null,
       rolePermissions: finalPermissions,
+      appSettings: finalSettings,
       adminPassword: configPassword?.value || '123',
       session: initialSession,
       isInitialized: true
@@ -481,197 +678,261 @@ export const useAppStore = create<AppState>((set, get) => ({
     // Supabase auth listeners disabled in direct access mode
     console.log('App cargada en modo Directo (ADMIN)');
 
-    // Cargar Configuración Global desde Supabase (Logos y Drive)
-    try {
-      const { data: remoteConfig, error: configError } = await supabase.from('app_config').select('*');
-      if (remoteConfig && !configError) {
-        const logoInstItem = remoteConfig.find(c => c.id === 'logo_instrumentacion');
-        const logoPotItem = remoteConfig.find(c => c.id === 'logo_potencia');
-        const driveItem = remoteConfig.find(c => c.id === 'drive_folder_link');
-        const permsItem = remoteConfig.find(c => c.id === 'role_permissions');
-        const passItem = remoteConfig.find(c => c.id === 'admin_password');
+    if (isSupabaseConfigured) {
+      // Cargar Configuración Global desde Supabase (Logos y Drive)
+      try {
+        const { data: remoteConfig, error: configError } = await supabase.from('app_config').select('*');
+        if (remoteConfig && !configError) {
+          const logoInstItem = remoteConfig.find(c => c.id === 'logo_instrumentacion');
+          const logoPotItem = remoteConfig.find(c => c.id === 'logo_potencia');
+          const driveItem = remoteConfig.find(c => c.id === 'drive_folder_link');
+          const permsItem = remoteConfig.find(c => c.id === 'role_permissions');
+          const settingsItem = remoteConfig.find(c => c.id === 'app_settings');
+          const passItem = remoteConfig.find(c => c.id === 'admin_password');
 
-        if (logoInstItem) {
-          await db.put('config', { id: 'logo_instrumentacion', value: logoInstItem.value });
-          set({ logoInstrumentacion: logoInstItem.value });
+          if (logoInstItem) {
+            await db.put('config', { id: 'logo_instrumentacion', value: logoInstItem.value });
+            set({ logoInstrumentacion: logoInstItem.value });
+          }
+          if (logoPotItem) {
+            await db.put('config', { id: 'logo_potencia', value: logoPotItem.value });
+            set({ logoPotencia: logoPotItem.value });
+          }
+          if (driveItem) {
+            await db.put('config', { id: 'driveFolderLink', value: driveItem.value });
+            set({ driveFolderLink: driveItem.value });
+          }
+          if (permsItem) {
+            await db.put('config', { id: 'rolePermissions', value: permsItem.value });
+            
+            // Merge with default permissions to ensure all roles and keys exist
+            const mergedPermissions = { ...defaultPermissions };
+            Object.keys(permsItem.value).forEach((role) => {
+              const r = role as UserRole;
+              if (mergedPermissions[r]) {
+                mergedPermissions[r] = { ...mergedPermissions[r], ...permsItem.value[r] };
+              }
+            });
+            
+            set({ rolePermissions: mergedPermissions });
+          }
+          if (settingsItem) {
+            await db.put('config', { id: 'appSettings', value: settingsItem.value });
+            set({ appSettings: { ...defaultSettings, ...settingsItem.value } });
+          }
+          if (passItem) {
+            await db.put('config', { id: 'adminPassword', value: passItem.value });
+            set({ adminPassword: passItem.value });
+          }
         }
-        if (logoPotItem) {
-          await db.put('config', { id: 'logo_potencia', value: logoPotItem.value });
-          set({ logoPotencia: logoPotItem.value });
-        }
-        if (driveItem) {
-          await db.put('config', { id: 'driveFolderLink', value: driveItem.value });
-          set({ driveFolderLink: driveItem.value });
-        }
-        if (permsItem) {
-          await db.put('config', { id: 'rolePermissions', value: permsItem.value });
+      } catch (e) {
+        console.warn('Error cargando configuración remota:', e);
+      }
+
+      // Cargar Instrumentos desde Supabase (Fuente de Verdad)
+      try {
+        const { data: remoteInst, error: instError } = await supabase.from('instrumentos').select('*');
+        if (remoteInst && !instError) {
+          const mappedInst = remoteInst.map(i => ({
+            TAG_CABLE_SWC: i.tag_cable_swc,
+            TAGNAME: i.tagname,
+            DESCRIPCIÓN: i.descripcion,
+            TIPO_CABLE: i.tipo_cable,
+            UBICACIÓN: i.ubicacion,
+            OBSERVACIÓN: i.observacion
+          }));
           
-          // Merge with default permissions to ensure all roles and keys exist
-          const mergedPermissions = { ...defaultPermissions };
-          Object.keys(permsItem.value).forEach((role) => {
-            const r = role as UserRole;
-            if (mergedPermissions[r]) {
-              mergedPermissions[r] = { ...mergedPermissions[r], ...permsItem.value[r] };
-            }
-          });
+          // Actualizar localmente también para que funcione offline
+          const tx = db.transaction('instrumentos', 'readwrite');
+          await tx.store.clear();
+          for (const item of mappedInst) await tx.store.put(item);
+          await tx.done;
+
+          set({ instrumentos: mappedInst });
+          console.log('Instrumentos cargados desde Supabase');
+        }
+
+        // Cargar Potencia Equipos desde Supabase
+        const { data: remotePotencia, error: potError } = await supabase.from('potencia_equipos').select('*');
+        if (remotePotencia && !potError) {
+          const mappedPotencia = remotePotencia.map(p => ({
+            TAG: p.tag,
+            DESCRIPCIÓN: p.descripcion
+          }));
           
-          set({ rolePermissions: mergedPermissions });
+          const tx = db.transaction('potencia_equipos', 'readwrite');
+          await tx.store.clear();
+          for (const item of mappedPotencia) await tx.store.put(item);
+          await tx.done;
+
+          set({ potenciaEquipos: mappedPotencia });
+          console.log('Equipos de Potencia cargados desde Supabase');
         }
-        if (passItem) {
-          await db.put('config', { id: 'adminPassword', value: passItem.value });
-          set({ adminPassword: passItem.value });
+
+        // Cargar Perfiles desde Supabase
+        const { data: remotePerfiles, error: perfError } = await supabase.from('perfiles').select('*');
+        if (remotePerfiles && !perfError && remotePerfiles.length > 0) {
+          const mappedPerfiles = remotePerfiles.map(p => ({
+            ID_PERFIL: p.id_perfil,
+            NOMBRE_PERFIL: p.nombre_perfil || '',
+            CLIENTE: p.cliente || '',
+            PROYECTO: p.proyecto || '',
+            CONTRATO: p.contrato || '',
+            REVISION: p.revision || '',
+            FECHA_REVISION: p.fecha_revision || '',
+            FECHA: p.fecha || '',
+            TAG_CABLE_SWC: p.tag_cable_swc || '',
+            TAGNAME: p.tagname || '',
+            DESCRIPCION: p.descripcion || '',
+            TIPO_CABLE: p.tipo_cable || '',
+            TIPO: p.tipo || 'INSTRUMENTACION',
+            POT_CODIGO: p.pot_codigo || '',
+            AC1_NO: p.ac1_no || '',
+            HC1_NO: p.hc1_no || '',
+            CONTRATISTA: p.contratista || '',
+            AREA: p.area || '',
+            LOCACION: p.locacion || '',
+            SERVICIO: p.servicio || '',
+            P_ID_NO: p.p_id_no || '',
+            REV_P_ID: p.rev_p_id || '',
+            PAQUETE_NO: p.paquete_no || '',
+            PLANO_NO: p.plano_no || '',
+            REV_PLANO: p.rev_plano || '',
+            CHKL_1_DESC: p.chkl_1_desc || '', CHKL_1_ESTADO: p.chkl_1_estado || '',
+            CHKL_2_DESC: p.chkl_2_desc || '', CHKL_2_ESTADO: p.chkl_2_estado || '',
+            CHKL_3_DESC: p.chkl_3_desc || '', CHKL_3_ESTADO: p.chkl_3_estado || '',
+            CHKL_4_DESC: p.chkl_4_desc || '', CHKL_4_ESTADO: p.chkl_4_estado || '',
+            CHKL_5_DESC: p.chkl_5_desc || '', CHKL_5_ESTADO: p.chkl_5_estado || '',
+            CHKL_6_DESC: p.chkl_6_desc || '', CHKL_6_ESTADO: p.chkl_6_estado || '',
+            CHKL_7_DESC: p.chkl_7_desc || '', CHKL_7_ESTADO: p.chkl_7_estado || '',
+            CHKL_8_DESC: p.chkl_8_desc || '', CHKL_8_ESTADO: p.chkl_8_estado || '',
+            CHKL_9_DESC: p.chkl_9_desc || '', CHKL_9_ESTADO: p.chkl_9_estado || '',
+            CHKL_10_DESC: p.chkl_10_desc || '', CHKL_10_ESTADO: p.chkl_10_estado || '',
+            CHKL_11_DESC: p.chkl_11_desc || '', CHKL_11_ESTADO: p.chkl_11_estado || '',
+            POT_COMPANIA_1: p.pot_compania_1 || '', POT_FIRMA_1: p.pot_firma_1 || '', POT_NOMBRE_1: p.pot_nombre_1 || '', POT_FECHA_1: p.pot_fecha_1 || '',
+            POT_COMPANIA_2: p.pot_compania_2 || '', POT_FIRMA_2: p.pot_firma_2 || '', POT_NOMBRE_2: p.pot_nombre_2 || '', POT_FECHA_2: p.pot_fecha_2 || '',
+            POT_COMPANIA_3: p.pot_compania_3 || '', POT_FIRMA_3: p.pot_firma_3 || '', POT_NOMBRE_3: p.pot_nombre_3 || '', POT_FECHA_3: p.pot_fecha_3 || '',
+            POT_COM_DATA: p.pot_com_data || '',
+            UBICACION: p.ubicacion || '',
+            OBSERVACION: p.observacion || '',
+            FABRICANTE_MODELO: p.fabricante_modelo || '',
+            RANGO_OPERACION: p.rango_operacion || '',
+            CLASE_EXACTITUD: p.clase_exactitud || '',
+            NORMA_PROCEDIMIENTO: p.norma_procedimiento || '',
+            TIPO_PRUEBA_PLANO: p.tipo_prueba_plano || false,
+            TIPO_PRUEBA_LOOP: p.tipo_prueba_loop || false,
+            TIPO_PRUEBA_FUNC_SIM: p.tipo_prueba_func_sim || false,
+            TIPO_PRUEBA_FUNC_LINEA: p.tipo_prueba_func_linea || false,
+            EQUIPO_PRUEBA_1: p.equipo_prueba_1 || '',
+            CERT_FECHA_1: p.cert_fecha_1 || '',
+            EQUIPO_PRUEBA_2: p.equipo_prueba_2 || '',
+            CERT_FECHA_2: p.cert_fecha_2 || '',
+            LOOP_C1: p.loop_c1 || '', LOOP_C2: p.loop_c2 || '', LOOP_C3: p.loop_c3 || '',
+            L1_C1: p.l1_c1 || '', L1_C2: p.l1_c2 || '', L1_C3: p.l1_c3 || '',
+            L2_C1: p.l2_c1 || '', L2_C2: p.l2_c2 || '', L2_C3: p.l2_c3 || '',
+            L3_C1: p.l3_c1 || '', L3_C2: p.l3_c2 || '', L3_C3: p.l3_c3 || '',
+            INSP_4_1: p.insp_4_1 || '', OBS_4_1: p.obs_4_1 || '', LABEL_4_1: p.label_4_1 || '',
+            INSP_4_2: p.insp_4_2 || '', OBS_4_2: p.obs_4_2 || '', LABEL_4_2: p.label_4_2 || '',
+            INSP_4_3: p.insp_4_3 || '', OBS_4_3: p.obs_4_3 || '', LABEL_4_3: p.label_4_3 || '',
+            INSP_4_4: p.insp_4_4 || '', OBS_4_4: p.obs_4_4 || '', LABEL_4_4: p.label_4_4 || '',
+            COMENTARIOS: p.comentarios || '',
+            ELABORO_NOMBRE: p.elaboro_nombre || '', ELABORO_CARGO: p.elaboro_cargo || '', ELABORO_FIRMA: p.elaboro_firma || '',
+            REVISO_NOMBRE: p.reviso_nombre || '', REVISO_CARGO: p.reviso_cargo || '', REVISO_FIRMA: p.reviso_firma || '',
+            APROBO_NOMBRE: p.aprobo_nombre || '', APROBO_CARGO: p.aprobo_cargo || '', APROBO_FIRMA: p.aprobo_firma || '',
+            timestamp: p.timestamp || p.created_at,
+            USER_EMAIL: p.user_email || '',
+            ENABLED: p.enabled ?? true,
+            SUBTIPO: p.subtipo || ''
+          }));
+          const txP = db.transaction('perfiles', 'readwrite');
+          await txP.store.clear();
+          for (const item of mappedPerfiles) await txP.store.put(item);
+          await txP.done;
+          set({ perfiles: mappedPerfiles });
         }
+
+        // Cargar Fotos desde Supabase
+        const { data: remoteFotos, error: fotosError } = await supabase.from('fotos').select('*');
+        if (remoteFotos && !fotosError && remoteFotos.length > 0) {
+          const mappedFotos = remoteFotos.map(f => ({
+            id: f.id,
+            TAGNAME: f.tagname || '',
+            blobData: f.blob_data || '',
+            nombre_archivo: f.nombre_archivo || '',
+            observacion: f.observacion || '',
+            estado: f.estado || '',
+            timestamp: f.created_at
+          }));
+          const txF = db.transaction('fotos', 'readwrite');
+          await txF.store.clear();
+          for (const item of mappedFotos) await txF.store.put(item);
+          await txF.done;
+          set({ fotos: mappedFotos });
+        }
+
+        // Cargar Logs de Exportación desde Supabase con mezcla de locales
+        try {
+          const { data: remoteLogs, error: logsError } = await supabase.from('export_logs').select('*');
+          if (remoteLogs && !logsError) {
+            const localLogsMap = new Map(exportLogs.map(l => [l.id, l]));
+            remoteLogs.forEach(l => {
+              localLogsMap.set(l.id, {
+                id: l.id,
+                tagname: l.tagname || '',
+                tipo_perfil: l.tipo_perfil || '',
+                tipo_formato: l.tipo_formato || '',
+                id_perfil: l.id_perfil || '',
+                timestamp: l.timestamp || l.created_at,
+                user_email: l.user_email || '',
+                user_role: l.user_role || ''
+              });
+            });
+            const mergedLogs = Array.from(localLogsMap.values()).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+            
+            const txL = db.transaction('export_logs', 'readwrite');
+            await txL.store.clear();
+            for (const item of mergedLogs) await txL.store.put(item);
+            await txL.done;
+            set({ exportLogs: mergedLogs });
+          }
+        } catch (e) {
+          console.warn('Error al cargar logs de Supabase:', e);
+        }
+
+        // Cargar Conteos de Exportación desde Supabase con mezcla de locales
+        try {
+          const { data: remoteConteos, error: conteosError } = await supabase.from('conteo_exportacion').select('*');
+          if (remoteConteos && !conteosError) {
+            const localConteosMap = new Map(conteoExportacion.map(c => [c.id, c]));
+            remoteConteos.forEach(c => {
+              localConteosMap.set(c.id, {
+                id: c.id,
+                tag: c.tag || '',
+                conteo: Number(c.conteo) || 1,
+                fecha_hora: c.fecha_hora || c.created_at,
+                user_role: c.user_role || '',
+                user_email: c.user_email || ''
+              });
+            });
+            const mergedConteos = Array.from(localConteosMap.values());
+            
+            const txC = db.transaction('conteo_exportacion', 'readwrite');
+            await txC.store.clear();
+            for (const item of mergedConteos) await txC.store.put(item);
+            await txC.done;
+            set({ conteoExportacion: mergedConteos });
+          }
+        } catch (e) {
+          console.warn('Error al cargar conteos de Supabase:', e);
+        }
+      } catch (e) {
+        console.warn('Operando en modo offline:', e);
       }
-    } catch (e) {
-      console.warn('Error cargando configuración remota:', e);
-    }
-
-    // Cargar Instrumentos desde Supabase (Fuente de Verdad)
-    try {
-      const { data: remoteInst, error: instError } = await supabase.from('instrumentos').select('*');
-      if (remoteInst && !instError) {
-        const mappedInst = remoteInst.map(i => ({
-          TAG_CABLE_SWC: i.tag_cable_swc,
-          TAGNAME: i.tagname,
-          DESCRIPCIÓN: i.descripcion,
-          TIPO_CABLE: i.tipo_cable,
-          UBICACIÓN: i.ubicacion,
-          OBSERVACIÓN: i.observacion
-        }));
-        
-        // Actualizar localmente también para que funcione offline
-        const tx = db.transaction('instrumentos', 'readwrite');
-        await tx.store.clear();
-        for (const item of mappedInst) await tx.store.put(item);
-        await tx.done;
-
-        set({ instrumentos: mappedInst });
-        console.log('Instrumentos cargados desde Supabase');
-      }
-
-      // Cargar Potencia Equipos desde Supabase
-      const { data: remotePotencia, error: potError } = await supabase.from('potencia_equipos').select('*');
-      if (remotePotencia && !potError) {
-        const mappedPotencia = remotePotencia.map(p => ({
-          TAG: p.tag,
-          DESCRIPCIÓN: p.descripcion
-        }));
-        
-        const tx = db.transaction('potencia_equipos', 'readwrite');
-        await tx.store.clear();
-        for (const item of mappedPotencia) await tx.store.put(item);
-        await tx.done;
-
-        set({ potenciaEquipos: mappedPotencia });
-        console.log('Equipos de Potencia cargados desde Supabase');
-      }
-
-      // Cargar Perfiles desde Supabase
-      const { data: remotePerfiles, error: perfError } = await supabase.from('perfiles').select('*');
-      if (remotePerfiles && !perfError && remotePerfiles.length > 0) {
-        const mappedPerfiles = remotePerfiles.map(p => ({
-          ID_PERFIL: p.id_perfil,
-          NOMBRE_PERFIL: p.nombre_perfil || '',
-          CLIENTE: p.cliente || '',
-          PROYECTO: p.proyecto || '',
-          CONTRATO: p.contrato || '',
-          REVISION: p.revision || '',
-          FECHA_REVISION: p.fecha_revision || '',
-          FECHA: p.fecha || '',
-          TAG_CABLE_SWC: p.tag_cable_swc || '',
-          TAGNAME: p.tagname || '',
-          DESCRIPCION: p.descripcion || '',
-          TIPO_CABLE: p.tipo_cable || '',
-          TIPO: p.tipo || 'INSTRUMENTACION',
-          POT_CODIGO: p.pot_codigo || '',
-          AC1_NO: p.ac1_no || '',
-          HC1_NO: p.hc1_no || '',
-          CONTRATISTA: p.contratista || '',
-          AREA: p.area || '',
-          LOCACION: p.locacion || '',
-          SERVICIO: p.servicio || '',
-          P_ID_NO: p.p_id_no || '',
-          REV_P_ID: p.rev_p_id || '',
-          PAQUETE_NO: p.paquete_no || '',
-          PLANO_NO: p.plano_no || '',
-          REV_PLANO: p.rev_plano || '',
-          CHKL_1_DESC: p.chkl_1_desc || '', CHKL_1_ESTADO: p.chkl_1_estado || '',
-          CHKL_2_DESC: p.chkl_2_desc || '', CHKL_2_ESTADO: p.chkl_2_estado || '',
-          CHKL_3_DESC: p.chkl_3_desc || '', CHKL_3_ESTADO: p.chkl_3_estado || '',
-          CHKL_4_DESC: p.chkl_4_desc || '', CHKL_4_ESTADO: p.chkl_4_estado || '',
-          CHKL_5_DESC: p.chkl_5_desc || '', CHKL_5_ESTADO: p.chkl_5_estado || '',
-          CHKL_6_DESC: p.chkl_6_desc || '', CHKL_6_ESTADO: p.chkl_6_estado || '',
-          CHKL_7_DESC: p.chkl_7_desc || '', CHKL_7_ESTADO: p.chkl_7_estado || '',
-          CHKL_8_DESC: p.chkl_8_desc || '', CHKL_8_ESTADO: p.chkl_8_estado || '',
-          CHKL_9_DESC: p.chkl_9_desc || '', CHKL_9_ESTADO: p.chkl_9_estado || '',
-          CHKL_10_DESC: p.chkl_10_desc || '', CHKL_10_ESTADO: p.chkl_10_estado || '',
-          CHKL_11_DESC: p.chkl_11_desc || '', CHKL_11_ESTADO: p.chkl_11_estado || '',
-          POT_COMPANIA_1: p.pot_compania_1 || '', POT_FIRMA_1: p.pot_firma_1 || '', POT_NOMBRE_1: p.pot_nombre_1 || '', POT_FECHA_1: p.pot_fecha_1 || '',
-          POT_COMPANIA_2: p.pot_compania_2 || '', POT_FIRMA_2: p.pot_firma_2 || '', POT_NOMBRE_2: p.pot_nombre_2 || '', POT_FECHA_2: p.pot_fecha_2 || '',
-          POT_COMPANIA_3: p.pot_compania_3 || '', POT_FIRMA_3: p.pot_firma_3 || '', POT_NOMBRE_3: p.pot_nombre_3 || '', POT_FECHA_3: p.pot_fecha_3 || '',
-          POT_COM_DATA: p.pot_com_data || '',
-          UBICACION: p.ubicacion || '',
-          OBSERVACION: p.observacion || '',
-          FABRICANTE_MODELO: p.fabricante_modelo || '',
-          RANGO_OPERACION: p.rango_operacion || '',
-          CLASE_EXACTITUD: p.clase_exactitud || '',
-          NORMA_PROCEDIMIENTO: p.norma_procedimiento || '',
-          TIPO_PRUEBA_PLANO: p.tipo_prueba_plano || false,
-          TIPO_PRUEBA_LOOP: p.tipo_prueba_loop || false,
-          TIPO_PRUEBA_FUNC_SIM: p.tipo_prueba_func_sim || false,
-          TIPO_PRUEBA_FUNC_LINEA: p.tipo_prueba_func_linea || false,
-          EQUIPO_PRUEBA_1: p.equipo_prueba_1 || '',
-          CERT_FECHA_1: p.cert_fecha_1 || '',
-          EQUIPO_PRUEBA_2: p.equipo_prueba_2 || '',
-          CERT_FECHA_2: p.cert_fecha_2 || '',
-          LOOP_C1: p.loop_c1 || '', LOOP_C2: p.loop_c2 || '', LOOP_C3: p.loop_c3 || '',
-          L1_C1: p.l1_c1 || '', L1_C2: p.l1_c2 || '', L1_C3: p.l1_c3 || '',
-          L2_C1: p.l2_c1 || '', L2_C2: p.l2_c2 || '', L2_C3: p.l2_c3 || '',
-          L3_C1: p.l3_c1 || '', L3_C2: p.l3_c2 || '', L3_C3: p.l3_c3 || '',
-          INSP_4_1: p.insp_4_1 || '', OBS_4_1: p.obs_4_1 || '', LABEL_4_1: p.label_4_1 || '',
-          INSP_4_2: p.insp_4_2 || '', OBS_4_2: p.obs_4_2 || '', LABEL_4_2: p.label_4_2 || '',
-          INSP_4_3: p.insp_4_3 || '', OBS_4_3: p.obs_4_3 || '', LABEL_4_3: p.label_4_3 || '',
-          INSP_4_4: p.insp_4_4 || '', OBS_4_4: p.obs_4_4 || '', LABEL_4_4: p.label_4_4 || '',
-          COMENTARIOS: p.comentarios || '',
-          ELABORO_NOMBRE: p.elaboro_nombre || '', ELABORO_CARGO: p.elaboro_cargo || '', ELABORO_FIRMA: p.elaboro_firma || '',
-          REVISO_NOMBRE: p.reviso_nombre || '', REVISO_CARGO: p.reviso_cargo || '', REVISO_FIRMA: p.reviso_firma || '',
-          APROBO_NOMBRE: p.aprobo_nombre || '', APROBO_CARGO: p.aprobo_cargo || '', APROBO_FIRMA: p.aprobo_firma || '',
-          timestamp: p.timestamp || p.created_at,
-          USER_EMAIL: p.user_email || '',
-          ENABLED: p.enabled ?? true,
-          SUBTIPO: p.subtipo || ''
-        }));
-        const txP = db.transaction('perfiles', 'readwrite');
-        await txP.store.clear();
-        for (const item of mappedPerfiles) await txP.store.put(item);
-        await txP.done;
-        set({ perfiles: mappedPerfiles });
-      }
-
-      // Cargar Fotos desde Supabase
-      const { data: remoteFotos, error: fotosError } = await supabase.from('fotos').select('*');
-      if (remoteFotos && !fotosError && remoteFotos.length > 0) {
-        const mappedFotos = remoteFotos.map(f => ({
-          id: f.id,
-          TAGNAME: f.tagname || '',
-          blobData: f.blob_data || '',
-          nombre_archivo: f.nombre_archivo || '',
-          observacion: f.observacion || '',
-          estado: f.estado || '',
-          timestamp: f.created_at
-        }));
-        const txF = db.transaction('fotos', 'readwrite');
-        await txF.store.clear();
-        for (const item of mappedFotos) await txF.store.put(item);
-        await txF.done;
-        set({ fotos: mappedFotos });
-      }
-    } catch (e) {
-      console.warn('Operando en modo offline:', e);
     }
   },
 
   syncWithSupabase: async () => {
+    if (!isSupabaseConfigured) return;
     const { perfiles, fotos, instrumentos, potenciaEquipos } = get();
     
     // 1. Sincronizar perfiles
@@ -853,6 +1114,35 @@ export const useAppStore = create<AppState>((set, get) => ({
         }));
         const { error } = await supabase.from('conteo_exportacion').upsert(chunk);
         if (error) console.warn('Error syncing conteo_exportacion:', error);
+      }
+    }
+  },
+
+  addAuditLog: async (actionType: string, details: string) => {
+    const { session } = get();
+    if (!session) return;
+    
+    const newLog: AuditLog = {
+      id: crypto.randomUUID(),
+      fecha_hora: new Date().toISOString(),
+      user_email: session.user?.email || 'Desconocido',
+      user_role: session.role,
+      action_type: actionType,
+      details
+    };
+    
+    const db = await initDB();
+    await db.put('audit_logs', newLog);
+    
+    set((state) => ({
+      auditLogs: [newLog, ...state.auditLogs]
+    }));
+    
+    if (isSupabaseConfigured && navigator.onLine) {
+      try {
+        await supabase.from('audit_logs').insert([newLog]);
+      } catch (e) {
+        console.warn('Error saving audit log to Supabase', e);
       }
     }
   },
@@ -1302,6 +1592,59 @@ export const useAppStore = create<AppState>((set, get) => ({
     return { success: true };
   },
 
+  updateInstrumento: async (oldTag: string, inst: Instrumento) => {
+    const db = await initDB();
+    
+    // Si cambió el TAGNAME, verificar que el nuevo no exista ya
+    if (oldTag !== inst.TAGNAME) {
+      const exists = await db.get('instrumentos', inst.TAGNAME);
+      if (exists) return { success: false, error: 'El nuevo TAG ya existe.' };
+    }
+    
+    try {
+      const tx = db.transaction('instrumentos', 'readwrite');
+      if (oldTag !== inst.TAGNAME) {
+        await tx.store.delete(oldTag);
+      }
+      await tx.store.put(inst);
+      await tx.done;
+
+      set((state) => ({ 
+        instrumentos: state.instrumentos.map(i => i.TAGNAME === oldTag ? inst : i)
+      }));
+    } catch (e: any) {
+      return { success: false, error: 'Error al actualizar localmente: ' + e.message };
+    }
+
+    try {
+      if (isSupabaseConfigured) {
+        if (oldTag !== inst.TAGNAME) {
+          await supabase.from('instrumentos').delete().eq('tagname', oldTag);
+          await supabase.from('instrumentos').insert([{
+            tag_cable_swc: inst.TAG_CABLE_SWC || '',
+            tagname: inst.TAGNAME,
+            descripcion: inst.DESCRIPCIÓN || '',
+            tipo_cable: inst.TIPO_CABLE || '',
+            ubicacion: inst.UBICACIÓN || '',
+            observacion: inst.OBSERVACIÓN || ''
+          }]);
+        } else {
+          await supabase.from('instrumentos').update({
+            tag_cable_swc: inst.TAG_CABLE_SWC || '',
+            descripcion: inst.DESCRIPCIÓN || '',
+            tipo_cable: inst.TIPO_CABLE || '',
+            ubicacion: inst.UBICACIÓN || '',
+            observacion: inst.OBSERVACIÓN || ''
+          }).eq('tagname', oldTag);
+        }
+      }
+    } catch (e: any) {
+      console.warn('Error syncing update to Supabase:', e);
+      return { success: true, error: `Actualizado localmente, pero falló sincronización: ${e.message}` };
+    }
+    return { success: true };
+  },
+
   deletePotenciaEquipos: async (tagnames: string[]) => {
     const db = await initDB();
     const session = get().session;
@@ -1403,6 +1746,50 @@ export const useAppStore = create<AppState>((set, get) => ({
     return { success: true };
   },
 
+  updatePotenciaEquipo: async (oldTag: string, inst: PotenciaEquipo) => {
+    const db = await initDB();
+    
+    if (oldTag !== inst.TAG) {
+      const exists = await db.get('potencia_equipos', inst.TAG);
+      if (exists) return { success: false, error: 'El nuevo TAG ya existe.' };
+    }
+    
+    try {
+      const tx = db.transaction('potencia_equipos', 'readwrite');
+      if (oldTag !== inst.TAG) {
+        await tx.store.delete(oldTag);
+      }
+      await tx.store.put(inst);
+      await tx.done;
+
+      set((state) => ({ 
+        potenciaEquipos: state.potenciaEquipos.map(i => i.TAG === oldTag ? inst : i)
+      }));
+    } catch (e: any) {
+      return { success: false, error: 'Error al actualizar localmente: ' + e.message };
+    }
+
+    try {
+      if (isSupabaseConfigured) {
+        if (oldTag !== inst.TAG) {
+          await supabase.from('potencia_equipos').delete().eq('tag', oldTag);
+          await supabase.from('potencia_equipos').insert([{
+            tag: inst.TAG,
+            descripcion: inst.DESCRIPCIÓN || ''
+          }]);
+        } else {
+          await supabase.from('potencia_equipos').update({
+            descripcion: inst.DESCRIPCIÓN || ''
+          }).eq('tag', oldTag);
+        }
+      }
+    } catch (e: any) {
+      console.warn('Error syncing update to Supabase:', e);
+      return { success: true, error: `Actualizado localmente, pero falló sincronización: ${e.message}` };
+    }
+    return { success: true };
+  },
+
   saveLogo: async (base64, type) => {
     const db = await initDB();
     const configId = type === 'INSTRUMENTACION' ? 'logo_instrumentacion' : 'logo_potencia';
@@ -1436,6 +1823,23 @@ export const useAppStore = create<AppState>((set, get) => ({
       await supabase.from('app_config').upsert({ id: 'role_permissions', value: updatedPermissions });
     } catch (e) {
       console.warn('No se pudo respaldar permisos en la nube:', e);
+    }
+  },
+
+  updateAppSettings: async (settings) => {
+    const { appSettings, addAuditLog } = get();
+    const updatedSettings = { ...appSettings, ...settings };
+    
+    const db = await initDB();
+    await db.put('config', { id: 'appSettings', value: updatedSettings });
+    set({ appSettings: updatedSettings });
+    
+    addAuditLog('UPDATE_SETTINGS', `Se actualizó la configuración de la aplicación: ${JSON.stringify(settings)}`);
+
+    try {
+      await supabase.from('app_config').upsert({ id: 'app_settings', value: updatedSettings });
+    } catch (e) {
+      console.warn('No se pudo respaldar app settings en la nube:', e);
     }
   },
 

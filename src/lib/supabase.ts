@@ -16,6 +16,6 @@ export const isSupabaseConfigured = !!(supabaseUrl && supabaseUrl.startsWith('ht
 
 // Inicialización segura
 export const supabase = createClient(
-  isSupabaseConfigured ? supabaseUrl : 'https://placeholder-invalid.supabase.co', 
-  supabaseAnonKey || 'placeholder'
+  isSupabaseConfigured ? supabaseUrl : 'http://localhost:3000/api/mock-supabase', 
+  supabaseAnonKey || 'placeholder-key'
 );
