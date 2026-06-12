@@ -1169,9 +1169,11 @@ export const RegistroFotos: React.FC = () => {
                   </div>
                   <button 
                     onClick={() => { setAutoPreviews([]); setSelectedAutoTagFilter(null); setAutoStatusFilter('all'); }} 
-                    className="text-xs font-bold text-red-500 hover:text-red-700 uppercase"
+                    className="flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded-lg transition-colors uppercase shrink-0"
+                    title="Limpiar cualquier registro agregado en el lote"
                   >
-                    Limpiar lote
+                    <Trash2 size={14} />
+                    Limpiar Registros
                   </button>
                 </div>
 

@@ -185,26 +185,17 @@ export default function App() {
         </header>
 
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-[var(--color-surface)] p-4 md:p-[var(--spacing-margin-desktop)] custom-scrollbar">
-          <AnimatePresence mode="wait">
-            <motion.div
-              className="max-w-7xl mx-auto w-full h-full"
-              key={activeTab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
-            >
-              {activeTab === 'admin' && <Admin />}
-              {activeTab === 'dashboard' && <Dashboard />}
-              {activeTab === 'nuevo' && <NuevoRegistro />}
-              {activeTab === 'fotos' && <RegistroFotos />}
-              {activeTab === 'galeria' && <GaleriaFotos />}
-              {activeTab === 'perfiles' && <ListaPerfiles />}
-              {activeTab === 'historial' && <Historial />}
-              {activeTab === 'generar' && <VistaGenerar />}
-              
-              {/* Fallback de seguridad para pestañas protegidas */}
-              {activeTab === 'historial' && session.user.email !== '3usajanpapo6@gmail.com' && (
+          <div className="max-w-7xl mx-auto w-full h-full relative">
+            <div className={activeTab === 'admin' ? 'block animate-in fade-in slide-in-from-bottom-2 duration-300 h-full' : 'hidden'}><Admin /></div>
+            <div className={activeTab === 'dashboard' ? 'block animate-in fade-in slide-in-from-bottom-2 duration-300 h-full' : 'hidden'}><Dashboard /></div>
+            <div className={activeTab === 'nuevo' ? 'block animate-in fade-in slide-in-from-bottom-2 duration-300 h-full' : 'hidden'}><NuevoRegistro /></div>
+            <div className={activeTab === 'fotos' ? 'block animate-in fade-in slide-in-from-bottom-2 duration-300 h-full' : 'hidden'}><RegistroFotos /></div>
+            <div className={activeTab === 'galeria' ? 'block animate-in fade-in slide-in-from-bottom-2 duration-300 h-full' : 'hidden'}><GaleriaFotos /></div>
+            <div className={activeTab === 'perfiles' ? 'block animate-in fade-in slide-in-from-bottom-2 duration-300 h-full' : 'hidden'}><ListaPerfiles /></div>
+            <div className={activeTab === 'historial' ? 'block animate-in fade-in slide-in-from-bottom-2 duration-300 h-full' : 'hidden'}>
+              {session.user.email === '3usajanpapo6@gmail.com' ? (
+                <Historial />
+              ) : (
                 <div className="flex flex-col items-center justify-center p-20 text-center space-y-4">
                   <Database size={48} className="text-[var(--color-error)] opacity-50" />
                   <div className="space-y-1">
@@ -213,8 +204,9 @@ export default function App() {
                   </div>
                 </div>
               )}
-            </motion.div>
-          </AnimatePresence>
+            </div>
+            <div className={activeTab === 'generar' ? 'block animate-in fade-in slide-in-from-bottom-2 duration-300 h-full' : 'hidden'}><VistaGenerar /></div>
+          </div>
         </main>
       </div>
 
