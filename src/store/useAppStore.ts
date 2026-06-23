@@ -177,6 +177,7 @@ export interface ConteoExportacion {
   fecha_hora: string;
   user_role: UserRole;
   user_email: string;
+  formato?: 'PDF' | 'EXCEL';
 }
 
 export interface AuditLog {
@@ -202,7 +203,18 @@ export interface AppSettings {
   userOverrides?: Record<string, Partial<AppSettings>>;
 }
 
+export interface Proyecto {
+  id: string;
+  nombre: string;
+  cliente: string;
+  contrato: string;
+  estado: string;
+  created_at?: string;
+}
+
 interface AppState {
+  proyectos: Proyecto[];
+  proyectoActivoId: string | null;
   perfiles: Perfil[];
   fotos: Foto[];
   instrumentos: Instrumento[];
@@ -217,11 +229,15 @@ interface AppState {
   rolePermissions: Record<UserRole, RolePermissions>;
   globalAppSettings?: AppSettings;
   appSettings: AppSettings;
-  usuariosRegistrados: { email: string; role: UserRole }[];
+  usuariosRegistrados: { email: string; role: UserRole; activo: boolean }[];
   adminPassword?: string;
   isInitialized: boolean;
+  cargarProyectos: () => Promise<void>;
+  setProyectoActivo: (id: string | null) => void;
+  crearProyecto: (proyecto: Omit<Proyecto, 'id' | 'created_at'>) => Promise<{ success: boolean; error?: string }>;
+  migrarDatosAProyecto: (proyectoId: string) => Promise<{ success: boolean; error?: string }>;
   loadUsuariosRegistrados: () => Promise<void>;
-  updateUserRoleAssignment: (email: string, role: UserRole) => Promise<void>;
+  updateUserRoleAssignment: (email: string, role: UserRole, activo?: boolean) => Promise<void>;
   deleteUserRoleAssignment: (email: string) => Promise<void>;
   loadData: () => Promise<void>;
   addAuditLog: (actionType: string, details: string) => Promise<void>;
@@ -230,7 +246,7 @@ interface AppState {
   saveFoto: (fotoData: Foto) => Promise<void>;
   deleteFoto: (id: string) => Promise<void>;
   saveExportLog: (log: Omit<ExportLog, 'id' | 'timestamp' | 'user_email'>) => Promise<void>;
-  saveConteoExportacion: (tag: string) => Promise<void>;
+  saveConteoExportacion: (tag: string, formato?: 'PDF' | 'EXCEL') => Promise<void>;
   deleteInstrumentos: (tagnames: string[]) => Promise<{ success: boolean; error?: string }>;
   loadInstrumentosBulk: (dataArray: Instrumento[]) => Promise<void>;
   addInstrumento: (inst: Instrumento) => Promise<{ success: boolean; error?: string }>;
@@ -260,6 +276,8 @@ interface AppState {
 const ADMIN_EMAIL = '3usajanpapo6@gmail.com';
 
 export const useAppStore = create<AppState>((set, get) => ({
+    proyectos: [],
+    proyectoActivoId: localStorage.getItem('proyectoActivoId') || null,
     perfiles: [],
     fotos: [],
     instrumentos: [],
@@ -289,32 +307,132 @@ export const useAppStore = create<AppState>((set, get) => ({
       enableUploadAuto: true
     },
     usuariosRegistrados: [],
+
+    cargarProyectos: async () => {
+      try {
+        if (!isSupabaseConfigured) {
+          // Mock data for local testing
+          const localProyectos = JSON.parse(localStorage.getItem('proyectos') || '[]');
+          if (localProyectos.length === 0) {
+             const defaultProject = { id: crypto.randomUUID(), nombre: 'Proyecto Base', cliente: 'Cliente Default', contrato: 'N/A', estado: 'activo' };
+             localStorage.setItem('proyectos', JSON.stringify([defaultProject]));
+             set({ proyectos: [defaultProject] });
+          } else {
+             set({ proyectos: localProyectos });
+          }
+          return;
+        }
+        
+        const { data, error } = await supabase.from('proyectos').select('*').order('created_at', { ascending: false });
+        if (error) {
+           console.warn('Error fetching proyectos:', error);
+           return;
+        }
+        if (data) {
+           console.log("Proyectos leidos de Supabase:", data.length);
+           if (data.length === 0) {
+              console.log("No hay proyectos. Creando proyecto SWC automático...");
+              const { data: newSwc, error: swcErr } = await supabase.from('proyectos').insert([{
+                nombre: 'SWC2025_2026',
+                cliente: 'Smurfit Westrock',
+                contrato: 'C.O.654',
+                estado: 'activo'
+              }]).select();
+              
+              if (newSwc && newSwc.length > 0) {
+                 const swcId = newSwc[0].id;
+                 set({ proyectos: newSwc as Proyecto[], proyectoActivoId: swcId });
+                 console.log("Migrando información existente al nuevo proyecto SWC2025_2026...");
+                 await get().migrarDatosAProyecto(swcId);
+              }
+           } else {
+             set({ proyectos: data as Proyecto[] });
+             // Autoseleccionar el primer proyecto si no hay ninguno activo
+             if (!get().proyectoActivoId && data.length > 0) {
+               get().setProyectoActivo(data[0].id);
+             }
+           }
+        }
+      } catch (e) {
+        console.warn('Failed to load proyectos', e);
+      }
+    },
+
+    setProyectoActivo: (id: string | null) => {
+      set({ proyectoActivoId: id });
+      if (id) {
+        localStorage.setItem('proyectoActivoId', id);
+        get().loadData(); // Reload data with the new project context
+      } else {
+        localStorage.removeItem('proyectoActivoId');
+        // Clear current project scoped state
+        set({ perfiles: [], fotos: [], instrumentos: [], potenciaEquipos: [] });
+      }
+    },
+
+    crearProyecto: async (proyecto) => {
+      try {
+        if (!isSupabaseConfigured) {
+          const newProject: Proyecto = { ...proyecto, id: crypto.randomUUID(), created_at: new Date().toISOString() };
+          const stored = JSON.parse(localStorage.getItem('proyectos') || '[]');
+          const updated = [...stored, newProject];
+          localStorage.setItem('proyectos', JSON.stringify(updated));
+          set({ proyectos: updated });
+          return { success: true };
+        }
+        
+        const { data, error } = await supabase.from('proyectos').insert([{ ...proyecto }]).select();
+        if (error) return { success: false, error: error.message };
+        
+        if (data && data.length > 0) {
+           set((state) => ({ proyectos: [data[0] as Proyecto, ...state.proyectos] }));
+        }
+        return { success: true };
+      } catch (err: any) {
+        return { success: false, error: err.message || 'Error al crear proyecto' };
+      }
+    },
+
+    migrarDatosAProyecto: async (proyectoId: string) => {
+      if (!isSupabaseConfigured) return { success: true }; // LocalStorage no requiere esto de momento
+      try {
+        await supabase.from('instrumentos').update({ proyecto_id: proyectoId }).is('proyecto_id', null);
+        await supabase.from('perfiles').update({ proyecto_id: proyectoId }).is('proyecto_id', null);
+        await supabase.from('fotos').update({ proyecto_id: proyectoId }).is('proyecto_id', null);
+        await supabase.from('potencia_equipos').update({ proyecto_id: proyectoId }).is('proyecto_id', null);
+        await supabase.from('export_logs').update({ proyecto_id: proyectoId }).is('proyecto_id', null);
+        await supabase.from('conteo_exportacion').update({ proyecto_id: proyectoId }).is('proyecto_id', null);
+        return { success: true };
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    },
     
     loadUsuariosRegistrados: async () => {
       try {
         if (!isSupabaseConfigured) return;
         const { data, error } = await supabase.from('roles_usuarios').select('*');
         if (error && error.code !== '42P01') {
-           console.error('Error fetching usuarios', error);
+           console.warn('Error fetching usuarios', error);
            return;
         }
         if (data) {
-           set({ usuariosRegistrados: data.map(d => ({ email: d.email, role: d.role as UserRole })) });
+           set({ usuariosRegistrados: data.map(d => ({ email: d.email, role: d.role as UserRole, activo: d.activo !== false })) });
         }
       } catch (e) {
-        console.error(e);
+        console.warn(e);
       }
     },
     
-    updateUserRoleAssignment: async (email: string, role: UserRole) => {
+    updateUserRoleAssignment: async (email: string, role: UserRole, activo: boolean = true) => {
       try {
         const { usuariosRegistrados } = get();
         const currentArr = usuariosRegistrados.filter(u => u.email !== email);
-        const newArr = [...currentArr, { email, role }];
+        const newArr = [...currentArr, { email, role, activo }];
         set({ usuariosRegistrados: newArr });
         
         if (isSupabaseConfigured) {
-          const { error } = await supabase.from('roles_usuarios').upsert({ email, role, updated_at: new Date().toISOString() });
+          const { error } = await supabase.from('roles_usuarios').upsert({ email, role, activo, updated_at: new Date().toISOString() });
           if (error && error.code === '42P01') {
             console.warn('roles_usuarios table does not exist. Update schema on supabase.');
           }
@@ -386,7 +504,12 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       if (data.session) {
         const isRegistered = get().usuariosRegistrados.some(u => u.email.toLowerCase() === email.toLowerCase());
-        const assignedRole = get().usuariosRegistrados.find(u => u.email.toLowerCase() === email.toLowerCase())?.role || (email === ADMIN_EMAIL ? 'ADMIN' : 'TECNICO');
+        const userRec = get().usuariosRegistrados.find(u => u.email.toLowerCase() === email.toLowerCase());
+        const assignedRole = userRec?.role || (email === ADMIN_EMAIL ? 'ADMIN' : 'TECNICO');
+        if (userRec && userRec.activo === false) {
+           await supabase.auth.signOut();
+           return { success: false, error: 'Cuenta deshabilitada. Contacte al administrador.' };
+        }
         const role: UserRole = assignedRole;
         if (!isRegistered && email) {
            get().updateUserRoleAssignment(email.toLowerCase(), role);
@@ -424,7 +547,12 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       if (data.session) {
         const isRegistered = get().usuariosRegistrados.some(u => u.email.toLowerCase() === email.toLowerCase());
-        const assignedRole = get().usuariosRegistrados.find(u => u.email.toLowerCase() === email.toLowerCase())?.role || (email === ADMIN_EMAIL ? 'ADMIN' : 'TECNICO');
+        const userRec = get().usuariosRegistrados.find(u => u.email.toLowerCase() === email.toLowerCase());
+        const assignedRole = userRec?.role || (email === ADMIN_EMAIL ? 'ADMIN' : 'TECNICO');
+        if (userRec && userRec.activo === false) {
+           await supabase.auth.signOut();
+           return { success: false, error: 'Cuenta deshabilitada. Contacte al administrador.' };
+        }
         const role: UserRole = assignedRole;
         if (!isRegistered && email) {
            get().updateUserRoleAssignment(email.toLowerCase(), role);
@@ -629,7 +757,14 @@ export const useAppStore = create<AppState>((set, get) => ({
         if (session) {
           const email = session.user.email || '';
           const isRegistered = get().usuariosRegistrados.some(u => u.email.toLowerCase() === email.toLowerCase());
-          const assignedRole = get().usuariosRegistrados.find(u => u.email.toLowerCase() === email.toLowerCase())?.role || (email === ADMIN_EMAIL ? 'ADMIN' : 'TECNICO');
+          const userRec = get().usuariosRegistrados.find(u => u.email.toLowerCase() === email.toLowerCase());
+          const assignedRole = userRec?.role || (email === ADMIN_EMAIL ? 'ADMIN' : 'TECNICO');
+          
+          if (userRec && userRec.activo === false) {
+             supabase.auth.signOut();
+             alert('Cuenta deshabilitada. Sesión cerrada.');
+             return;
+          }
           const role: UserRole = assignedRole;
           
           if (!isRegistered && email) {
@@ -805,7 +940,12 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       // Cargar Instrumentos desde Supabase (Fuente de Verdad)
       try {
-        const { data: remoteInst, error: instError } = await supabase.from('instrumentos').select('*');
+        const queryBase = supabase.from('instrumentos').select('*');
+        const activeProjectId = get().proyectoActivoId;
+        const { data: remoteInst, error: instError } = activeProjectId 
+          ? await queryBase.eq('proyecto_id', activeProjectId)
+          : await queryBase.is('proyecto_id', null);
+        
         if (remoteInst && !instError) {
           const mappedInst = remoteInst.map(i => ({
             TAG_CABLE_SWC: i.tag_cable_swc,
@@ -827,7 +967,11 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
 
         // Cargar Potencia Equipos desde Supabase
-        const { data: remotePotencia, error: potError } = await supabase.from('potencia_equipos').select('*');
+        const queryPot = supabase.from('potencia_equipos').select('*');
+        const { data: remotePotencia, error: potError } = activeProjectId
+          ? await queryPot.eq('proyecto_id', activeProjectId)
+          : await queryPot.is('proyecto_id', null);
+          
         if (remotePotencia && !potError) {
           const mappedPotencia = remotePotencia.map(p => ({
             TAG: p.tag,
@@ -844,7 +988,11 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
 
         // Cargar Perfiles desde Supabase
-        const { data: remotePerfiles, error: perfError } = await supabase.from('perfiles').select('*');
+        const queryPerfiles = supabase.from('perfiles').select('*');
+        const { data: remotePerfiles, error: perfError } = activeProjectId
+          ? await queryPerfiles.eq('proyecto_id', activeProjectId)
+          : await queryPerfiles.is('proyecto_id', null);
+          
         if (remotePerfiles && !perfError && remotePerfiles.length > 0) {
           const mappedPerfiles = remotePerfiles.map(p => ({
             ID_PERFIL: p.id_perfil,
@@ -926,7 +1074,11 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
 
         // Cargar Fotos desde Supabase
-        const { data: remoteFotos, error: fotosError } = await supabase.from('fotos').select('*');
+        const queryFotos = supabase.from('fotos').select('*');
+        const { data: remoteFotos, error: fotosError } = activeProjectId
+          ? await queryFotos.eq('proyecto_id', activeProjectId)
+          : await queryFotos.is('proyecto_id', null);
+          
         if (remoteFotos && !fotosError && remoteFotos.length > 0) {
           const mappedFotos = remoteFotos.map(f => ({
             id: f.id,
@@ -946,7 +1098,11 @@ export const useAppStore = create<AppState>((set, get) => ({
 
         // Cargar Logs de Exportación desde Supabase con mezcla de locales
         try {
-          const { data: remoteLogs, error: logsError } = await supabase.from('export_logs').select('*');
+          const queryLogs = supabase.from('export_logs').select('*');
+          const { data: remoteLogs, error: logsError } = activeProjectId
+            ? await queryLogs.eq('proyecto_id', activeProjectId)
+            : await queryLogs.is('proyecto_id', null);
+            
           if (remoteLogs && !logsError) {
             const localLogsMap = new Map(exportLogs.map(l => [l.id, l]));
             remoteLogs.forEach(l => {
@@ -975,7 +1131,11 @@ export const useAppStore = create<AppState>((set, get) => ({
 
         // Cargar Conteos de Exportación desde Supabase con mezcla de locales
         try {
-          const { data: remoteConteos, error: conteosError } = await supabase.from('conteo_exportacion').select('*');
+          const queryConteos = supabase.from('conteo_exportacion').select('*');
+          const { data: remoteConteos, error: conteosError } = activeProjectId
+            ? await queryConteos.eq('proyecto_id', activeProjectId)
+            : await queryConteos.is('proyecto_id', null);
+            
           if (remoteConteos && !conteosError) {
             const localConteosMap = new Map(conteoExportacion.map(c => [c.id, c]));
             remoteConteos.forEach(c => {
@@ -1008,6 +1168,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   syncWithSupabase: async () => {
     if (!isSupabaseConfigured || get().appSettings.learningMode) return;
     const { perfiles, fotos, instrumentos, potenciaEquipos } = get();
+    
+    const activeProjectId = get().proyectoActivoId;
     
     // 1. Sincronizar perfiles
     if (perfiles.length > 0) {
@@ -1079,7 +1241,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         pot_compania_2: p.POT_COMPANIA_2, pot_firma_2: p.POT_FIRMA_2, pot_nombre_2: p.POT_NOMBRE_2, pot_fecha_2: p.POT_FECHA_2,
         pot_compania_3: p.POT_COMPANIA_3, pot_firma_3: p.POT_FIRMA_3, pot_nombre_3: p.POT_NOMBRE_3, pot_fecha_3: p.POT_FECHA_3,
         pot_com_data: p.POT_COM_DATA || '',
-        subtipo: p.SUBTIPO || null
+        subtipo: p.SUBTIPO || null,
+        ...(activeProjectId ? { proyecto_id: activeProjectId } : {})
       }));
       for (let i = 0; i < perfilesToSync.length; i += 500) {
         const batch = perfilesToSync.slice(i, i + 500);
@@ -1111,7 +1274,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         descripcion: i.DESCRIPCIÓN,
         tipo_cable: i.TIPO_CABLE,
         ubicacion: i.UBICACIÓN,
-        observacion: i.OBSERVACIÓN
+        observacion: i.OBSERVACIÓN,
+        ...(activeProjectId ? { proyecto_id: activeProjectId } : {})
       }));
       
       for (let i = 0; i < instrumentosToSync.length; i += 500) {
@@ -1133,7 +1297,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       
       const toSync = Array.from(uniqueDataMap.values()).map(i => ({
         tag: i.TAG.toString().trim(),
-        descripcion: i.DESCRIPCIÓN
+        descripcion: i.DESCRIPCIÓN,
+        ...(activeProjectId ? { proyecto_id: activeProjectId } : {})
       }));
       
       for (let i = 0; i < toSync.length; i += 500) {
@@ -1150,7 +1315,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         blob_data: f.blobData,
         nombre_archivo: f.nombre_archivo,
         observacion: f.observacion,
-        estado: f.estado
+        estado: f.estado,
+        ...(activeProjectId ? { proyecto_id: activeProjectId } : {})
       }));
       for (let i = 0; i < fotosToSync.length; i += 50) {
         const { error } = await supabase.from('fotos').upsert(fotosToSync.slice(i, i + 50));
@@ -1168,7 +1334,8 @@ export const useAppStore = create<AppState>((set, get) => ({
           tagname: log.tagname,
           tipo_formato: log.tipo_formato,
           id_perfil: log.id_perfil,
-          timestamp: log.timestamp
+          timestamp: log.timestamp,
+          ...(activeProjectId ? { proyecto_id: activeProjectId } : {})
         }));
         const { error } = await supabase.from('export_logs').upsert(chunk);
         if (error) console.warn('Error syncing export_logs:', error);
@@ -1184,7 +1351,8 @@ export const useAppStore = create<AppState>((set, get) => ({
           conteo: item.conteo,
           fecha_hora: item.fecha_hora,
           user_role: item.user_role,
-          user_email: item.user_email
+          user_email: item.user_email,
+          ...(activeProjectId ? { proyecto_id: activeProjectId } : {})
         }));
         const { error } = await supabase.from('conteo_exportacion').upsert(chunk);
         if (error) console.warn('Error syncing conteo_exportacion:', error);
@@ -1214,7 +1382,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     
     if (isSupabaseConfigured && navigator.onLine) {
       try {
-        await supabase.from('audit_logs').insert([newLog]);
+        const payload: any = { ...newLog };
+        const activeProj = get().proyectoActivoId;
+        if (activeProj) payload.proyecto_id = activeProj;
+        
+        await supabase.from('audit_logs').insert([payload]);
       } catch (e) {
         console.warn('Error saving audit log to Supabase', e);
       }
@@ -1303,7 +1475,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         pot_compania_2: perfil.POT_COMPANIA_2, pot_firma_2: perfil.POT_FIRMA_2, pot_nombre_2: perfil.POT_NOMBRE_2, pot_fecha_2: perfil.POT_FECHA_2,
         pot_compania_3: perfil.POT_COMPANIA_3, pot_firma_3: perfil.POT_FIRMA_3, pot_nombre_3: perfil.POT_NOMBRE_3, pot_fecha_3: perfil.POT_FECHA_3,
         pot_com_data: perfil.POT_COM_DATA || '',
-        subtipo: perfil.SUBTIPO || null
+        subtipo: perfil.SUBTIPO || null,
+        proyecto_id: get().proyectoActivoId || null
       };
 
       const { data: existingRemote } = await supabase.from('perfiles').select('id_perfil').eq('id_perfil', perfil.ID_PERFIL).maybeSingle();
@@ -1358,7 +1531,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             instrumentos: [...state.instrumentos.filter(i => i.TAGNAME !== perfil.TAGNAME), instData]
           }));
 
-          const instPayload = {
+          const instPayload: any = {
             tagname: perfil.TAGNAME,
             tag_cable_swc: perfil.TAG_CABLE_SWC || '',
             descripcion: perfil.DESCRIPCION || '',
@@ -1366,6 +1539,8 @@ export const useAppStore = create<AppState>((set, get) => ({
             ubicacion: perfil.UBICACION || '',
             observacion: perfil.OBSERVACION || ''
           };
+          const activeProj = get().proyectoActivoId;
+          if (activeProj) instPayload.proyecto_id = activeProj;
 
           const { data: existingInst } = await supabase.from('instrumentos').select('tagname').eq('tagname', perfil.TAGNAME).maybeSingle();
           if (!existingInst) {
@@ -1384,10 +1559,12 @@ export const useAppStore = create<AppState>((set, get) => ({
             potenciaEquipos: [...state.potenciaEquipos.filter(i => i.TAG !== perfil.TAGNAME), potData]
           }));
 
-          const potPayload = {
+          const potPayload: any = {
             tag: perfil.TAGNAME,
             descripcion: perfil.DESCRIPCION || ''
           };
+          const activeProj = get().proyectoActivoId;
+          if (activeProj) potPayload.proyecto_id = activeProj;
 
           const { data: existingPot } = await supabase.from('potencia_equipos').select('tag').eq('tag', perfil.TAGNAME).maybeSingle();
           if (!existingPot) {
@@ -1446,14 +1623,18 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     if (isSupabaseConfigured && !get().appSettings.learningMode) {
       try {
-        const { error } = await supabase.from('fotos').upsert({
+        const payloadFoto: any = {
           id: fotoData.id,
           tagname: fotoData.TAGNAME,
           blob_data: fotoData.blobData,
           nombre_archivo: fotoData.nombre_archivo,
           observacion: fotoData.observacion,
           estado: fotoData.estado
-        });
+        };
+        const activeProj = get().proyectoActivoId;
+        if (activeProj) payloadFoto.proyecto_id = activeProj;
+
+        const { error } = await supabase.from('fotos').upsert(payloadFoto);
         if (error) console.error('Error al guardar foto en Supabase:', error);
       } catch (e) {
         console.warn('Error de red al guardar foto en Supabase:', e);
@@ -1497,13 +1678,15 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     // Sync remote
     if (isSupabaseConfigured && !get().appSettings.learningMode) {
+      const activeProj = get().proyectoActivoId;
       const remoteData = deduplicatedArray.map(i => ({
         tag_cable_swc: i.TAG_CABLE_SWC,
         tagname: i.TAGNAME.toString().trim(),
         descripcion: i.DESCRIPCIÓN,
         tipo_cable: i.TIPO_CABLE,
         ubicacion: i.UBICACIÓN,
-        observacion: i.OBSERVACIÓN
+        observacion: i.OBSERVACIÓN,
+        ...(activeProj ? { proyecto_id: activeProj } : {})
       }));
       
       // Process in chunks of 500 to avoid payload size errors
@@ -1552,7 +1735,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     // Sincronizar log con Supabase (intentar)
     if (isSupabaseConfigured && !get().appSettings.learningMode) {
       try {
-        await supabase.from('export_logs').insert({
+        const payload: any = {
           id: newLog.id,
           user_email: newLog.user_email,
           user_role: newLog.user_role,
@@ -1561,16 +1744,20 @@ export const useAppStore = create<AppState>((set, get) => ({
           tipo_formato: newLog.tipo_formato,
           id_perfil: newLog.id_perfil,
           timestamp: newLog.timestamp
-        });
+        };
+        const activeProj = get().proyectoActivoId;
+        if (activeProj) payload.proyecto_id = activeProj;
+
+        await supabase.from('export_logs').insert(payload);
       } catch (e) {
         console.warn('No se pudo respaldar el log en la nube (Supabase table export_logs might not exist)', e);
       }
     }
   },
 
-  saveConteoExportacion: async (tag) => {
+  saveConteoExportacion: async (tag, formato) => {
     const session = get().session;
-    if (!session || session.role !== 'TECNICO') return;
+    if (!session) return;
     
     const newRecord: ConteoExportacion = {
       id: crypto.randomUUID(),
@@ -1578,7 +1765,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       conteo: 1,
       fecha_hora: new Date().toISOString(),
       user_role: session.role,
-      user_email: session.user.email
+      user_email: session.user.email,
+      formato
     };
     
     const db = await initDB();
@@ -1591,14 +1779,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     // Sincronizar con Supabase
     if (isSupabaseConfigured && !get().appSettings.learningMode) {
       try {
-        await supabase.from('conteo_exportacion').insert({
+        const payload: any = {
           id: newRecord.id,
           tag: newRecord.tag,
           conteo: newRecord.conteo,
           fecha_hora: newRecord.fecha_hora,
           user_role: newRecord.user_role,
-          user_email: newRecord.user_email
-        });
+          user_email: newRecord.user_email,
+          formato: newRecord.formato || null
+        };
+        const activeProj = get().proyectoActivoId;
+        if (activeProj) payload.proyecto_id = activeProj;
+
+        await supabase.from('conteo_exportacion').insert(payload);
       } catch (e) {
         console.warn('No se pudo respaldar conteo en la nube:', e);
       }
@@ -1660,14 +1853,18 @@ export const useAppStore = create<AppState>((set, get) => ({
     // 3. Sincronización con la nube (Supabase)
     if (isSupabaseConfigured && !get().appSettings.learningMode) {
       try {
-        const { error } = await supabase.from('instrumentos').insert([{
+        const payload: any = {
           tag_cable_swc: inst.TAG_CABLE_SWC || '',
           tagname: inst.TAGNAME,
           descripcion: inst.DESCRIPCIÓN || '',
           tipo_cable: inst.TIPO_CABLE || '',
           ubicacion: inst.UBICACIÓN || '',
           observacion: inst.OBSERVACIÓN || ''
-        }]);
+        };
+        const activeProj = get().proyectoActivoId;
+        if (activeProj) payload.proyecto_id = activeProj;
+
+        const { error } = await supabase.from('instrumentos').insert([payload]);
 
         if (error) {
           console.error('Error de Supabase (Sincronización diferida):', error);
@@ -1716,14 +1913,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (isSupabaseConfigured && !get().appSettings.learningMode) {
         if (oldTag !== inst.TAGNAME) {
           await supabase.from('instrumentos').delete().eq('tagname', oldTag);
-          await supabase.from('instrumentos').insert([{
+          const payload: any = {
             tag_cable_swc: inst.TAG_CABLE_SWC || '',
             tagname: inst.TAGNAME,
             descripcion: inst.DESCRIPCIÓN || '',
             tipo_cable: inst.TIPO_CABLE || '',
             ubicacion: inst.UBICACIÓN || '',
             observacion: inst.OBSERVACIÓN || ''
-          }]);
+          };
+          const activeProj = get().proyectoActivoId;
+          if (activeProj) payload.proyecto_id = activeProj;
+
+          await supabase.from('instrumentos').insert([payload]);
         } else {
           await supabase.from('instrumentos').update({
             tag_cable_swc: inst.TAG_CABLE_SWC || '',
@@ -1790,9 +1991,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     await tx.done;
 
     if (isSupabaseConfigured && !get().appSettings.learningMode) {
+      const activeProj = get().proyectoActivoId;
       const remoteData = deduplicatedArray.map(i => ({
         tag: i.TAG.toString().trim(),
-        descripcion: i.DESCRIPCIÓN
+        descripcion: i.DESCRIPCIÓN,
+        ...(activeProj ? { proyecto_id: activeProj } : {})
       }));
       
       const chunkSize = 500;
@@ -1830,10 +2033,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     
     if (isSupabaseConfigured && !get().appSettings.learningMode) {
       try {
-        const { error } = await supabase.from('potencia_equipos').insert([{
+        const payload: any = {
           tag: inst.TAG,
           descripcion: inst.DESCRIPCIÓN || ''
-        }]);
+        };
+        const activeProj = get().proyectoActivoId;
+        if (activeProj) payload.proyecto_id = activeProj;
+
+        const { error } = await supabase.from('potencia_equipos').insert([payload]);
 
         if (error) {
           return { 
@@ -1879,10 +2086,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (isSupabaseConfigured && !get().appSettings.learningMode) {
         if (oldTag !== inst.TAG) {
           await supabase.from('potencia_equipos').delete().eq('tag', oldTag);
-          await supabase.from('potencia_equipos').insert([{
+          const payload: any = {
             tag: inst.TAG,
             descripcion: inst.DESCRIPCIÓN || ''
-          }]);
+          };
+          const activeProj = get().proyectoActivoId;
+          if (activeProj) payload.proyecto_id = activeProj;
+
+          await supabase.from('potencia_equipos').insert([payload]);
         } else {
           await supabase.from('potencia_equipos').update({
             descripcion: inst.DESCRIPCIÓN || ''

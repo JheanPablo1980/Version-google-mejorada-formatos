@@ -1,8 +1,9 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Settings, Building, Database, Sliders, ImageIcon, FileSpreadsheet, Download, 
   CloudUpload, Shield, Trash2, CheckCircle2, AlertCircle, X, ReplaceAll, 
-  Users, GraduationCap, LayoutDashboard, FileText, Image, Zap, History, Plus, Camera 
+  Users, GraduationCap, LayoutDashboard, FileText, Image, Zap, History, Plus, Camera,
+  Lock, Unlock
 } from 'lucide-react';
 import { useAppStore, UserRole, RolePermissions } from '../store/useAppStore';
 import { Button } from './ui/Button';
@@ -51,11 +52,19 @@ export const Admin = () => {
     updateAdminPassword,
     usuariosRegistrados,
     updateUserRoleAssignment,
-    deleteUserRoleAssignment
+    deleteUserRoleAssignment,
+    loadUsuariosRegistrados,
+    session
   } = useAppStore();
 
-  const [activeTab, setActiveTab] = useState<'corporativo' | 'bd' | 'config_usuarios'>('corporativo');
+  const [activeTab, setActiveTab] = useState<'corporativo' | 'bd' | 'config_usuarios' | 'proyectos'>('proyectos');
   
+  useEffect(() => {
+    if (activeTab === 'config_usuarios') {
+      loadUsuariosRegistrados();
+    }
+  }, [activeTab, loadUsuariosRegistrados]);
+
   const [targetUser, setTargetUser] = useState<string>('');
   const [newEmail, setNewEmail] = useState('');
   const [newRole, setNewRole] = useState<UserRole>('TECNICO');
@@ -202,6 +211,16 @@ const handlePasswordChange = async () => {
       {/* Tabs */}
       <div className="flex gap-2 border-b-[3px] border-[#1F3864] px-2 md:px-4 pt-2 mb-6 overflow-x-auto custom-scrollbar">
         <button
+          onClick={() => setActiveTab('proyectos')}
+          className={`flex items-center justify-center gap-2 py-2.5 px-6 rounded-t-2xl font-semibold transition-all whitespace-nowrap shrink-0 ${
+            activeTab === 'proyectos' 
+            ? 'bg-white text-emerald-600 text-[15px]' 
+            : 'bg-[#EBF0F6] text-[#64748B] hover:bg-[#DFE7F0] hover:text-[#1F3864] text-[14px]'
+          }`}
+        >
+          <Building size={16} /> <span>Proyectos</span>
+        </button>
+        <button
           onClick={() => setActiveTab('corporativo')}
           className={`flex items-center justify-center gap-2 py-2.5 px-6 rounded-t-2xl font-semibold transition-all whitespace-nowrap shrink-0 ${
             activeTab === 'corporativo' 
@@ -234,6 +253,110 @@ const handlePasswordChange = async () => {
       </div>
 
       <AnimatePresence mode="wait">
+        {activeTab === 'proyectos' && (
+          <motion.div
+            key="proyectos"
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -10 }}
+            className="space-y-6"
+          >
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-emerald-100">
+              <h3 className="font-bold text-emerald-900 text-lg border-b pb-2 mb-4 flex items-center gap-2">
+                <Plus size={18} className="text-emerald-500" /> Crear Nuevo Proyecto Maestro
+              </h3>
+              <form 
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.target as HTMLFormElement);
+                  const res = await useAppStore.getState().crearProyecto({
+                    nombre: formData.get('nombre') as string,
+                    cliente: formData.get('cliente') as string,
+                    contrato: formData.get('contrato') as string,
+                    estado: 'activo'
+                  });
+                  if (res.success) {
+                    alert('Proyecto Creado Correctamente');
+                    (e.target as HTMLFormElement).reset();
+                  } else {
+                    alert('Error creando proyecto: ' + res.error);
+                  }
+                }}
+                className="grid grid-cols-1 md:grid-cols-3 gap-4"
+              >
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Nombre del Proyecto *</label>
+                  <input required name="nombre" type="text" className="w-full text-sm p-2 border border-gray-300 rounded-md focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500" placeholder="Ej. Expansión Caldera 2" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Cliente / Empresa</label>
+                  <input required name="cliente" type="text" className="w-full text-sm p-2 border border-gray-300 rounded-md focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500" placeholder="Ej. Smurfit Kappa Group" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Contrato o P.O.</label>
+                  <input name="contrato" type="text" className="w-full text-sm p-2 border border-gray-300 rounded-md focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500" placeholder="Ej. CO-2026-X" />
+                </div>
+                <div className="md:col-span-3 flex justify-end mt-2">
+                  <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-6 rounded-lg flex items-center gap-2 transition-colors">
+                    <Database size={18} /> GESTIONAR PROYECTO Y CREAR TABLAS
+                  </Button>
+                </div>
+              </form>
+            </div>
+
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+              <h3 className="font-bold text-[#1F3864] text-lg border-b pb-2 mb-4 flex items-center gap-2">
+                <Database size={18} className="text-blue-500" /> Proyectos Existentes ({useAppStore.getState().proyectos.length})
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-gray-50 text-gray-600 font-semibold uppercase text-xs">
+                    <tr>
+                      <th className="px-4 py-3">Nombre</th>
+                      <th className="px-4 py-3">Cliente</th>
+                      <th className="px-4 py-3">Estado</th>
+                      <th className="px-4 py-3 text-right">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {useAppStore.getState().proyectos.map(p => (
+                      <tr key={p.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 font-medium">{p.nombre}</td>
+                        <td className="px-4 py-3 text-gray-500">{p.cliente}</td>
+                        <td className="px-4 py-3"><span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-[10px] font-bold uppercase">{p.estado}</span></td>
+                        <td className="px-4 py-3 text-right flex justify-end gap-2">
+                          <button 
+                            onClick={async () => {
+                              if (confirm(`¿Estás seguro de vincular todos los datos huérfanos a ${p.nombre}?`)) {
+                                const res = await useAppStore.getState().migrarDatosAProyecto(p.id);
+                                if (res.success) {
+                                  alert('Migración Completada. Toda la info previa ha sido guardada en ' + p.nombre);
+                                  useAppStore.getState().loadData();
+                                } else {
+                                  alert('Error migrando: ' + res.error);
+                                }
+                              }
+                            }}
+                            className="text-emerald-600 hover:text-emerald-800 font-semibold text-xs border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded"
+                          >
+                            Vincular Info Histórica
+                          </button>
+                          <button 
+                            onClick={() => useAppStore.getState().setProyectoActivo(p.id)}
+                            className="text-blue-600 hover:text-blue-800 font-semibold text-xs border border-blue-200 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded"
+                          >
+                            Seleccionar
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {activeTab === 'corporativo' && (
           <motion.div
             key="corporativo"
@@ -920,16 +1043,33 @@ const handlePasswordChange = async () => {
                     <span>Todos (Global)</span>
                   </button>
                   {usuariosRegistrados.map((u) => (
-                    <button
-                      key={u.email}
-                      onClick={() => setTargetUser(u.email)}
-                      className={`w-full text-left p-2 rounded-lg border text-xs font-medium flex items-center justify-between ${targetUser === u.email ? 'bg-purple-50 border-purple-300 text-purple-700' : 'bg-white hover:bg-gray-50 border-gray-200'}`}
-                    >
-                      <span className="truncate mr-2">{u.email}</span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full ${u.role === 'ADMIN' ? 'bg-red-100 text-red-700' : u.role === 'TECNICO' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
-                        {u.role}
-                      </span>
-                    </button>
+                    <div key={u.email} className={`w-full flex items-center justify-between p-2 rounded-lg border text-xs font-medium ${targetUser === u.email ? 'bg-purple-50 border-purple-300' : 'bg-white hover:bg-gray-50 border-gray-200'}`}>
+                      <button
+                        onClick={() => setTargetUser(u.email)}
+                        className={`flex-1 text-left flex items-center justify-between min-w-0 mr-2 ${u.activo === false ? 'text-gray-400' : (targetUser === u.email ? 'text-purple-700' : 'text-gray-700')}`}
+                      >
+                        <div className="flex items-center gap-1.5 min-w-0 pr-2">
+                          <span className="truncate" title={u.email}>{u.email}</span>
+                          {u.activo === false && <AlertCircle size={14} className="text-red-500 shrink-0" title="Usuario deshabilitado" />}
+                          {session?.user?.email?.toLowerCase() === u.email.toLowerCase() && (
+                            <span className="relative flex h-2.5 w-2.5 shrink-0" title="En línea (Tú)">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+                            </span>
+                          )}
+                        </div>
+                        <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full ${u.role === 'ADMIN' ? 'bg-red-100 text-red-700' : u.role === 'TECNICO' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
+                          {u.role}
+                        </span>
+                      </button>
+                      <button 
+                        onClick={() => updateUserRoleAssignment(u.email, u.role, u.activo === false ? true : false)}
+                        className={`shrink-0 ml-1 p-1.5 rounded-md flex items-center justify-center transition-colors ${u.activo === false ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
+                        title={u.activo === false ? 'Habilitar acceso' : 'Deshabilitar acceso'}
+                      >
+                        {u.activo === false ? <Unlock size={14} className="stroke-[2.5px]" /> : <Lock size={14} className="stroke-[2.5px]" />}
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>

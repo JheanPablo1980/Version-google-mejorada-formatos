@@ -664,7 +664,7 @@ export const RegistroFotos: React.FC = () => {
             <div className="grid gap-3 mb-4 shrink-0 grid-cols-1 sm:grid-cols-2">
               {appSettings.enableGenInstrumentacion && (
                 <button
-                  onClick={() => { setActiveCategory('INSTRUMENTACION'); setSelectedTags([]); setFotoFilter('all'); }}
+                  onClick={() => { setActiveCategory('INSTRUMENTACION'); }}
                   className={`py-3 px-4 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
                     activeCategory === 'INSTRUMENTACION' 
                     ? 'bg-[#1F3864] border-[#1F3864] text-white shadow-md' 
@@ -677,7 +677,7 @@ export const RegistroFotos: React.FC = () => {
               )}
               {appSettings.enableGenPotencia && (
                 <button
-                  onClick={() => { setActiveCategory('POTENCIA'); setSelectedTags([]); setFotoFilter('all'); }}
+                  onClick={() => { setActiveCategory('POTENCIA'); }}
                   className={`py-3 px-4 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
                     activeCategory === 'POTENCIA' 
                     ? 'bg-[#1F3864] border-[#1F3864] text-white shadow-md' 
@@ -987,7 +987,7 @@ export const RegistroFotos: React.FC = () => {
             <label className="block text-xs font-bold text-gray-500 uppercase mb-3">1. Seleccionar Categoría a buscar</label>
             <div className="grid grid-cols-2 gap-3 shrink-0">
               <button
-                onClick={() => { setActiveCategory('INSTRUMENTACION'); setAutoPreviews([]); setSelectedAutoTagFilter(null); setAutoStatusFilter('all'); }}
+                onClick={() => { setActiveCategory('INSTRUMENTACION'); }}
                 className={`py-3 px-4 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
                   activeCategory === 'INSTRUMENTACION' 
                   ? 'bg-[#1F3864] border-[#1F3864] text-white shadow-md' 
@@ -998,7 +998,7 @@ export const RegistroFotos: React.FC = () => {
                 INSTRUMENTACIÓN
               </button>
               <button
-                onClick={() => { setActiveCategory('POTENCIA'); setAutoPreviews([]); setSelectedAutoTagFilter(null); setAutoStatusFilter('all'); }}
+                onClick={() => { setActiveCategory('POTENCIA'); }}
                 className={`py-3 px-4 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest border-2 flex items-center justify-center gap-2 ${
                   activeCategory === 'POTENCIA' 
                   ? 'bg-[#1F3864] border-[#1F3864] text-white shadow-md' 
@@ -1362,7 +1362,7 @@ export const RegistroFotos: React.FC = () => {
                 </div>
 
                 {/* Botones de acción */}
-                <div className="pt-2">
+                <div className="pt-2 flex flex-col gap-2">
                   <Button
                     onClick={handleSaveAutoLot}
                     variant="primary"
@@ -1379,6 +1379,18 @@ export const RegistroFotos: React.FC = () => {
                       </>
                     )}
                   </Button>
+                  <Button
+                    onClick={() => {
+                      setAutoPreviews([]);
+                      setSelectedAutoTagFilter(null);
+                    }}
+                    variant="danger"
+                    disabled={autoPreviews.length === 0 || isProcessingAuto}
+                    className="w-full font-bold uppercase tracking-wide flex items-center justify-center gap-2 py-2 border border-red-200"
+                  >
+                    <Trash2 size={14} className="stroke-[3]" /> Limpiar Todas las Fotos
+                  </Button>
+                  
                   {autoPreviews.filter(p => p.status !== 'success').length > 0 && (
                     <p className="text-[10px] text-yellow-800 font-semibold mt-2 text-center bg-yellow-55 p-1.5 rounded border border-yellow-200">
                       💡 Algunas fotos no coinciden o exceden el límite de 4 fotos por TAG y no serán guardadas hasta que las corrijas o asignes manualmente en la lista.

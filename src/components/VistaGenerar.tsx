@@ -384,8 +384,8 @@ export const VistaGenerar: React.FC = () => {
          id_perfil: activeProfile.ID_PERFIL
        });
        
-       // Guardar el conteo específico para el técnico
-       await saveConteoExportacion(tag);
+       // Guardar el conteo
+       await saveConteoExportacion(tag, tipo);
     }
   };
 

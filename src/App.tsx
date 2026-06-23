@@ -15,14 +15,14 @@ import { InteractiveTour } from './components/InteractiveTour';
 type Tab = 'admin' | 'nuevo' | 'fotos' | 'galeria' | 'perfiles' | 'generar' | 'historial' | 'dashboard';
 
 export default function App() {
-  const { session, signOut, loadData, rolePermissions, isInitialized, appSettings } = useAppStore();
+  const { session, signOut, loadData, rolePermissions, isInitialized, appSettings, setProyectoActivo, proyectoActivoId, proyectos, cargarProyectos } = useAppStore();
   const [activeTab, setActiveTab] = useState<Tab>('perfiles');
   const [showLearningBanner, setShowLearningBanner] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => { 
-    loadData().catch(err => console.error('Error loading data:', err)); 
-  }, [loadData]);
+    cargarProyectos().then(() => loadData()).catch(err => console.warn('Aviso de carga de datos:', err)); 
+  }, [cargarProyectos, loadData]);
 
   useEffect(() => {
     if (appSettings?.learningMode) {
@@ -111,6 +111,21 @@ export default function App() {
            </h1>
         </div>
 
+        {/* Project Selector */}
+        <div className="px-4 py-3 shrink-0 border-b border-white/10">
+          <label className="block text-[10px] font-bold text-white/60 uppercase tracking-widest mb-1.5 ml-1">Proyecto Activo</label>
+          <select 
+            className="w-full bg-white/10 border border-white/20 text-white text-sm rounded-lg p-2 focus:ring-1 focus:ring-white/50 focus:border-white/50 transition-colors cursor-pointer appearance-none"
+            value={proyectoActivoId || ''}
+            onChange={(e) => setProyectoActivo(e.target.value || null)}
+          >
+            <option value="" className="text-gray-900">-- Selecciona un Proyecto --</option>
+            {proyectos.map(p => (
+              <option key={p.id} value={p.id} className="text-gray-900">{p.nombre}</option>
+            ))}
+          </select>
+        </div>
+
         <nav className="flex-1 overflow-y-auto custom-scrollbar py-4 px-2 space-y-1">
           {filteredNav.map(({ id, icon: Icon, label }) => {
             const isActive = activeTab === id;
@@ -186,26 +201,45 @@ export default function App() {
 
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-[var(--color-surface)] p-4 md:p-[var(--spacing-margin-desktop)] custom-scrollbar">
           <div className="max-w-7xl mx-auto w-full h-full relative">
-            <div className={activeTab === 'admin' ? 'block animate-in fade-in slide-in-from-bottom-2 duration-300 h-full' : 'hidden'}><Admin /></div>
-            <div className={activeTab === 'dashboard' ? 'block animate-in fade-in slide-in-from-bottom-2 duration-300 h-full' : 'hidden'}><Dashboard /></div>
-            <div className={activeTab === 'nuevo' ? 'block animate-in fade-in slide-in-from-bottom-2 duration-300 h-full' : 'hidden'}><NuevoRegistro /></div>
-            <div className={activeTab === 'fotos' ? 'block animate-in fade-in slide-in-from-bottom-2 duration-300 h-full' : 'hidden'}><RegistroFotos /></div>
-            <div className={activeTab === 'galeria' ? 'block animate-in fade-in slide-in-from-bottom-2 duration-300 h-full' : 'hidden'}><GaleriaFotos /></div>
-            <div className={activeTab === 'perfiles' ? 'block animate-in fade-in slide-in-from-bottom-2 duration-300 h-full' : 'hidden'}><ListaPerfiles /></div>
-            <div className={activeTab === 'historial' ? 'block animate-in fade-in slide-in-from-bottom-2 duration-300 h-full' : 'hidden'}>
-              {session.user.email === '3usajanpapo6@gmail.com' ? (
-                <Historial />
-              ) : (
-                <div className="flex flex-col items-center justify-center p-20 text-center space-y-4">
-                  <Database size={48} className="text-[var(--color-error)] opacity-50" />
-                  <div className="space-y-1">
-                    <h3 className="font-headline-md text-[var(--color-on-surface)]">Acceso Restringido</h3>
-                    <p className="font-body-base text-[var(--color-on-surface-variant)] max-w-xs">El historial está reservado exclusivamente para el Administrador Maestro.</p>
-                  </div>
+            {!proyectoActivoId && activeTab !== 'admin' ? (
+              <div className="flex flex-col items-center justify-center h-full text-center p-10 animate-in fade-in slide-in-from-bottom-2">
+                <div className="w-24 h-24 mb-6 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center">
+                  <Database size={48} />
                 </div>
-              )}
-            </div>
-            <div className={activeTab === 'generar' ? 'block animate-in fade-in slide-in-from-bottom-2 duration-300 h-full' : 'hidden'}><VistaGenerar /></div>
+                <h2 className="text-3xl font-bold text-gray-800 mb-3 hover:text-blue-600 transition-colors">Selecciona un Proyecto</h2>
+                <p className="text-gray-500 max-w-md mx-auto text-lg leading-relaxed">
+                  Para comenzar a gestionar perfiles, fotos y registros, debes seleccionar o crear un proyecto maestro en la barra lateral.
+                </p>
+                {session.role === 'ADMIN' && (
+                  <button onClick={() => setActiveTab('admin')} className="mt-8 bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-sm">
+                    Ir al Panel de Administración
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className={activeTab === 'admin' ? 'block animate-in fade-in slide-in-from-bottom-2 duration-300 h-full' : 'hidden'}><Admin /></div>
+                <div className={activeTab === 'dashboard' ? 'block animate-in fade-in slide-in-from-bottom-2 duration-300 h-full' : 'hidden'}><Dashboard /></div>
+                <div className={activeTab === 'nuevo' ? 'block animate-in fade-in slide-in-from-bottom-2 duration-300 h-full' : 'hidden'}><NuevoRegistro /></div>
+                <div className={activeTab === 'fotos' ? 'block animate-in fade-in slide-in-from-bottom-2 duration-300 h-full' : 'hidden'}><RegistroFotos /></div>
+                <div className={activeTab === 'galeria' ? 'block animate-in fade-in slide-in-from-bottom-2 duration-300 h-full' : 'hidden'}><GaleriaFotos /></div>
+                <div className={activeTab === 'perfiles' ? 'block animate-in fade-in slide-in-from-bottom-2 duration-300 h-full' : 'hidden'}><ListaPerfiles /></div>
+                <div className={activeTab === 'historial' ? 'block animate-in fade-in slide-in-from-bottom-2 duration-300 h-full' : 'hidden'}>
+                  {session.user.email === '3usajanpapo6@gmail.com' ? (
+                    <Historial />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center p-20 text-center space-y-4">
+                      <Database size={48} className="text-[var(--color-error)] opacity-50" />
+                      <div className="space-y-1">
+                        <h3 className="font-headline-md text-[var(--color-on-surface)]">Acceso Restringido</h3>
+                        <p className="font-body-base text-[var(--color-on-surface-variant)] max-w-xs">El historial está reservado exclusivamente para el Administrador Maestro.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className={activeTab === 'generar' ? 'block animate-in fade-in slide-in-from-bottom-2 duration-300 h-full' : 'hidden'}><VistaGenerar /></div>
+              </>
+            )}
           </div>
         </main>
       </div>

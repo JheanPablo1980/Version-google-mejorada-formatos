@@ -17,7 +17,10 @@ import {
   Package,
   User as UserIcon,
   Sliders,
-  Zap
+  Zap,
+  Shield,
+  Activity,
+  CheckCircle2
 } from 'lucide-react';
 import { format, isWithinInterval, parseISO, startOfDay, endOfDay } from 'date-fns';
 
@@ -44,9 +47,12 @@ export function Dashboard() {
   }, [conteoExportacion, startDate, endDate, selectedTag, selectedRole]);
 
   // Contar exportaciones clasificados por tabla (Instrumentos vs Potencia)
-  const exportsByType = useMemo(() => {
+  const { exportsByType, adminExports, exportFormats } = useMemo(() => {
     let instrumentacion = 0;
     let potencia = 0;
+    let adminExp = 0;
+    let pdfCount = 0;
+    let excelCount = 0;
     
     const instTagnames = new Set(instrumentos.map(i => i.TAGNAME));
     const potTags = new Set(potenciaEquipos.map(p => p.TAG));
@@ -57,9 +63,21 @@ export function Dashboard() {
       } else if (potTags.has(log.tag)) {
         potencia += log.conteo;
       }
+      if (log.user_role === 'ADMIN') {
+        adminExp += log.conteo;
+      }
+      if (log.formato === 'PDF') {
+        pdfCount += log.conteo;
+      } else if (log.formato === 'EXCEL') {
+        excelCount += log.conteo;
+      }
     });
     
-    return { instrumentacion, potencia };
+    return { 
+      exportsByType: { instrumentacion, potencia }, 
+      adminExports: adminExp,
+      exportFormats: { pdf: pdfCount, excel: excelCount }
+    };
   }, [filteredConteos, instrumentos, potenciaEquipos]);
 
   // Lista de tags únicos que han sido exportados
@@ -105,6 +123,54 @@ export function Dashboard() {
       .map(([tag, count]) => ({ tag, count }))
       .sort((a, b) => b.count - a.count);
   }, [filteredConteos]);
+
+  // Totales por Usuario
+  const userStats = useMemo(() => {
+    const stats = new Map<string, number>();
+    filteredConteos.forEach(log => {
+      if (log.user_email) {
+        stats.set(log.user_email, (stats.get(log.user_email) || 0) + log.conteo);
+      }
+    });
+    return Array.from(stats.entries())
+      .map(([email, count]) => ({ email, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5); // Top 5
+  }, [filteredConteos]);
+
+  // Distribución por Rol
+  const roleStats = useMemo(() => {
+    const stats = new Map<string, number>();
+    filteredConteos.forEach(log => {
+      if (log.user_role) {
+        stats.set(log.user_role, (stats.get(log.user_role) || 0) + log.conteo);
+      }
+    });
+    return Array.from(stats.entries()).map(([name, value]) => ({ name, value }));
+  }, [filteredConteos]);
+
+  // Cobertura (cuántos tags se han exportado al menos 1 vez)
+  const coverage = useMemo(() => {
+    const exportedInst = new Set<string>();
+    const exportedPot = new Set<string>();
+    
+    const instTagnames = new Set(instrumentos.map(i => i.TAGNAME));
+    const potTags = new Set(potenciaEquipos.map(p => p.TAG));
+
+    filteredConteos.forEach(log => {
+      if (instTagnames.has(log.tag)) exportedInst.add(log.tag);
+      else if (potTags.has(log.tag)) exportedPot.add(log.tag);
+    });
+
+    return {
+      instTotal: instrumentos.length,
+      instExported: exportedInst.size,
+      instPercent: instrumentos.length ? (exportedInst.size / instrumentos.length) * 100 : 0,
+      potTotal: potenciaEquipos.length,
+      potExported: exportedPot.size,
+      potPercent: potenciaEquipos.length ? (exportedPot.size / potenciaEquipos.length) * 100 : 0
+    };
+  }, [filteredConteos, instrumentos, potenciaEquipos]);
 
   const totalExports = filteredConteos.reduce((acc, curr) => acc + curr.conteo, 0);
 
@@ -169,7 +235,7 @@ export function Dashboard() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
         <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex items-center gap-4 group hover:border-blue-200 transition-all justify-center">
           <div className="p-3 bg-blue-50 rounded-xl text-blue-600 group-hover:scale-110 transition-transform">
             <BarChart3 size={24} />
@@ -185,7 +251,7 @@ export function Dashboard() {
             <Sliders size={24} />
           </div>
           <div>
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Instrumentación</p>
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Inst.</p>
             <p className="text-3xl font-black text-emerald-600 leading-none mt-1">{exportsByType.instrumentacion}</p>
           </div>
         </div>
@@ -197,6 +263,36 @@ export function Dashboard() {
           <div>
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Potencia</p>
             <p className="text-3xl font-black text-amber-600 leading-none mt-1">{exportsByType.potencia}</p>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex items-center gap-4 group hover:border-red-200 transition-all justify-center">
+          <div className="p-3 bg-red-50 rounded-xl text-red-600 group-hover:scale-110 transition-transform">
+            <FileText size={24} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">PDF</p>
+            <p className="text-3xl font-black text-red-600 leading-none mt-1">{exportFormats.pdf}</p>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex items-center gap-4 group hover:border-green-200 transition-all justify-center">
+          <div className="p-3 bg-green-50 rounded-xl text-green-600 group-hover:scale-110 transition-transform">
+            <FileSpreadsheet size={24} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Excel</p>
+            <p className="text-3xl font-black text-green-600 leading-none mt-1">{exportFormats.excel}</p>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex items-center gap-4 group hover:border-purple-200 transition-all justify-center">
+          <div className="p-3 bg-purple-50 rounded-xl text-purple-600 group-hover:scale-110 transition-transform">
+            <Shield size={24} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Admin</p>
+            <p className="text-3xl font-black text-purple-600 leading-none mt-1">{adminExports}</p>
           </div>
         </div>
       </div>
@@ -265,6 +361,115 @@ export function Dashboard() {
                   <span className="text-xs font-black text-blue-700">{item.count}</span>
                 </div>
               ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Otras métricas: Usuarios, Cobertura, Roles */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Top Usuarios */}
+        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col">
+          <h3 className="text-sm font-black text-[#1F3864] uppercase tracking-widest mb-4 flex items-center gap-2">
+            <UserIcon size={18} className="text-purple-500" /> Usuarios Más Activos
+          </h3>
+          <div className="space-y-3">
+            {userStats.length === 0 ? (
+              <p className="text-xs text-gray-400 font-medium py-4 text-center">Sin datos en el rango</p>
+            ) : (
+              userStats.map((user, idx) => (
+                <div key={user.email} className="flex flex-col gap-1">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-gray-700 truncate pr-2" title={user.email}>
+                      {user.email.split('@')[0]}
+                    </span>
+                    <span className="text-xs font-black text-purple-700">{user.count}</span>
+                  </div>
+                  <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                    <div 
+                      className="bg-purple-500 h-full rounded-full"
+                      style={{ width: `${(user.count / userStats[0].count) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Cobertura */}
+        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col">
+          <h3 className="text-sm font-black text-[#1F3864] uppercase tracking-widest mb-4 flex items-center gap-2">
+            <CheckCircle2 size={18} className="text-emerald-500" /> Cobertura Datos
+          </h3>
+          <div className="space-y-6">
+            <div>
+              <div className="flex justify-between items-end mb-1">
+                <span className="text-xs font-bold text-gray-500">Inst. Exportados</span>
+                <span className="text-sm font-black text-emerald-600">
+                  {coverage.instExported} <span className="text-[10px] text-gray-400 font-medium">/ {coverage.instTotal}</span>
+                </span>
+              </div>
+              <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden relative">
+                <div 
+                  className="bg-emerald-500 h-full rounded-full transition-all"
+                  style={{ width: `${coverage.instPercent}%` }}
+                />
+              </div>
+              <p className="text-[10px] text-right mt-1 font-bold text-gray-400">{coverage.instPercent.toFixed(1)}%</p>
+            </div>
+            
+            <div>
+              <div className="flex justify-between items-end mb-1">
+                <span className="text-xs font-bold text-gray-500">Pot. Exportados</span>
+                <span className="text-sm font-black text-amber-600">
+                  {coverage.potExported} <span className="text-[10px] text-gray-400 font-medium">/ {coverage.potTotal}</span>
+                </span>
+              </div>
+              <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden relative">
+                <div 
+                  className="bg-amber-500 h-full rounded-full transition-all"
+                  style={{ width: `${coverage.potPercent}%` }}
+                />
+              </div>
+              <p className="text-[10px] text-right mt-1 font-bold text-gray-400">{coverage.potPercent.toFixed(1)}%</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Roles Distribution */}
+        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col">
+          <h3 className="text-sm font-black text-[#1F3864] uppercase tracking-widest mb-4 flex items-center gap-2">
+            <Shield size={18} className="text-blue-400" /> Por Rol
+          </h3>
+          <div className="flex-1 flex justify-center items-center">
+            {roleStats.length === 0 ? (
+              <p className="text-xs text-gray-400 font-medium py-4 text-center">Sin datos en el rango</p>
+            ) : (
+              <div className="h-[140px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '10px', fontWeight: 'bold' }}
+                      formatter={(val: number) => [val, 'Exp.']}
+                    />
+                    <Pie
+                      data={roleStats}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={40}
+                      outerRadius={60}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {roleStats.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             )}
           </div>
         </div>
